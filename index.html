@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Placar de quadra por comando de voz: tênis, beach tennis, padel, peteca e pontos corridos.">
+<title>Canta Placar</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Ícones outline (traço 1.75, cantos arredondados) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></symbol>
+    <symbol id="i-mic-off" viewBox="0 0 24 24"><path d="M15 9.3V5.5a3 3 0 0 0-5.6-1.5"/><path d="M9 9v2.5a3 3 0 0 0 5 2.2"/><path d="M18.5 11a6.5 6.5 0 0 1-.9 3.3M5.5 11a6.5 6.5 0 0 0 10.4 5.2"/><path d="M12 17.5V21"/><path d="m3 3 18 18"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
+    <symbol id="i-tv" viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><path d="m8 2.5 4 4 4-4"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V11"/><path d="M10 20V5"/><path d="M16 20v-6"/><path d="M21 20H3"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.3a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.3h.01"/></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 13h.01M17 13h.01M9 14.5h6"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 3.5 3.5 7 7 10.5"/><path d="M3.5 7h17"/><path d="m17 13.5 3.5 3.5-3.5 3.5"/><path d="M20.5 17h-17"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5 4.5-4.5"/><path d="M4.5 20.5h15"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6.5h16"/><path d="M9 6.5V4.5h6v2"/><path d="M18 6.5 17.2 20H6.8L6 6.5"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8.5 3.5h-3a2 2 0 0 0-2 2v3M20.5 8.5v-3a2 2 0 0 0-2-2h-3M3.5 15.5v3a2 2 0 0 0 2 2h3M15.5 20.5h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-window" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M3 9h18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6.5 9.5 17 4 11.5"/></symbol>
+    <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><path d="m8.5 14 -1.5 7 5-2.8 5 2.8-1.5-7"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6a8 8 0 0 1 0 12"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3.5 4v4h4"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M11 10V4a1.5 1.5 0 0 1 3 0v6"/><path d="M14 10V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6.5 6.5 0 0 1-5-2.4L3 16.5a1.5 1.5 0 0 1 2.3-2L8 17"/></symbol>
+    <!-- esportes -->
+    <symbol id="s-tenis" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.4 5.8a9 9 0 0 1 0 12.4"/><path d="M18.6 5.8a9 9 0 0 0 0 12.4"/></symbol>
+    <symbol id="s-beach" viewBox="0 0 24 24"><circle cx="15.5" cy="7" r="3"/><path d="M3 21c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 4.5 0"/><path d="M4 16.5c1.5-1 3-1 4.5 0s3 1 4.5 0"/><path d="m4.5 3.5 4 9"/></symbol>
+    <symbol id="s-padel" viewBox="0 0 24 24"><path d="M12 2.5a6.5 6.5 0 0 1 6.5 6.5c0 3.3-2.3 5.7-4.8 6.3L13 21.5h-2l-.7-6.2C7.8 14.7 5.5 12.3 5.5 9A6.5 6.5 0 0 1 12 2.5Z"/><path d="M10 7h.01M14 7h.01M12 9.5h.01M10 12h.01M14 12h.01"/></symbol>
+    <symbol id="s-peteca" viewBox="0 0 24 24"><path d="M8.5 17h7l-1 4h-5z"/><path d="M8.5 17 5 3.5M15.5 17 19 3.5M12 17V3M10.2 17 8.5 4M13.8 17l1.7-13"/></symbol>
+    <symbol id="s-futevolei" viewBox="0 0 24 24"><circle cx="16" cy="6" r="3.5"/><path d="M3 20.5h18"/><path d="M5 17.5c1.6-2.2 3.6-3.3 6-3.3 1.4 0 2.6.3 3.7 1"/><path d="m9 14.2 1.5-4.7"/></symbol>
+    <symbol id="s-rally" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3c2.6 2.2 4 5.3 4 9"/><path d="M3.6 9.2c3.3-.6 6.6.3 8.4 2.8 1.7 2.5 1.7 5.8.5 8.9"/><path d="M20.6 15.3c-3 1.4-6.4 1.2-8.6-.7"/></symbol>
+  </defs>
+</svg>
+
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand" aria-label="Canta Placar">
+      <span class="brand-mark" aria-hidden="true"><svg><use href="#i-mic"/></svg></span>
+      <span class="brand-name">Canta</span>
+    </div>
+    <button class="match-chip" id="matchChip" type="button" title="Formato da partida">
+      <svg class="ico" aria-hidden="true"><use id="matchChipIcon" href="#s-beach"/></svg>
+      <span id="matchChipText">Beach Tennis</span>
+    </button>
+    <nav class="top-actions" aria-label="Ações">
+      <button class="icon-btn" id="btnTv" type="button" title="Modo TV (T)"><svg><use href="#i-tv"/></svg></button>
+      <button class="icon-btn" id="btnStats" type="button" title="Estatísticas"><svg><use href="#i-chart"/></svg></button>
+      <button class="icon-btn" id="btnLog" type="button" title="Lances"><svg><use href="#i-list"/></svg></button>
+      <button class="icon-btn" id="btnNew" type="button" title="Nova partida"><svg><use href="#i-plus"/></svg></button>
+      <button class="icon-btn" id="btnPrefs" type="button" title="Ajustes"><svg><use href="#i-sliders"/></svg></button>
+    </nav>
+    <button class="icon-btn tv-exit" id="btnTvExit" type="button" title="Sair do modo TV (Esc)"><svg><use href="#i-x"/></svg></button>
+  </header>
+
+  <main class="stage">
+    <section class="board" id="board" aria-live="polite">
+      <div class="board-head" aria-hidden="true">
+        <span class="head-format" id="headFormat"></span>
+        <span class="sets head-sets" id="headSets"></span>
+        <span class="head-game" id="headGame">Game</span>
+      </div>
+      <button class="team" data-team="0" type="button" aria-label="Marcar ponto">
+        <span class="team-id">
+          <span class="team-name"><span class="name-text"></span><svg class="serve" aria-label="Sacando"><use href="#s-tenis"/></svg></span>
+          <span class="team-players"></span>
+        </span>
+        <span class="sets"></span>
+        <span class="game"><span class="game-val"></span></span>
+      </button>
+      <button class="team" data-team="1" type="button" aria-label="Marcar ponto">
+        <span class="team-id">
+          <span class="team-name"><span class="name-text"></span><svg class="serve" aria-label="Sacando"><use href="#s-tenis"/></svg></span>
+          <span class="team-players"></span>
+        </span>
+        <span class="sets"></span>
+        <span class="game"><span class="game-val"></span></span>
+      </button>
+    </section>
+    <div class="chips" id="chips" aria-live="polite"></div>
+  </main>
+
+  <footer class="dock" id="dock">
+    <button class="voice" id="voice" type="button" data-state="off">
+      <span class="voice-ico" aria-hidden="true">
+        <svg class="v-mic"><use href="#i-mic"/></svg>
+        <span class="v-bars"><i></i><i></i><i></i><i></i></span>
+      </span>
+      <span class="voice-text">
+        <b id="voiceState">Microfone desligado</b>
+        <span id="voiceHeard">Toque no microfone e diga “ponto azul”</span>
+      </span>
+      <span class="voice-result" id="voiceResult" hidden></span>
+    </button>
+    <form class="typer" id="typer" hidden>
+      <input id="typeInput" type="text" autocomplete="off" enterkeyhint="send" placeholder="Digite um comando, ex.: ponto azul ace">
+      <button class="btn" type="submit">Enviar</button>
+    </form>
+    <div class="dock-row">
+      <button class="dock-btn" id="btnHelp" type="button"><svg><use href="#i-help"/></svg><span>Comandos</span></button>
+      <button class="dock-btn" id="btnUndo" type="button"><svg><use href="#i-undo"/></svg><span>Desfazer</span></button>
+      <button class="mic-btn" id="btnMic" type="button" aria-pressed="false" title="Ligar microfone (espaço)">
+        <svg class="on"><use href="#i-mic"/></svg><svg class="off"><use href="#i-mic-off"/></svg>
+      </button>
+      <button class="dock-btn" id="btnRedo" type="button"><svg><use href="#i-redo"/></svg><span>Refazer</span></button>
+      <button class="dock-btn" id="btnType" type="button" aria-pressed="false"><svg><use href="#i-keyboard"/></svg><span>Digitar</span></button>
+    </div>
+  </footer>
+</div>
+
+<div class="banner" id="banner" aria-live="assertive">
+  <div class="banner-card">
+    <div class="banner-title" id="bannerTitle"></div>
+    <div class="banner-sub" id="bannerSub"></div>
+    <div class="banner-side" id="bannerSide" hidden><svg><use href="#i-swap"/></svg>Troca de lado</div>
+  </div>
+</div>
+
+<!-- Nova partida -->
+<dialog class="sheet" id="sheetNew" aria-labelledby="newTitle">
+  <form method="dialog" class="sheet-form" id="formNew">
+    <header class="sheet-head">
+      <h2 id="newTitle" tabindex="-1" autofocus>Nova partida</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body">
+      <section class="group">
+        <h3>Esporte</h3>
+        <div class="sports" id="sportPick">
+          <label class="sport"><input type="radio" name="sport" value="tenis"><svg><use href="#s-tenis"/></svg><b>Tênis</b><small>Vantagem</small></label>
+          <label class="sport"><input type="radio" name="sport" value="beach"><svg><use href="#s-beach"/></svg><b>Beach Tennis</b><small>No-Ad</small></label>
+          <label class="sport"><input type="radio" name="sport" value="padel"><svg><use href="#s-padel"/></svg><b>Padel</b><small>Star point</small></label>
+          <label class="sport"><input type="radio" name="sport" value="peteca"><svg><use href="#s-peteca"/></svg><b>Peteca</b><small>21, teto 25</small></label>
+          <label class="sport"><input type="radio" name="sport" value="volei"><svg><use href="#s-rally"/></svg><b>Vôlei de praia</b><small>21 · 21 · 15</small></label>
+          <label class="sport"><input type="radio" name="sport" value="futevolei"><svg><use href="#s-futevolei"/></svg><b>Futevôlei</b><small>Set de 18</small></label>
+        </div>
+      </section>
+
+      <section class="group">
+        <h3>Formato</h3>
+        <div class="list">
+          <div class="row"><span>Sets</span>
+            <div class="seg" role="radiogroup" aria-label="Sets">
+              <label><input type="radio" name="setsToWin" value="1"><span>1 set</span></label>
+              <label><input type="radio" name="setsToWin" value="2"><span>Melhor de 3</span></label>
+              <label><input type="radio" name="setsToWin" value="3"><span>Melhor de 5</span></label>
+            </div>
+          </div>
+          <div class="row k-games"><span>Games por set</span>
+            <div class="seg" role="radiogroup" aria-label="Games por set">
+              <label><input type="radio" name="gamesPerSet" value="4"><span>4</span></label>
+              <label><input type="radio" name="gamesPerSet" value="6"><span>6</span></label>
+              <label><input type="radio" name="gamesPerSet" value="8"><span>8</span></label>
+            </div>
+          </div>
+          <div class="row k-games"><span>No 40-40</span>
+            <div class="seg" role="radiogroup" aria-label="Regra do 40-40">
+              <label><input type="radio" name="deuce" value="ad"><span>Vantagem</span></label>
+              <label><input type="radio" name="deuce" value="golden"><span>Ponto de ouro</span></label>
+              <label><input type="radio" name="deuce" value="star"><span>Star point</span></label>
+            </div>
+          </div>
+          <div class="row k-games k-multi"><span>Set decisivo</span>
+            <div class="seg" role="radiogroup" aria-label="Set decisivo">
+              <label><input type="radio" name="decider" value="set"><span>Set normal</span></label>
+              <label><input type="radio" name="decider" value="supertb"><span>Super tiebreak</span></label>
+              <label><input type="radio" name="decider" value="tb10"><span>Tiebreak de 10</span></label>
+            </div>
+          </div>
+          <div class="row k-rally k-peteca"><span>Regra</span>
+            <div class="seg" role="radiogroup" aria-label="Regra da peteca">
+              <label><input type="radio" name="petecaRule" value="cbp2026"><span>CBP 2026</span></label>
+              <label><input type="radio" name="petecaRule" value="peteca2020"><span>Antiga (25 corridos)</span></label>
+            </div>
+          </div>
+          <div class="row k-rally"><span>Set até</span>
+            <div class="pair">
+              <select id="pointsToWin" name="pointsToWin" aria-label="Pontos por set"><option>11</option><option>12</option><option>15</option><option>18</option><option>21</option><option>25</option></select>
+              <select id="cap" name="cap" aria-label="Teto do set"><option value="0">sem teto</option><option value="18">teto 18</option><option value="21">teto 21</option><option value="25">teto 25</option><option value="30">teto 30</option></select>
+            </div>
+          </div>
+          <div class="row k-rally k-multi"><span>Set decisivo até</span>
+            <div class="pair">
+              <select id="decidingSetPoints" name="decidingSetPoints" aria-label="Pontos do set decisivo"><option>11</option><option>12</option><option>15</option><option>18</option><option>21</option><option>25</option></select>
+              <select id="decidingCap" name="decidingCap" aria-label="Teto do set decisivo"><option value="0">sem teto</option><option value="18">teto 18</option><option value="21">teto 21</option><option value="25">teto 25</option><option value="30">teto 30</option></select>
+            </div>
+          </div>
+          <div class="row k-rally"><span>Diferença de 2 pontos</span>
+            <input class="switch" type="checkbox" id="winBy2" name="winBy2">
+          </div>
+          <div class="row k-rally"><span>Quem pontua</span>
+            <div class="seg" role="radiogroup" aria-label="Quem pontua">
+              <label><input type="radio" name="scoring" value="rally"><span>Todo rally</span></label>
+              <label><input type="radio" name="scoring" value="sideout"><span>Só quem saca</span></label>
+            </div>
+          </div>
+        </div>
+        <p class="hint" id="formatHint"></p>
+      </section>
+
+      <section class="group">
+        <h3>Times</h3>
+        <div class="list teams-edit">
+          <div class="team-edit" data-team="0">
+            <div class="swatches" role="radiogroup" aria-label="Cor do time 1"></div>
+            <input type="text" id="t0name" maxlength="24" placeholder="Nome do time" autocomplete="off">
+            <input type="text" id="t0players" maxlength="60" placeholder="Jogadores (opcional): Ana, Bia" autocomplete="off">
+          </div>
+          <div class="team-edit" data-team="1">
+            <div class="swatches" role="radiogroup" aria-label="Cor do time 2"></div>
+            <input type="text" id="t1name" maxlength="24" placeholder="Nome do time" autocomplete="off">
+            <input type="text" id="t1players" maxlength="60" placeholder="Jogadores (opcional): Caio, Duda" autocomplete="off">
+          </div>
+        </div>
+        <p class="hint" id="aliasHint"></p>
+      </section>
+
+      <section class="group">
+        <h3>Quem saca primeiro</h3>
+        <div class="seg seg-wide" role="radiogroup" aria-label="Quem saca primeiro">
+          <label><input type="radio" name="firstServer" value="0"><span id="fs0">Azul</span></label>
+          <label><input type="radio" name="firstServer" value="1"><span id="fs1">Laranja</span></label>
+        </div>
+      </section>
+
+      <p class="form-error" id="newError" role="alert" hidden></p>
+      <button class="btn-primary" type="submit" id="btnStart">Começar partida</button>
+      <p class="hint center" id="newNote"></p>
+    </div>
+  </form>
+</dialog>
+
+<!-- Ajustes -->
+<dialog class="sheet" id="sheetPrefs" aria-labelledby="prefsTitle">
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="prefsTitle" tabindex="-1" autofocus>Ajustes</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body">
+      <section class="group">
+        <h3>Voz</h3>
+        <div class="list">
+          <label class="row"><span>Anunciar o placar em voz alta</span><input class="switch" type="checkbox" id="pTts"></label>
+          <label class="row"><span>Bipe ao entender um comando</span><input class="switch" type="checkbox" id="pBeep"></label>
+          <label class="row"><span>Exigir “placar” antes do comando<small>Para quadra barulhenta: “placar, ponto azul”</small></span><input class="switch" type="checkbox" id="pWake"></label>
+          <div class="row"><span>Intervalo mínimo entre pontos<small>Evita contar duas vezes quando os dois gritam</small></span>
+            <div class="seg" role="radiogroup" aria-label="Intervalo mínimo">
+              <label><input type="radio" name="cooldown" value="1"><span>1 s</span></label>
+              <label><input type="radio" name="cooldown" value="2"><span>2 s</span></label>
+              <label><input type="radio" name="cooldown" value="4"><span>4 s</span></label>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="group">
+        <h3>Motor de voz</h3>
+        <div class="list">
+          <div class="row"><span>Reconhecimento<small id="engineNote"></small></span>
+            <div class="seg" role="radiogroup" aria-label="Motor de voz">
+              <label><input type="radio" name="engine" value="auto"><span>Automático</span></label>
+              <label><input type="radio" name="engine" value="web"><span>Navegador</span></label>
+              <label><input type="radio" name="engine" value="vosk"><span>Offline</span></label>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="group" id="localGroup">
+        <h3>Voz offline do Chrome (computador)</h3>
+        <div class="list">
+          <div class="row"><span id="localStatus">Verificando…<small></small></span><button class="btn" type="button" id="btnLocal" hidden>Baixar português</button></div>
+          <label class="row" id="localRow" hidden><span>Usar reconhecimento no aparelho</span><input class="switch" type="checkbox" id="pLocal"></label>
+        </div>
+      </section>
+      <section class="group">
+        <h3>Tela</h3>
+        <div class="list">
+          <div class="row"><span>Tema</span>
+            <div class="seg" role="radiogroup" aria-label="Tema">
+              <label><input type="radio" name="theme" value="system"><span>Sistema</span></label>
+              <label><input type="radio" name="theme" value="light"><span>Claro</span></label>
+              <label><input type="radio" name="theme" value="dark"><span>Escuro</span></label>
+            </div>
+          </div>
+          <label class="row"><span>Manter a tela ligada</span><input class="switch" type="checkbox" id="pAwake"></label>
+          <div class="row"><span>Placar numa segunda janela<small>Arraste para a TV ligada no notebook</small></span><button class="btn" type="button" id="btnWindow"><svg><use href="#i-window"/></svg>Abrir</button></div>
+        </div>
+      </section>
+      <section class="group">
+        <h3>Partidas anteriores</h3>
+        <div class="list" id="historyList"></div>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<!-- Lances -->
+<dialog class="sheet" id="sheetLog" aria-labelledby="logTitle">
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="logTitle" tabindex="-1" autofocus>Lances</h2>
+      <div class="head-actions">
+        <button class="btn" type="button" id="btnCsv"><svg><use href="#i-download"/></svg>CSV</button>
+        <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+      </div>
+    </header>
+    <div class="sheet-body">
+      <ol class="log" id="logList"></ol>
+    </div>
+  </div>
+</dialog>
+
+<!-- Estatísticas -->
+<dialog class="sheet" id="sheetStats" aria-labelledby="statsTitle">
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="statsTitle" tabindex="-1" autofocus>Estatísticas</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="statsBody"></div>
+  </div>
+</dialog>
+
+<!-- Comandos -->
+<dialog class="sheet" id="sheetHelp" aria-labelledby="helpTitle">
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="helpTitle" tabindex="-1" autofocus>Comandos de voz</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="helpBody"></div>
+  </div>
+</dialog>
+
+<!-- Fim de jogo -->
+<dialog class="sheet" id="sheetEnd" aria-labelledby="endTitle">
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="endTitle" tabindex="-1" autofocus>Fim de jogo</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="endBody"></div>
+  </div>
+</dialog>
+
+<script src="engine.js"></script>
+<script src="grammar.js"></script>
+<script src="voice.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
