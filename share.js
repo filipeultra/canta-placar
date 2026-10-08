@@ -114,6 +114,36 @@
     });
   }
 
+  // Mascote (sticker) com balao de fala opcional. (x, y) = canto de cima do mascote; o balao fica acima dele.
+  function drawMascot(ctx, stk, x, y, size, dark) {
+    if (!stk || !stk.img) return;
+    const im = stk.img;
+    const r = Math.min(size / im.naturalWidth, size / im.naturalHeight);
+    const iw = im.naturalWidth * r, ih = im.naturalHeight * r;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = size * 0.06; ctx.shadowOffsetY = size * 0.02;
+    ctx.drawImage(im, x + (size - iw) / 2, y + (size - ih), iw, ih);
+    ctx.restore();
+    const text = (stk.text || '').trim();
+    if (!text) return;
+    const fs = size * 0.12;
+    ctx.save();
+    ctx.font = font(800, fs);
+    const tw = Math.min(ctx.measureText(text).width, size * 1.9);
+    const bw = tw + fs * 1.3, bh = fs * 1.75;
+    const bx = Math.max(8, x + size * 0.55 - bw), by = y - bh * 0.35;
+    ctx.fillStyle = dark ? '#FFFFFF' : '#101500';
+    ctx.shadowColor = 'rgba(0,0,0,0.18)'; ctx.shadowBlur = fs * 0.6;
+    rrect(ctx, bx, by, bw, bh, bh / 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(bx + bw - fs * 1.4, by + bh - 1); ctx.lineTo(bx + bw - fs * 0.5, by + bh + fs * 0.55); ctx.lineTo(bx + bw - fs * 0.5, by + bh - 1); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = dark ? '#101500' : '#FFFFFF';
+    fit(ctx, text, tw, 800, fs, 10);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, bx + fs * 0.65, by + bh / 2 + fs * 0.04);
+    ctx.restore();
+  }
+
   function headline(d) {
     if (d.winner != null) return 'Vitória ' + (d.teams[d.winner].name.length < 14 ? 'do ' + d.teams[d.winner].name : '');
     return 'Partida encerrada';
@@ -142,14 +172,16 @@
     ctx.fillText(headline(d).toUpperCase(), P, y);
     y += W * 0.03;
     const rowH = story ? W * 0.15 : W * 0.115;
-    scoreBlock(ctx, d, P, y, W - 2 * P, rowH, c);
+    const mSize = d.sticker ? rowH * 2.1 : 0;
+    scoreBlock(ctx, d, P, y, W - 2 * P - (mSize ? mSize * 0.92 : 0), rowH, c);
+    if (mSize) drawMascot(ctx, d.sticker, W - P - mSize + rowH * 0.15, y - rowH * 0.05, mSize, dark);
     y += rowH * 2 + (story ? H * 0.05 : H * 0.04);
     const cellH = story ? W * 0.2 : W * 0.15;
     const stats = d.stats.slice(0, story ? 6 : 3);
     statGrid(ctx, stats, P, y, W - 2 * P, 3, cellH, c);
     y += cellH * Math.ceil(stats.length / 3) + (story ? H * 0.04 : H * 0.02);
     const mh = H - y - H * (story ? 0.11 : 0.1);
-    if (mh > 60) momentum(ctx, P, y, W - 2 * P, mh, d.timeline, c.line, W * 0.008, c.fill);
+    if (mh > 60) momentum(ctx, P, y, W - 2 * P, mh, d.timeline, c.line, W * 0.0055, c.fill);
     ctx.fillStyle = c.label; ctx.font = font(600, W * 0.026); ctx.textBaseline = 'alphabetic';
     ctx.fillText(d.playersLine || '', P, H - H * 0.045);
   }
@@ -172,8 +204,9 @@
       y += step;
     }
     ctx.textAlign = 'left';
-    momentum(ctx, W * 0.2, y - step * 0.15, W * 0.6, story ? H * 0.08 : H * 0.12, d.timeline, '#FFFFFF', W * 0.008);
+    momentum(ctx, W * 0.2, y - step * 0.15, W * 0.6, story ? H * 0.08 : H * 0.12, d.timeline, '#FFFFFF', W * 0.0055);
     ctx.restore();
+    if (d.sticker) drawMascot(ctx, d.sticker, W * 0.62, story ? H * 0.6 : H * 0.6, W * 0.24, true);
     const s = W * 0.06;
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = W * 0.02;
     ctx.font = 'italic ' + font(900, s * 0.78);
@@ -201,7 +234,9 @@
     ctx.fillStyle = c.label; ctx.font = font(600, W * 0.032); ctx.textBaseline = 'alphabetic';
     ctx.fillText(d.sportLabel + ' · ' + d.dateText, P, y);
     y += W * 0.03;
-    scoreBlock(ctx, d, P, y, W - 2 * P, rowH, c);
+    const mSize = d.sticker ? rowH * 2.1 : 0;
+    scoreBlock(ctx, d, P, y, W - 2 * P - (mSize ? mSize * 0.92 : 0), rowH, c);
+    if (mSize) drawMascot(ctx, d.sticker, W - P - mSize + rowH * 0.15, y - rowH * 0.05, mSize, true);
     y += rowH * 2 + W * 0.04;
     statGrid(ctx, d.stats.slice(0, 3), P, y, W - 2 * P, 3, W * 0.15, c);
     if (!img) {
@@ -218,6 +253,7 @@
     const P = W * 0.08;
     const story = H > W * 1.2;
     wordmark(ctx, P, H * 0.06, W * 0.07, '#FFFFFF');
+    if (d.sticker) drawMascot(ctx, d.sticker, W - P - W * 0.3, story ? H * 0.09 : H * 0.1, W * 0.3, true);
     const m = d.mvp;
     let y = story ? H * 0.26 : H * 0.28;
     ctx.fillStyle = GREEN; ctx.font = font(800, W * 0.036); ctx.textBaseline = 'alphabetic';

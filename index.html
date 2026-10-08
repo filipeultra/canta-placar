@@ -331,6 +331,10 @@
         </div>
       </section>
       <section class="group">
+        <h3>ULTRA Pro</h3>
+        <div class="list"><div class="row"><span>Momento ponto a ponto e exportar dados<small>Demonstração, sem cobrança</small></span><button class="btn" type="button" id="btnPro"><svg><use href="#i-bolt"/></svg>Ver Pro</button></div></div>
+      </section>
+      <section class="group">
         <h3>Microfone</h3>
         <div class="list">
           <div class="row"><span>Entrada<small>Lapela sem fio ou fone perto da boca ouvem bem mais longe que o microfone do celular. Vale para a voz offline; a voz do navegador usa o microfone padrão do sistema.</small></span>
@@ -449,6 +453,11 @@
     <div class="sheet-body share-body">
       <div class="share-preview" id="sharePreview"><canvas id="shareCanvas" aria-label="Imagem da partida"></canvas></div>
       <div class="share-tpls" id="shareTpls" role="radiogroup" aria-label="Estilo"></div>
+      <div class="stk-block">
+        <span class="stk-title">Adicionar sticker</span>
+        <div class="stk-row" id="stickerPick"></div>
+        <div class="stk-text" id="stickerTextRow" hidden><input type="text" id="stickerText" maxlength="40" placeholder="Fala do mascote (deixe vazio para sem fala)"></div>
+      </div>
       <div class="share-row">
         <div class="seg" role="radiogroup" aria-label="Formato">
           <label><input type="radio" name="shareFmt" value="story" checked><span>Story</span></label>
@@ -479,11 +488,34 @@
   </div>
 </section>
 
+<!-- ULTRA Pro -->
+<section class="sheet sheet-small" id="sheetPro" role="dialog" aria-modal="true" aria-labelledby="proTitle" hidden>
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="proTitle" tabindex="-1">ULTRA Pro</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="proBody"></div>
+  </div>
+</section>
+
+<!-- Momento ponto a ponto (Pro) -->
+<section class="sheet" id="sheetMoment" role="dialog" aria-modal="true" aria-labelledby="momentTitle" hidden>
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="momentTitle" tabindex="-1">Momento ponto a ponto</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="momentBody"></div>
+  </div>
+</section>
+
 <div class="scrim" id="scrim" hidden></div>
 
 <script src="engine.js"></script>
 <script src="grammar.js"></script>
 <script src="stats.js"></script>
+<script src="demo.js"></script>
 <script src="share.js"></script>
 <script src="voice.js"></script>
 <script src="app.js"></script>

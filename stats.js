@@ -136,9 +136,15 @@
         const h = out.partners[k] || (out.partners[k] = { name: n, matches: 0, wins: 0, losses: 0 });
         h.matches++; if (won === true) h.wins++; if (won === false) h.losses++;
       }
+      // virada: maior desvantagem em pontos que o time tirou numa partida que venceu
+      const sign = t === 0 ? -1 : 1;
+      const deficit = Math.max(0, ...st.timeline.map(d => sign * d));
+      const zeroSet = st.state.sets.some(x => !x.matchTb && x.games[t] >= 6 && x.games[1 - t] === 0);
       out.recent.push({
         id: m.id, endedAt: m.endedAt || m.createdAt || 0, sport: st.cfg.sport, won, sets: setsFor(st, t), team: m.teams[t].name, opp: m.teams[1 - t].name,
+        oppPlayers: (m.teams[1 - t].players || []).join(' e '),
         pts: me.pts || 0, errors: (me.errors || 0) + (me.df || 0), aces: me.aces || 0, teamPts: st.teams[t].pts, oppPts: st.teams[1 - t].pts,
+        durationMs: st.durationMs, streak: st.teams[t].maxStreak, comeback: won === true ? deficit : 0, margin: st.teams[t].pts - st.teams[1 - t].pts, zeroSet,
       });
     }
     // Evolucao (mais antiga primeiro) e sequencias, como o "form guide" de futebol.
@@ -153,6 +159,65 @@
     const lastKind = decided.length ? decided[decided.length - 1].won : null;
     for (let i = decided.length - 1; i >= 0 && decided[i].won === lastKind; i--) cur++;
     out.currentStreak = { kind: lastKind === null ? null : lastKind ? 'V' : 'D', len: cur };
+
+    // Nivel ULTRA (1 a 7, estimativa no estilo do nivel do Playtomic): sobe com vitoria, mais quando folgada; cai com derrota.
+    let lvl = 3;
+    for (const r of out.series) {
+      if (r.won === true) lvl += 0.05 + 0.03 * Math.min(1, Math.max(0, r.margin) / 12);
+      else if (r.won === false) lvl -= 0.045;
+      lvl = Math.min(7, Math.max(1, lvl));
+      r.level = Math.round(lvl * 100) / 100;
+    }
+    out.level = out.series.length ? out.series[out.series.length - 1].level : null;
+    const now = Date.now(), DAY = 86400000;
+    const before = out.series.filter(r => r.endedAt <= now - 30 * DAY);
+    out.levelDelta30 = out.level != null && before.length ? Math.round((out.level - before[before.length - 1].level) * 100) / 100 : null;
+
+    // Calendario das ultimas 12 semanas e semanas seguidas jogando (o "streak" semanal do Strava)
+    const dayKey = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    out.calendar = {};
+    for (const r of out.series) { const k = dayKey(r.endedAt); out.calendar[k] = (out.calendar[k] || 0) + 1; }
+    const weekStart = ms => { const d = new Date(dayKey(ms)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+    const weeks = new Set(out.series.map(r => weekStart(r.endedAt)));
+    let ws = 0, w0 = weekStart(now);
+    if (!weeks.has(w0)) w0 -= 7 * DAY;
+    while (weeks.has(w0)) { ws++; w0 -= 7 * DAY; }
+    out.weekStreak = ws;
+
+    // Totais por periodo (como o "este mes / este ano / sempre" do Strava)
+    const sum = list => ({ matches: list.length, wins: list.filter(r => r.won === true).length, durationMs: list.reduce((a, r) => a + r.durationMs, 0), pts: list.reduce((a, r) => a + r.pts, 0) });
+    const d0 = new Date(now);
+    const monthStart = new Date(d0.getFullYear(), d0.getMonth(), 1).getTime();
+    const yearStart = new Date(d0.getFullYear(), 0, 1).getTime();
+    out.periods = { month: sum(out.series.filter(r => r.endedAt >= monthStart)), year: sum(out.series.filter(r => r.endedAt >= yearStart)), all: sum(out.series) };
+
+    // Recordes pessoais
+    const topOf = (key, filter) => {
+      const list = out.series.filter(filter || (() => true));
+      if (!list.length) return null;
+      const top = list.reduce((a, r) => (r[key] > a[key] ? r : a), list[0]);
+      return top[key] > 0 ? { value: top[key], id: top.id, endedAt: top.endedAt, opp: top.oppPlayers || top.opp } : null;
+    };
+    out.records = {
+      streak: topOf('streak'), aces: topOf('aces'), pts: topOf('pts'), comeback: topOf('comeback', r => r.won === true),
+      margin: topOf('margin', r => r.won === true), longest: topOf('durationMs'),
+    };
+
+    // Conquistas (a "vitrine de trofeus" do Strava). progress de 0 a 1.
+    const prog = (v, goal) => Math.min(1, v / goal);
+    out.achievements = [
+      { id: 'primeira', name: 'Primeira vitória', desc: 'Vença uma partida', progress: prog(out.wins, 1) },
+      { id: 'dez', name: 'Dez na conta', desc: '10 vitórias', progress: prog(out.wins, 10) },
+      { id: 'embalo', name: 'Embalado', desc: '5 vitórias seguidas', progress: prog(out.bestWinStreak, 5) },
+      { id: 'ace', name: 'Rei do ace', desc: '20 aces', progress: prog(out.aces, 20) },
+      { id: 'virada', name: 'Virada histórica', desc: 'Vença depois de estar 6 pontos atrás', progress: prog(out.records.comeback ? out.records.comeback.value : 0, 6) },
+      { id: 'pneu', name: 'Pneu', desc: 'Feche um set por 6-0', progress: out.series.some(r => r.zeroSet) ? 1 : 0 },
+      { id: 'constancia', name: 'Constância', desc: '4 semanas seguidas jogando', progress: prog(out.weekStreak, 4) },
+      { id: 'maratona', name: 'Maratonista', desc: '50 horas em quadra', progress: prog(out.durationMs, 50 * 3600000) },
+      { id: 'cem', name: 'Centenário', desc: '100 vitórias', progress: prog(out.wins, 100) },
+      { id: 'multi', name: 'Multiesporte', desc: 'Jogue 3 esportes', progress: prog(Object.keys(out.sports).length, 3) },
+      { id: 'cinquenta', name: 'Cinquentona', desc: '50 partidas', progress: prog(out.matches, 50) },
+    ];
     const n = out.matches || 1;
     out.avg = {
       pts: out.pts / n, errors: (out.errors + out.df) / n, aces: out.aces / n,

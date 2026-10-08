@@ -952,6 +952,7 @@
   }
 
   function exportMatch(kind, m) {
+    if (!isPro()) { openPro('exportar'); return; }
     const mm = m || match;
     if (kind === 'json') download(fileBase(mm) + '.json', JSON.stringify(mm, null, 2), 'application/json');
     else download(fileBase(mm) + '.csv', csvFor(mm), 'text/csv;charset=utf-8');
@@ -1067,7 +1068,7 @@
       '<line class="zero" x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(0) + '" y2="' + y(0) + '"/>' +
       '<path d="' + area + '" clip-path="url(#' + uid0 + 't)" style="fill:' + c0 + ';fill-opacity:.24;stroke:none"/>' +
       '<path d="' + area + '" clip-path="url(#' + uid0 + 'b)" style="fill:' + c1 + ';fill-opacity:.24;stroke:none"/>' +
-      '<path d="' + line + '" style="fill:none;stroke:var(--fg);stroke-width:1.8"/>' +
+      '<path d="' + line + '" style="fill:none;stroke:var(--fg);stroke-width:1.2"/>' +
       '<text x="' + pad + '" y="12">' + esc(teams[0].name) + ' na frente</text>' +
       '<text x="' + pad + '" y="' + (H - 4) + '">' + esc(teams[1].name) + ' na frente</text></svg>';
   }
@@ -1123,7 +1124,7 @@
       ['Placar', placarText(st)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
       ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
     ], true) + '</div>';
-    h += '<div class="panel"><h3>Momento</h3>' + momentumSvgFor(st, m.teams) + '</div>';
+    h += '<div class="panel"><div class="sec-head"><h3>Momento</h3><button class="btn btn-sm" type="button" data-action="moment" data-mid="' + (live ? 'live' : esc(m.id)) + '"><svg><use href="#i-expand"/></svg>Ponto a ponto' + (isPro() ? '' : ' <span class="pro-badge">PRO</span>') + '</button></div>' + momentumSvgFor(st, m.teams) + '</div>';
     const leg = '<div class="legend"><span><i style="--tc:' + colorVar(m.teams[0].color) + '"></i>' + esc(m.teams[0].name) + '</span><span>' + esc(m.teams[1].name) + '<i style="--tc:' + colorVar(m.teams[1].color) + '"></i></span></div>';
     let comp = bkRow('Pontos ganhos', T[0].pts, T[1].pts, m.teams);
     if (st.cfg.kind === 'games') comp += bkRow('Pontos no saque', T[0].serveWon, T[1].serveWon, m.teams);
@@ -1145,9 +1146,11 @@
     } else {
       h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
     }
-    h += '<div class="actions"><button class="btn" type="button" data-export="csv"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Planilha (CSV)</button>' +
-      '<button class="btn" type="button" data-export="json"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Dados (JSON)</button></div>';
-    if (!live) h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
+    const pb = isPro() ? '' : ' <span class="pro-badge">PRO</span>';
+    h += '<div class="actions"><button class="btn" type="button" data-export="csv"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Planilha (CSV)' + pb + '</button>' +
+      '<button class="btn" type="button" data-export="json"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Dados (JSON)' + pb + '</button></div>';
+    if (!live && !m.demo) h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
+    if (m.demo) h += '<p class="hint center">Partida do perfil de exemplo (fictícia).</p>';
     return h + '</div>';
   }
 
@@ -1181,7 +1184,10 @@
   }
 
   // ---------- Partida salva ----------
-  function findMatch(id) { return history().find(m => m.id === id) || null; }
+  function findMatch(id) {
+    if (id === 'live') return match;
+    return history().find(m => m.id === id) || (String(id).startsWith('demo-') && window.CantaDemo ? window.CantaDemo.history().find(m => m.id === id) : null) || null;
+  }
   function renderMatchView(id) {
     const m = findMatch(id);
     if (!m) { $('#matchBody').innerHTML = '<div class="empty-state"><b>Partida não encontrada</b><span>Ela pode ter sido excluída neste aparelho.</span></div>'; return; }
@@ -1202,48 +1208,232 @@
     return '<svg class="trend" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Evolução por partida">' +
       ticks.map(t => '<line class="g" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text x="0" y="' + (y(t) + 4) + '">' + t + '</text>').join('') +
       '<path class="s1" d="' + path(k1) + '"/><path class="s2" d="' + path(k2) + '"/>' +
-      series.map((r, i) => '<circle class="d1" cx="' + x(i) + '" cy="' + y(r[k1] || 0) + '" r="3.5"/><circle class="d2" cx="' + x(i) + '" cy="' + y(r[k2] || 0) + '" r="3"/>').join('') +
+      series.map((r, i) => '<circle class="d1" cx="' + x(i) + '" cy="' + y(r[k1] || 0) + '" r="2.6"/><circle class="d2" cx="' + x(i) + '" cy="' + y(r[k2] || 0) + '" r="2.2"/>').join('') +
       '<text x="' + L + '" y="' + (H - 4) + '">1ª</text><text x="' + (W - R - 24) + '" y="' + (H - 4) + '">' + n + 'ª</text></svg>' +
-      '<div class="legend"><span><i style="--tc:var(--brand-ink)"></i>' + esc(l1) + '</span><span><i style="--tc:var(--danger)"></i>' + esc(l2) + '</span></div>';
+      '<div class="legend"><span><i style="--tc:var(--brand-ink)"></i>' + esc(l1) + '</span><span><i style="--tc:var(--alert)"></i>' + esc(l2) + '</span></div>';
   }
+
+  // ---------- Você (perfil no padrão Strava + nível do Playtomic) ----------
+  const DM = window.CantaDemo;
+  let mePeriod = 'month';
+  let meDemo = null; // null = automático (exemplo quando ainda não há dados próprios)
+  const one = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
+  const lvlTxt = v => v == null ? '–' : v.toFixed(1).replace('.', ',');
+
+  function levelSvg(series) {
+    const pts = series.filter(r => r.level != null);
+    if (pts.length < 2) return '<p class="hint">O gráfico do nível aparece a partir da 2ª partida.</p>';
+    const W = 600, H = 150, L = 30, R = 10, T = 12, B = 20;
+    const lo = Math.max(1, Math.floor(Math.min(...pts.map(r => r.level)) * 2) / 2 - 0.5), hi = Math.min(7, Math.ceil(Math.max(...pts.map(r => r.level)) * 2) / 2 + 0.5);
+    const x = i => L + (W - L - R) * (i / (pts.length - 1));
+    const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+    const d = pts.map((r, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(r.level).toFixed(1)).join(' ');
+    const ticks = [lo, (lo + hi) / 2, hi];
+    const last = pts[pts.length - 1];
+    return '<svg class="trend" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Evolução do nível">' +
+      ticks.map(t => '<line class="g" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text x="0" y="' + (y(t) + 4) + '">' + lvlTxt(t) + '</text>').join('') +
+      '<path class="lv-area" d="' + d + ' L' + x(pts.length - 1) + ' ' + (H - B) + ' L' + L + ' ' + (H - B) + ' Z"/><path class="s1" d="' + d + '"/>' +
+      '<circle class="d1" cx="' + x(pts.length - 1) + '" cy="' + y(last.level) + '" r="3.2"/></svg>';
+  }
+
+  function calendarHTML(cal) {
+    const DAY = 86400000;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const end = today.getTime() + (6 - ((today.getDay() + 6) % 7)) * DAY; // domingo desta semana
+    const start = end - (12 * 7 - 1) * DAY;
+    let cells = '';
+    for (let w = 0; w < 12; w++) {
+      for (let d = 0; d < 7; d++) {
+        const k = start + (w * 7 + d) * DAY;
+        const n = cal[k] || 0;
+        const fut = k > today.getTime();
+        cells += '<i class="' + (fut ? 'fut' : n >= 2 ? 'l2' : n === 1 ? 'l1' : '') + '" style="grid-column:' + (w + 1) + ';grid-row:' + (d + 1) + '" title="' + new Date(k).toLocaleDateString('pt-BR') + (n ? ': ' + n + (n === 1 ? ' partida' : ' partidas') : '') + '"></i>';
+      }
+    }
+    return '<div class="cal" aria-label="Partidas nas últimas 12 semanas">' + cells + '</div><div class="cal-legend"><span>12 semanas atrás</span><span>esta semana</span></div>';
+  }
+
+  const ACH_ICON = { primeira: 'i-award', dez: 'i-award', embalo: 'i-bolt', ace: 'i-bolt', virada: 'i-swap', pneu: 'i-check', constancia: 'i-clock', maratona: 'i-clock', multi: 'i-play', cinquenta: 'i-flag', cem: 'i-award' };
 
   function renderMe() {
     const hist = history();
     const known = S.knownPlayers(hist);
     const body = $('#meBody');
-    if (!known.length) {
-      body.innerHTML = '<div class="empty-state"><svg><use href="#i-user"/></svg><b>Seu perfil nasce das suas partidas</b><span>Ao criar a partida, coloque o nome dos jogadores (o seu também). Depois de finalizar, aqui aparecem vitórias, médias, evolução, sequências e confrontos.</span><button class="btn-primary" type="button" data-go="jogar" style="padding:0 18px;width:auto">Jogar agora</button></div>';
-      return;
+    const useDemo = meDemo === null ? !known.length : meDemo;
+    let p, list, who, extra = null;
+    if (useDemo) {
+      list = DM.history();
+      who = DM.ATHLETE.name;
+      extra = DM.ATHLETE;
+    } else {
+      list = hist;
+      const me = known.find(k => k.key === S.fold(prefs.me || '')) || known[0];
+      who = me.name;
     }
-    let me = known.find(k => k.key === S.fold(prefs.me || '')) || known[0];
-    const p = S.profile(hist, me.name);
+    p = S.profile(list, who);
     const pct = p.winRate == null ? '–' : Math.round(p.winRate * 100) + '%';
-    const one = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
     const cur = p.currentStreak;
-    let h = '<div class="panel"><div class="me-head"><span class="me-avatar">' + esc(initials(p.name)) + '</span><div><h2>' + esc(p.name) + '</h2><p>' +
-      p.matches + (p.matches === 1 ? ' partida' : ' partidas') + ' · ' + Object.keys(p.sports).map(sportLabel).join(', ') + '</p></div></div>' +
-      (known.length > 1 ? '<div class="me-pick">' + known.slice(0, 12).map(k => '<button class="pill' + (k.key === me.key ? ' on' : '') + '" type="button" data-me="' + esc(k.name) + '">' + esc(k.name) + '</button>').join('') + '</div>' : '') + '</div>';
-    h += '<div class="streaks"><div class="streak hot"><b>' + (cur.kind ? cur.len + ' ' + (cur.kind === 'V' ? (cur.len === 1 ? 'vitória' : 'vitórias') : (cur.len === 1 ? 'derrota' : 'derrotas')) : '–') + '</b><span>sequência atual</span></div>' +
-      '<div class="streak"><b>' + p.bestWinStreak + '</b><span>melhor sequência de vitórias</span></div><div class="streak"><b>' + pct + '</b><span>aproveitamento</span></div></div>';
-    h += '<div class="panel"><h3>Últimos jogos</h3><div class="form-guide">' + p.series.slice(-12).map(r => '<i class="' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '" title="' + esc(r.team + ' × ' + r.opp) + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</i>').join('') + '</div></div>';
-    h += '<div class="panel">' + kpiHTML([
-      ['Partidas', p.matches], ['Vitórias', p.wins], ['Derrotas', p.losses],
-      ['Pontos seus / jogo', one(p.avg.pts)], ['Erros / jogo', one(p.avg.errors)], ['Aces', p.aces],
-      ['Pontos do time / jogo', one(p.avg.teamPts)], ['Pontos sofridos / jogo', one(p.avg.oppPts)], ['Tempo em quadra', fmtDur(p.durationMs)],
-    ], true) + '</div>';
+    let h = '';
+    h += '<div class="me-switch">' +
+      (known.length ? '<button class="pill' + (!useDemo ? ' on' : '') + '" type="button" data-medemo="0">Meu perfil</button>' : '') +
+      '<button class="pill' + (useDemo ? ' on' : '') + '" type="button" data-medemo="1">Perfil de exemplo</button></div>';
+    if (useDemo) h += '<p class="demo-note"><b>Perfil de exemplo.</b> Atleta e partidas fictícias, geradas pelo próprio app para mostrar como fica um perfil com 4 meses de jogo.</p>';
+    // cabeçalho
+    h += '<div class="panel me-card"><div class="me-head"><span class="me-avatar">' + esc(initials(p.name)) + '</span><div class="me-id"><h2>' + esc(p.name) +
+      (useDemo || isPro() ? ' <span class="pro-badge">PRO</span>' : '') + '</h2><p>' + esc(extra ? extra.city + ' · ' + extra.since : Object.keys(p.sports).map(sportLabel).join(', ')) + '</p>' +
+      (extra ? '<p class="me-social"><b>' + extra.followers + '</b> seguidores · <b>' + extra.following + '</b> seguindo</p>' : '') + '</div>' +
+      '<div class="me-level"><b>' + lvlTxt(p.level) + '</b><span>Nível ULTRA</span>' + (p.levelDelta30 ? '<em class="' + (p.levelDelta30 >= 0 ? 'up' : 'down') + '">' + (p.levelDelta30 >= 0 ? '+' : '') + lvlTxt(p.levelDelta30) + ' em 30 dias</em>' : '') + '</div></div>' +
+      (extra ? '<p class="me-bio">' + esc(extra.bio) + '</p>' : '') +
+      (!useDemo && known.length > 1 ? '<div class="me-pick">' + known.slice(0, 12).map(k => '<button class="pill' + (k.name === who ? ' on' : '') + '" type="button" data-me="' + esc(k.name) + '">' + esc(k.name) + '</button>').join('') + '</div>' : '') + '</div>';
+    // totais por período
+    const per = p.periods[mePeriod];
+    h += '<div class="panel"><div class="sec-head"><h3>Totais</h3><div class="seg seg-sm" role="radiogroup">' +
+      [['month', 'Este mês'], ['year', 'Este ano'], ['all', 'Sempre']].map(([v, l]) => '<label><input type="radio" name="mePeriod" value="' + v + '"' + (mePeriod === v ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div></div>' +
+      kpiHTML([['Partidas', per.matches], ['Vitórias', per.wins], ['Em quadra', fmtDur(per.durationMs)]], true) + '</div>';
+    h += '<div class="streaks"><div class="streak hot"><b>' + (cur.kind ? cur.len : '–') + '</b><span>' + (cur.kind === 'D' ? (cur.len === 1 ? 'derrota seguida' : 'derrotas seguidas') : (cur.len === 1 ? 'vitória seguida' : 'vitórias seguidas')) + '</span></div>' +
+      '<div class="streak"><b>' + p.weekStreak + '</b><span>' + (p.weekStreak === 1 ? 'semana jogando' : 'semanas seguidas jogando') + '</span></div><div class="streak"><b>' + pct + '</b><span>aproveitamento</span></div></div>';
+    h += '<div class="panel"><h3>Atividade</h3>' + calendarHTML(p.calendar) + '</div>';
+    h += '<div class="panel"><div class="sec-head"><h3>Nível ULTRA</h3><span class="sec-meta">estimado pelos resultados</span></div>' + levelSvg(p.series) + '</div>';
+    h += '<div class="panel"><h3>Últimos jogos</h3><div class="form-guide">' + p.series.slice(-14).map(r => '<i class="' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '" title="' + esc(r.team + ' × ' + r.opp) + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</i>').join('') + '</div>' +
+      kpiHTML([['Pontos seus / jogo', one(p.avg.pts)], ['Erros / jogo', one(p.avg.errors)], ['Pontos sofridos / jogo', one(p.avg.oppPts)]]) + '</div>';
     const attributed = p.series.some(r => r.pts || r.errors);
-    h += '<div class="panel"><h3>Evolução</h3>' + (attributed ? trendSvg(p.series, 'pts', 'errors', 'Seus pontos', 'Seus erros') : trendSvg(p.series, 'teamPts', 'oppPts', 'Pontos do time', 'Pontos sofridos')) + '</div>';
+    h += '<div class="panel"><h3>Evolução</h3>' + (attributed ? trendSvg(p.series.slice(-20), 'pts', 'errors', 'Seus pontos', 'Seus erros') : trendSvg(p.series.slice(-20), 'teamPts', 'oppPts', 'Pontos do time', 'Pontos sofridos')) + '</div>';
+    // recordes
+    const R = p.records;
+    const rec = [
+      ['Maior sequência de pontos', R.streak, v => v + ' pontos'], ['Mais aces numa partida', R.aces, v => v + ' aces'], ['Mais pontos seus numa partida', R.pts, v => v + ' pontos'],
+      ['Maior virada', R.comeback, v => 'estava ' + v + ' atrás'], ['Maior vitória', R.margin, v => '+' + v + ' pontos'], ['Partida mais longa', R.longest, v => fmtDur(v)],
+    ].filter(x => x[1]);
+    if (rec.length) h += '<div class="panel"><h3>Recordes pessoais</h3><div class="recs">' + rec.map(([l, r, f]) => '<div class="rec-row" data-open="' + esc(r.id) + '"><span>' + esc(l) + '<small>' + esc(fmtWhen(r.endedAt)) + (r.opp ? ' · contra ' + esc(r.opp) : '') + '</small></span><b>' + esc(f(r.value)) + '</b></div>').join('') + '</div></div>';
+    // conquistas
+    h += '<div class="panel"><div class="sec-head"><h3>Conquistas</h3><span class="sec-meta">' + p.achievements.filter(a => a.progress >= 1).length + ' de ' + p.achievements.length + '</span></div><div class="ach">' +
+      p.achievements.map(a => '<div class="ach-item' + (a.progress >= 1 ? ' got' : '') + '" title="' + esc(a.desc) + '"><span class="ach-ring" style="--p:' + Math.round(a.progress * 100) + '"><svg><use href="#' + (ACH_ICON[a.id] || 'i-award') + '"/></svg></span><b>' + esc(a.name) + '</b><small>' + (a.progress >= 1 ? esc(a.desc) : Math.round(a.progress * 100) + '% · ' + esc(a.desc)) + '</small></div>').join('') + '</div></div>';
     const shots = S.SHOTS.filter(k => p.shots[k]);
     if (shots.length) {
       const maxS = Math.max(...shots.map(k => p.shots[k]));
       h += '<div class="panel"><h3>Seus golpes de ponto</h3><div class="bk">' + shots.sort((a, b) => p.shots[b] - p.shots[a]).map(k =>
         '<div class="bk-row" style="grid-template-columns:88px minmax(0,1fr) 28px"><span class="sec-meta">' + esc(G.SHOT_LABEL[k] || k) + '</span><div class="bk-bars" style="grid-template-columns:1fr"><u style="justify-content:flex-start"><em style="width:' + Math.round(p.shots[k] / maxS * 100) + '%;--tc:var(--brand)"></em></u></div><b>' + p.shots[k] + '</b></div>').join('') + '</div></div>';
     }
+    // rivais e parceiros (frequentes, como no Playtomic)
     const opp = Object.values(p.opponents).sort((a, b) => b.matches - a.matches);
-    if (opp.length) h += '<div class="panel"><h3>Confrontos</h3><div class="h2h">' + opp.slice(0, 10).map(o => '<div class="h2h-row"><b>' + esc(o.name) + '</b><span class="rec"><span class="wl">' + o.wins + 'V</span> ' + o.losses + 'D</span><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></div>').join('') + '</div></div>';
+    if (opp.length) {
+      const enough = opp.filter(o => o.matches >= 3);
+      const tough = enough.slice().sort((a, b) => a.wins / a.matches - b.wins / b.matches)[0];
+      const fav = enough.slice().sort((a, b) => b.wins / b.matches - a.wins / a.matches)[0];
+      h += '<div class="panel"><h3>Confrontos</h3>' +
+        (tough && fav && tough !== fav ? '<div class="duo"><div class="duo-card warn"><span>Rival mais difícil</span><b>' + esc(tough.name) + '</b><small>' + tough.wins + 'V ' + tough.losses + 'D</small></div><div class="duo-card"><span>Melhor retrospecto</span><b>' + esc(fav.name) + '</b><small>' + fav.wins + 'V ' + fav.losses + 'D</small></div></div>' : '') +
+        '<div class="h2h">' + opp.slice(0, 8).map(o => '<div class="h2h-row"><b>' + esc(o.name) + '</b><span class="rec"><span class="wl">' + o.wins + 'V</span> ' + o.losses + 'D</span><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></div>').join('') + '</div></div>';
+    }
     const par = Object.values(p.partners).sort((a, b) => b.matches - a.matches);
-    if (par.length) h += '<div class="panel"><h3>Parceiros</h3><div class="h2h">' + par.slice(0, 8).map(o => '<div class="h2h-row"><b>' + esc(o.name) + '</b><span class="rec"><span class="wl">' + o.wins + 'V</span> ' + o.losses + 'D</span><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></div>').join('') + '</div></div>';
+    if (par.length) h += '<div class="panel"><h3>Parceiros</h3><div class="h2h">' + par.slice(0, 6).map(o => '<div class="h2h-row"><b>' + esc(o.name) + '</b><span class="rec"><span class="wl">' + o.wins + 'V</span> ' + o.losses + 'D</span><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></div>').join('') + '</div></div>';
+    // partidas recentes
+    h += '<div class="panel"><h3>Partidas recentes</h3><div class="recs">' + p.recent.slice(0, 6).map(r =>
+      '<div class="rec-row" data-open="' + esc(r.id) + '"><span><span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</span>' + esc(sportLabel(r.sport)) + ' · contra ' + esc(r.oppPlayers || r.opp) + '<small>' + esc(fmtWhen(r.endedAt)) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b></div>').join('') + '</div></div>';
     body.innerHTML = h;
+  }
+
+  // ---------- ULTRA Pro (simulado: sem cobrança, só para demonstrar) ----------
+  const isPro = () => !!prefs.pro;
+  const PRO_FEATURES = {
+    momento: 'Momento ponto a ponto',
+    exportar: 'Exportar planilha (CSV) e dados (JSON)',
+  };
+  function openPro(feature) {
+    $('#proBody').innerHTML =
+      '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
+      '<ul class="pro-list">' +
+      '<li><svg><use href="#i-chart"/></svg><span><b>Momento ponto a ponto</b>Abra o gráfico da partida e veja cada ponto: quem fez, ace, winner, erro na rede ou pra fora, golpe e placar naquele instante.</span></li>' +
+      '<li><svg><use href="#i-download"/></svg><span><b>Exportar planilha e dados</b>Todos os lances em CSV para Excel e Google Planilhas, e em JSON para análise.</span></li>' +
+      '<li><svg><use href="#i-user"/></svg><span><b>Perfil completo</b>Nível, recordes, conquistas e confrontos sem limite de histórico.</span></li>' +
+      '</ul>' +
+      '<p class="hint center">Preço ainda não definido. Nesta versão de teste o Pro é só uma demonstração, sem cobrança.</p>' +
+      (isPro() ? '<button class="btn-ghost" type="button" id="proOff">Desligar demonstração do Pro</button>' : '<button class="btn-primary" type="button" id="proOn"><svg><use href="#i-bolt"/></svg>Ativar demonstração do Pro</button>');
+    openSheet('#sheetPro');
+  }
+  function setPro(on) {
+    prefs.pro = !!on; savePrefs();
+    closeSheet('#sheetPro');
+    if (currentView === 'partida') renderMatchView(currentMatchId);
+    if (currentView === 'voce') renderMe();
+    setFeedback('', 'ok', on ? 'ULTRA Pro ativado (demonstração)' : 'ULTRA Pro desligado');
+  }
+
+  // ---------- Momento ponto a ponto (Pro) ----------
+  const TAG_LBL = { ace: 'Ace', df: 'Dupla falta', winner: 'Winner', error: 'Erro' };
+  function openMoment(m) {
+    if (!m) return;
+    if (!isPro()) { openPro('momento'); return; }
+    const st = S.matchStats(m);
+    const pts = st.rows.filter(r => r.ev.type === 'point' && (!r.out || r.out.type !== 'ignored'));
+    const tl = st.timeline;
+    const W = Math.max(640, pts.length * 12), H = 220, pad = 22; // altura fixa; partida longa rola na horizontal
+    const hi = Math.max(1, ...tl), lo = Math.min(-1, ...tl);
+    const x = i => pad + (W - 2 * pad) * (i / Math.max(1, tl.length));
+    const y = d => pad + (H - 2 * pad) * (hi - d) / (hi - lo);
+    let line = 'M' + x(0) + ' ' + y(0);
+    tl.forEach((d, i) => { line += ' L' + x(i + 1).toFixed(1) + ' ' + y(d).toFixed(1); });
+    const mk = pts.map((r, i) => {
+      const ev = r.ev, d = tl[i];
+      const cls = 'mk t' + ev.team + (ev.tag ? ' ' + ev.tag : '');
+      const cx = x(i + 1).toFixed(1), cy = y(d).toFixed(1);
+      const shape = ev.tag === 'error' || ev.tag === 'df'
+        ? '<path class="' + cls + '" d="M' + (cx - 4) + ' ' + (cy - 4) + 'l8 8M' + (cx - 4) + ' ' + (+cy + 4) + 'l8-8"/>'
+        : '<circle class="' + cls + '" cx="' + cx + '" cy="' + cy + '" r="' + (ev.tag === 'ace' || ev.tag === 'winner' ? 4.6 : 3) + '"/>';
+      return '<g data-pt="' + i + '" style="--tc:' + colorVar(m.teams[ev.team].color) + '">' + shape + '<rect x="' + (cx - 7) + '" y="0" width="14" height="' + H + '" fill="transparent" stroke="none"/></g>';
+    }).join('');
+    const marks = st.setMarks.map(n => '<line class="grid" x1="' + x(n) + '" x2="' + x(n) + '" y1="' + pad + '" y2="' + (H - pad) + '"/>').join('');
+    const svg = '<div class="mom-scroll"><svg class="mom" viewBox="0 0 ' + W + ' ' + H + '" style="width:' + W + 'px;height:' + H + 'px">' + marks +
+      '<line class="zero" x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(0) + '" y2="' + y(0) + '"/><path class="mom-line" d="' + line + '"/>' + mk + '</svg></div>';
+    const legend = '<div class="mom-legend"><span><i class="lg dot"></i>ponto</span><span><i class="lg big"></i>ace ou winner</span><span><i class="lg x">✕</i>erro do adversário</span><span>linhas verticais = fim de set</span></div>';
+    const listHTML = pts.map((r, i) => {
+      const ev = r.ev;
+      return '<div class="pt-row" data-pt="' + i + '"><span class="pt-n">' + (i + 1) + '</span><i style="--tc:' + colorVar(m.teams[ev.team].color) + '"></i><span class="pt-what"><b>' + esc(m.teams[ev.team].name) + '</b>' +
+        (ev.tag ? ' · ' + esc(TAG_LBL[ev.tag]) + (ev.errType ? ' ' + esc(ERR_LABEL[ev.errType]) : '') : '') + (ev.shot && ev.tag !== 'ace' ? ' · ' + esc(G.SHOT_LABEL[ev.shot] || ev.shot) : '') +
+        (ev.player ? ' · ' + esc(ev.player) : '') + (ev.assist ? ' (assist. ' + esc(ev.assist) + ')' : '') + '</span><span class="pt-score">' + esc(r.score) + '</span></div>';
+    }).join('');
+    $('#momentBody').innerHTML = '<p class="hint">' + esc(m.teams[0].name) + ' acima da linha, ' + esc(m.teams[1].name) + ' abaixo. Toque num ponto do gráfico ou da lista.</p>' + svg + legend +
+      '<div class="pt-info" id="ptInfo">Toque num ponto para ver o lance.</div><div class="pt-list">' + listHTML + '</div>';
+    $('#momentBody').dataset.mid = m.id;
+    openSheet('#sheetMoment');
+  }
+  function showPoint(i) {
+    const m = findMatch($('#momentBody').dataset.mid);
+    if (!m) return;
+    const st = S.matchStats(m);
+    const pts = st.rows.filter(r => r.ev.type === 'point' && (!r.out || r.out.type !== 'ignored'));
+    const r = pts[i]; if (!r) return;
+    const ev = r.ev;
+    const t0 = pts[0].ev.t;
+    const det = describe(Object.assign({}, ev)).replace(/^Ponto [^·]*·?\s*/, '') || 'ponto sem detalhe';
+    $('#ptInfo').innerHTML = '<b>Ponto ' + (i + 1) + ' · ' + esc(m.teams[ev.team].name) + '</b><span>' + esc(det) + '</span><span>Placar depois: <b>' + esc(r.score) + '</b> · ' + clock(ev.t - t0) + (ev.heard ? ' · “' + esc(ev.heard) + '”' : '') + '</span>';
+    $$('#momentBody .pt-row').forEach(el => el.classList.toggle('on', Number(el.dataset.pt) === i));
+    $$('#momentBody .mom g').forEach(el => el.classList.toggle('on', Number(el.dataset.pt) === i));
+    const row = $('#momentBody .pt-row[data-pt="' + i + '"]'); if (row) row.scrollIntoView({ block: 'nearest' });
+  }
+
+  // ---------- Stickers do mascote no compartilhar ----------
+  const STICKERS = [
+    { id: 'show', text: 'Hoje foi show!' }, { id: 'aula', text: 'Dei aula' }, { id: 'jogao', text: 'Jogãooo!' },
+    { id: 'esmagou', text: '' }, { id: 'trofeu', text: 'Campeão!' }, { id: 'smash', text: '' },
+    { id: 'naodeu', text: 'Hoje não deu' }, { id: 'noite', text: 'Tem dia que é noite' }, { id: 'joinha', text: '' },
+  ];
+  const stickerImg = {};
+  function loadSticker(id) {
+    if (stickerImg[id]) return stickerImg[id];
+    const img = new Image();
+    img.onload = () => { if (share.sticker === id) drawShare(); };
+    img.onerror = () => console.error('[sticker] nao carregou', id);
+    img.src = 'stickers/' + id + '.png';
+    stickerImg[id] = img;
+    return img;
+  }
+  function renderStickerPicker() {
+    $('#stickerPick').innerHTML = '<button class="stk none' + (!share.sticker ? ' on' : '') + '" type="button" data-stk="" title="Sem sticker"><svg><use href="#i-x"/></svg></button>' +
+      STICKERS.map(s => '<button class="stk' + (share.sticker === s.id ? ' on' : '') + '" type="button" data-stk="' + s.id + '" title="' + esc(s.text || s.id) + '"><img src="stickers/' + s.id + '.png" alt="' + esc(s.text || 'mascote') + '" loading="lazy"></button>').join('');
+    const cur = STICKERS.find(s => s.id === share.sticker);
+    $('#stickerTextRow').hidden = !cur;
+    if (cur && share.stickerText == null) share.stickerText = cur.text;
+    $('#stickerText').value = share.stickerText || '';
   }
 
   // ---------- Finalizar (confirmação dupla) ----------
@@ -1289,7 +1479,7 @@
   }
 
   // ---------- Compartilhar ----------
-  const share = { id: null, tpl: 'resumo', fmt: 'story', img: null };
+  const share = { id: null, tpl: 'resumo', fmt: 'story', img: null, sticker: null, stickerText: null };
   function shareData(m) {
     const st = S.matchStats(m);
     const T = st.teams;
@@ -1315,6 +1505,7 @@
     const m = findMatch(id);
     if (!m) { setFeedback('', 'miss', 'Partida não encontrada para compartilhar'); return; }
     share.id = id;
+    renderStickerPicker();
     $('#shareTpls').innerHTML = SH.TEMPLATES.map(t => '<button class="pill' + (t.id === share.tpl ? ' on' : '') + '" type="button" data-tpl="' + t.id + '">' + esc(t.name) + '</button>').join('');
     drawShare();
     openSheet('#sheetShare');
@@ -1325,7 +1516,12 @@
     if (document.fonts && document.fonts.check && !document.fonts.check('800 40px "Bricolage Grotesque"')) {
       document.fonts.load('800 40px "Bricolage Grotesque"').then(() => drawShare(), e => console.warn('[compartilhar] fonte nao carregou', e));
     }
-    SH.render($('#shareCanvas'), share.tpl, share.fmt, shareData(m), share.img);
+    const data = shareData(m);
+    if (share.sticker) {
+      const img = loadSticker(share.sticker);
+      if (img.complete && img.naturalWidth) data.sticker = { img, text: (share.stickerText || '').trim().slice(0, 40) };
+    }
+    SH.render($('#shareCanvas'), share.tpl, share.fmt, data, share.img);
     $('#photoPick').hidden = share.tpl !== 'foto';
     $('#sharePreview').classList.toggle('dark', share.tpl === 'sticker');
     $$('#shareTpls .pill').forEach(b => b.classList.toggle('on', b.dataset.tpl === share.tpl));
@@ -1460,6 +1656,17 @@
       img.src = URL.createObjectURL(f);
     });
     $('#btnShareNow').addEventListener('click', () => doShare('share'));
+    $('#stickerPick').addEventListener('click', e => {
+      const b = e.target.closest('[data-stk]'); if (!b) return;
+      share.sticker = b.dataset.stk || null; share.stickerText = null;
+      if (share.sticker) loadSticker(share.sticker);
+      renderStickerPicker(); drawShare();
+    });
+    $('#stickerText').addEventListener('input', e => { share.stickerText = e.target.value; drawShare(); });
+    $('#proBody').addEventListener('click', e => { if (e.target.closest('#proOn')) setPro(true); if (e.target.closest('#proOff')) setPro(false); });
+    $('#momentBody').addEventListener('click', e => { const g = e.target.closest('[data-pt]'); if (g) showPoint(Number(g.dataset.pt)); });
+    $('#btnPro').addEventListener('click', () => openPro());
+    $('#meBody').addEventListener('change', e => { if (e.target.name === 'mePeriod') { mePeriod = e.target.value; renderMe(); } });
     $('#contBody').addEventListener('change', renderContHint);
     $('#contBody').addEventListener('click', e => {
       if (e.target.closest('#contOk')) confirmContinue();
@@ -1506,6 +1713,8 @@
       if (sp) { quickStart(sp.dataset.sport); return; }
       const me = e.target.closest('[data-me]');
       if (me) { prefs.me = me.dataset.me; savePrefs(); renderMe(); return; }
+      const md = e.target.closest('[data-medemo]');
+      if (md) { meDemo = md.dataset.medemo === '1'; renderMe(); document.querySelector('#view-voce .scroll').scrollTo(0, 0); return; }
       const act = e.target.closest('[data-action]');
       if (act) {
         const a = act.dataset.action;
@@ -1515,6 +1724,7 @@
         if (a === 'home') go('inicio');
         if (a === 'share') openShare(currentMatchId);
         if (a === 'delete-match') deleteMatch(act.dataset.mid, act);
+        if (a === 'moment') openMoment(findMatch(act.dataset.mid));
       }
       if (e.target.closest('#endSave')) { closeSheet('#sheetEnd'); finalize(); }
       if (e.target.closest('#endUndo')) { closeSheet('#sheetEnd'); undo({}); }
@@ -1668,5 +1878,5 @@
     }
   }
   // Para testes manuais no console: Canta.hear('ponto azul')
-  window.Canta = { hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match, go, history };
+  window.Canta = { pro: on => setPro(on), hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match, go, history };
 })();
