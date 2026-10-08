@@ -160,18 +160,7 @@
     for (let i = decided.length - 1; i >= 0 && decided[i].won === lastKind; i--) cur++;
     out.currentStreak = { kind: lastKind === null ? null : lastKind ? 'V' : 'D', len: cur };
 
-    // Nivel ULTRA (1 a 7, estimativa no estilo do nivel do Playtomic): sobe com vitoria, mais quando folgada; cai com derrota.
-    let lvl = 3;
-    for (const r of out.series) {
-      if (r.won === true) lvl += 0.05 + 0.03 * Math.min(1, Math.max(0, r.margin) / 12);
-      else if (r.won === false) lvl -= 0.045;
-      lvl = Math.min(7, Math.max(1, lvl));
-      r.level = Math.round(lvl * 100) / 100;
-    }
-    out.level = out.series.length ? out.series[out.series.length - 1].level : null;
     const now = Date.now(), DAY = 86400000;
-    const before = out.series.filter(r => r.endedAt <= now - 30 * DAY);
-    out.levelDelta30 = out.level != null && before.length ? Math.round((out.level - before[before.length - 1].level) * 100) / 100 : null;
 
     // Calendario das ultimas 12 semanas e semanas seguidas jogando (o "streak" semanal do Strava)
     const dayKey = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
