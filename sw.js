@@ -1,9 +1,9 @@
 /* Canta · service worker.
    Arquivos do app: rede primeiro, cache como reserva (assim uma versao nova nunca fica presa).
    Motor de voz offline (vosk.js, 5,8 MB): cache primeiro, porque a versao e fixa. */
-const CACHE = 'canta-app-v2';
+const CACHE = 'canta-app-v3';
 const VOSK_CACHE = 'canta-vosk-js-v1'; // separado: nao e apagado quando o app ganha versao nova
-const SHELL = ['./', 'index.html', 'styles.css', 'engine.js', 'grammar.js', 'voice.js', 'app.js', 'manifest.webmanifest', 'icon.svg'];
+const SHELL = ['./', 'index.html', 'styles.css', 'engine.js', 'grammar.js', 'stats.js', 'share.js', 'voice.js', 'app.js', 'manifest.webmanifest', 'icon.svg'];
 const VOSK_JS = 'https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js';
 
 self.addEventListener('install', e => {

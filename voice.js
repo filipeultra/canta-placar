@@ -204,12 +204,18 @@
 
   const UNK = /\[unk\]/g;
 
+  // Nao ha tratamento de sinal (ganho, compressor, filtros) antes do reconhecedor: medido com voz distante
+  // simulada, ele PIOROU o acerto (12/12 -> 10/12 com conversa de fundo; 12/12 -> 5/12 com chiado).
+  // O Kaldi ja normaliza o volume. Para distancia, o que ajuda e microfone mais perto da boca (lapela, fone).
+
   class VoskInput {
     constructor(opts) {
       this.kind = 'vosk';
       this.onFinal = opts.onFinal || (() => {});
       this.onInterim = opts.onInterim || (() => {});
       this.onState = opts.onState || (() => {});
+      this.onLevel = opts.onLevel || null;
+      this.deviceId = opts.deviceId || '';
       this.wanted = false;
       this.muted = false;
       this.mutedUntil = 0;
@@ -258,15 +264,25 @@
           await this.load(t => this.setState('loading', t));
         }
         if (!this.wanted) return;
-        this.stream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: { echoCancellation: 'all', noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-        });
+        const audio = { echoCancellation: 'all', noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+        if (this.deviceId) audio.deviceId = { exact: this.deviceId };
+        try { this.stream = await navigator.mediaDevices.getUserMedia({ video: false, audio }); }
+        catch (e) {
+          if (!this.deviceId || e.name !== 'OverconstrainedError') throw e;
+          console.warn('[vosk] microfone escolhido nao encontrado; usando o padrao', e);
+          delete audio.deviceId;
+          this.stream = await navigator.mediaDevices.getUserMedia({ video: false, audio });
+        }
         if (!this.wanted) { this.releaseMic(); return; }
         this.makeRecognizer(this.ctx.sampleRate);
         this.src = this.ctx.createMediaStreamSource(this.stream);
         this.node = this.ctx.createScriptProcessor(4096, 1, 1);
         this.node.onaudioprocess = (ev) => {
+          // nivel do microfone (0 a 1) para o medidor da tela
+          const d = ev.inputBuffer.getChannelData(0);
+          let sum = 0; for (let i = 0; i < d.length; i += 8) sum += d[i] * d[i];
+          const lvl = Math.min(1, Math.sqrt(sum / (d.length / 8)) * 6);
+          if (this.onLevel) try { this.onLevel(lvl); } catch (e) { console.warn('[vosk] medidor', e); }
           if (!this.rec) return;
           try { this.rec.acceptWaveform(ev.inputBuffer); } catch (e) { console.error('[vosk] acceptWaveform', e); }
         };
@@ -322,6 +338,13 @@
     // Troca a gramatica (times novos) sem recarregar o modelo.
     reopen() { if (this.rec && this.sampleRate) this.makeRecognizer(this.sampleRate); }
     confirmDownload() { this.downloadOk = true; return this.start(); }
+  }
+
+  // Microfones disponiveis (os nomes so aparecem depois que o usuario libera o microfone uma vez).
+  async function listMics() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+    const all = await navigator.mediaDevices.enumerateDevices();
+    return all.filter(d => d.kind === 'audioinput').map((d, i) => ({ id: d.deviceId, label: d.label || ('Microfone ' + (i + 1)) }));
   }
 
   class Speaker {
@@ -388,5 +411,5 @@
     }
   }
 
-  root.CantaVoice = { VoiceInput, VoskInput, Speaker, Earcon, supported: !!SR, VOSK_MB };
+  root.CantaVoice = { VoiceInput, VoskInput, Speaker, Earcon, listMics, supported: !!SR, VOSK_MB };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

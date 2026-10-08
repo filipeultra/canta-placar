@@ -1,4 +1,4 @@
-/* Canta · interface.
+/* ULTRA · interface (placar por voz + partidas no estilo Strava).
    Estado da partida = configuracao + lista de lances. Toda mudanca grava a lista, recalcula o
    placar pelo motor (engine.js) e redesenha. A voz entra por handleHeard(), o toque e o teclado
    pelo mesmo caminho (addPoint/undo/redo), entao as tres entradas se comportam igual. */
@@ -16,6 +16,9 @@
   const colorVar = id => 'var(--c-' + (PALETTE.some(p => p.id === id) ? id : 'azul') + ')';
   const colorName = id => (PALETTE.find(p => p.id === id) || PALETTE[0]).name;
   const TAGS = { ace: 'ace', df: 'dupla falta', winner: 'winner', error: 'erro' };
+  const ERR_LABEL = { rede: 'na rede', fora: 'pra fora' };
+  const DETAIL_KEYS = ['tag', 'shot', 'errType', 'player', 'playerTeam', 'assist'];
+  const pick = r => { const o = {}; DETAIL_KEYS.forEach(k => { if (r[k] !== undefined && r[k] !== null) o[k] = r[k]; }); return o; };
   const DEUCE_LABEL = { ad: 'vantagem', golden: 'ponto de ouro', star: 'star point' };
   const SRC_ICON = { voz: 'i-mic', toque: 'i-hand', teclado: 'i-keyboard' };
 
@@ -35,7 +38,7 @@
     },
   };
 
-  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto' };
+  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true };
   const prefs = Object.assign({}, DEFAULT_PREFS, store.get(KEY_PREFS, {}));
   const savePrefs = () => store.set(KEY_PREFS, prefs);
 
@@ -122,13 +125,57 @@
       onFinal: alts => handleHeard(alts, 'voz'),
       onInterim: text => { if (text) { $('#voiceHeard').textContent = '“' + text.trim() + '…”'; lastHeardAt = Date.now(); } },
       onState: (st, detail) => { voiceDetail = detail; renderVoice(); renderMic(); },
+      onLevel: showLevel,
+      deviceId: prefs.mic,
     };
     const v = engineKind() === 'vosk' ? new CV.VoskInput(opts) : new CV.VoiceInput(opts);
     v.useLocal = v.kind === 'vosk' ? true : prefs.local;
     return v;
   }
   let voice = makeVoice();
-  function voicePhrases() { return voice.kind === 'vosk' ? G.voskGrammar(ctx) : G.biasPhrases(ctx); }
+  function voicePhrases() { return voice.kind === 'vosk' ? G.voskGrammar(ctx, { detail: prefs.detail }) : G.biasPhrases(ctx); }
+  // Nivel do microfone na tela (no maximo uma vez por quadro)
+  let lvlPending = null;
+  function showLevel(l) {
+    if (lvlPending !== null) { lvlPending = l; return; }
+    lvlPending = l;
+    requestAnimationFrame(() => {
+      const v = lvlPending; lvlPending = null;
+      document.getElementById('voice').style.setProperty('--lvl', v.toFixed(2));
+      const m = document.getElementById('micMeter'); if (m) m.style.width = Math.round(v * 100) + '%';
+    });
+  }
+  // Teste de nivel em Ajustes (abre o microfone escolhido so para medir)
+  let micTest = null;
+  async function toggleMicTest() {
+    const b = $('#btnMicTest');
+    if (micTest) { micTest.stop(); micTest = null; b.textContent = 'Testar'; showLevel(0); return; }
+    try {
+      const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      if (prefs.mic) audio.deviceId = { exact: prefs.mic };
+      const stream = await navigator.mediaDevices.getUserMedia({ audio });
+      const AC = window.AudioContext || window.webkitAudioContext; const ac = new AC();
+      const an = ac.createAnalyser(); an.fftSize = 1024; ac.createMediaStreamSource(stream).connect(an);
+      const buf = new Float32Array(an.fftSize); let raf = 0, peak = 0;
+      const tick = () => { an.getFloatTimeDomainData(buf); let s2 = 0; for (const x of buf) s2 += x * x; const l = Math.min(1, Math.sqrt(s2 / buf.length) * 6); peak = Math.max(peak * 0.995, l);
+        showLevel(l); $('#micHint').textContent = peak > 0.35 ? 'Bom: o aparelho ouve bem daí.' : peak > 0.12 ? 'Fraco: chegue mais perto ou fale mais alto.' : 'Quase nada: troque o microfone ou aproxime o aparelho.'; raf = requestAnimationFrame(tick); };
+      tick();
+      micTest = { stop: () => { cancelAnimationFrame(raf); stream.getTracks().forEach(t => t.stop()); ac.close(); } };
+      b.textContent = 'Parar';
+      fillMics();
+    } catch (e) {
+      console.error('[microfone] teste falhou', e);
+      $('#micHint').textContent = 'Não consegui abrir o microfone: ' + (e.name === 'NotAllowedError' ? 'permissão negada' : e.message);
+    }
+  }
+  async function fillMics() {
+    try {
+      const list = await CV.listMics();
+      const sel = $('#pMic');
+      sel.innerHTML = '<option value="">Padrão do aparelho</option>' + list.map(m => '<option value="' + esc(m.id) + '">' + esc(m.label) + '</option>').join('');
+      sel.value = list.some(m => m.id === prefs.mic) ? prefs.mic : '';
+    } catch (e) { console.warn('[microfone] lista falhou', e); }
+  }
   function switchEngine() {
     const was = voice.wanted;
     voice.stop();
@@ -170,10 +217,21 @@
           setFeedback(heard, 'miss', 'Ignorado: menos de ' + prefs.cooldown + ' s do último ponto');
           return;
         }
-        addPoint(r.team, { tag: r.tag, player: r.player, playerTeam: r.playerTeam, heard, src });
+        addPoint(r.team, Object.assign(pick(r), { heard, src }));
         return;
       case 'replace':
-        if (undo({ silent: true, heard })) addPoint(r.team, { tag: r.tag, player: r.player, playerTeam: r.playerTeam, heard, src });
+        if (undo({ silent: true, heard })) addPoint(r.team, Object.assign(pick(r), { heard, src }));
+        return;
+      case 'finish':
+        earcon.play('ok'); setFeedback(heard, 'ok', 'Finalizar: confirme duas vezes');
+        openFinish(src === 'voz');
+        return;
+      case 'confirm':
+        if (finishStep) { setFeedback(heard, 'ok', finishStep === 1 ? 'Confirmado (1 de 2)' : 'Confirmado (2 de 2)'); finishAdvance(); }
+        else setFeedback(heard, 'idle', '');
+        return;
+      case 'cancel':
+        if (finishStep) { finishStep = 0; closeSheet('#sheetFinish'); setFeedback(heard, 'ok', 'Partida continua'); say('Partida continua.'); }
         return;
       case 'undo': undo({ heard }); return;
       case 'redo': redo({ heard }); return;
@@ -196,10 +254,10 @@
 
   function addPoint(team, meta) {
     const m = meta || {};
-    if (state.done) { earcon.play('miss'); setFeedback(m.heard, 'miss', 'Partida encerrada. Toque em + para começar outra'); return; }
+    if (state.done) { earcon.play('miss'); setFeedback(m.heard, 'miss', 'Partida encerrada. Toque em Finalizar para salvar'); return; }
     if (m.src === 'voz') lastVoicePointAt = Date.now();
     const ev = { type: 'point', team };
-    for (const k of ['tag', 'player', 'playerTeam', 'heard', 'src']) if (m[k] !== undefined && m[k] !== null && m[k] !== '') ev[k] = m[k];
+    for (const k of DETAIL_KEYS.concat(['heard', 'src'])) if (m[k] !== undefined && m[k] !== null && m[k] !== '') ev[k] = m[k];
     if (m.src !== 'toque') earcon.play('ok');
     else if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { console.info('[toque] vibracao indisponivel', e); } }
     setFeedback(m.heard, 'ok', describe(ev), team);
@@ -261,8 +319,12 @@
     if (!ev) return '';
     if (ev.type === 'server') return 'Saque: ' + name(ev.team);
     let s = 'Ponto ' + name(ev.team);
-    if (ev.tag) s += ' · ' + TAGS[ev.tag] + (ev.player ? ' de ' + ev.player : '');
-    else if (ev.player) s += ' · ' + ev.player;
+    const bits = [];
+    if (ev.tag) bits.push(TAGS[ev.tag] + (ev.errType ? ' ' + ERR_LABEL[ev.errType] : '') + (ev.player && ev.playerTeam !== ev.team ? ' de ' + ev.player : ''));
+    if (ev.shot && ev.tag !== 'ace') bits.push(G.SHOT_LABEL[ev.shot] || ev.shot);
+    if (ev.player && ev.playerTeam === ev.team) bits.push(ev.player);
+    if (ev.assist) bits.push('assist. ' + ev.assist);
+    if (bits.length) s += ' · ' + bits.join(' · ');
     return s;
   }
 
@@ -282,9 +344,9 @@
     const hist = store.get(KEY_HIST, []);
     hist.unshift({
       id: match.id, endedAt: Date.now(), cfgInput: match.cfgInput, teams: match.teams, events: match.events,
-      done: state.done, winner: state.winner, score: E.scoreLine(state, cfg),
+      done: state.done, winner: state.winner, score: E.scoreLine(state, cfg), finished: true,
     });
-    store.set(KEY_HIST, hist.slice(0, 30));
+    store.set(KEY_HIST, hist.slice(0, 100));
   }
 
   function recompute() {
@@ -299,8 +361,8 @@
     renderChips();
     renderMatchChip();
     renderDockButtons();
-    if ($('#sheetLog').open) renderLog();
-    if ($('#sheetStats').open) renderStats();
+    if (isOpen('#sheetLog')) renderLog();
+    if (isOpen('#sheetStats')) renderStats();
     rendered = true;
   }
 
@@ -472,14 +534,29 @@
   }
 
   // ---------- folhas ----------
+  // Folhas desenhadas pelo proprio app, sem <dialog> nativo: no iPad o fundo desfocado do modal nativo
+  // aparecia e o modal nao. Fundo (scrim) e folha sao elementos comuns, iguais em qualquer navegador.
+  const isOpen = sel => { const d = $(sel); return !!d && !d.hidden; };
+  const anySheetOpen = () => $$('.sheet').some(d => !d.hidden);
   function openSheet(sel) {
+    $$('.sheet').forEach(d => { if ('#' + d.id !== sel) d.hidden = true; });
     const d = $(sel);
-    if (!d.open) { try { d.showModal(); } catch (e) { console.error('[folha] showModal falhou', e); d.setAttribute('open', ''); } }
+    d.hidden = false;
+    $('#scrim').hidden = false;
+    document.body.classList.add('modal-open');
+    const t = d.querySelector('h2');
+    if (t) { try { t.focus({ preventScroll: true }); } catch (e) { t.focus(); } }
   }
-  $$('dialog.sheet').forEach(d => {
-    d.addEventListener('click', e => { if (e.target === d) d.close(); });
-    $$('[data-close]', d).forEach(b => b.addEventListener('click', () => d.close()));
-  });
+  function closeSheet(sel) {
+    if (sel === '#sheetPrefs' && micTest) { micTest.stop(); micTest = null; $('#btnMicTest').textContent = 'Testar'; }
+    const d = $(sel);
+    if (d) d.hidden = true;
+    if (!anySheetOpen()) { $('#scrim').hidden = true; document.body.classList.remove('modal-open'); }
+    if (sel === '#sheetFinish') finishStep = 0;
+  }
+  function closeAllSheets() { $$('.sheet').forEach(d => closeSheet('#' + d.id)); }
+  $('#scrim').addEventListener('click', closeAllSheets);
+  $$('.sheet').forEach(d => $$('[data-close]', d).forEach(b => b.addEventListener('click', () => closeSheet('#' + d.id))));
 
   const getRadio = n => { const el = $('input[name="' + n + '"]:checked'); return el ? el.value : null; };
   const setRadio = (n, v) => { $$('input[name="' + n + '"]').forEach(el => { el.checked = String(el.value) === String(v); }); };
@@ -617,7 +694,7 @@
     });
     setRadio('firstServer', c.firstServer);
     $('#newError').hidden = true;
-    $('#newNote').textContent = match.events.length ? 'A partida atual vai para “Partidas anteriores”, em Ajustes.' : '';
+    $('#newNote').textContent = match.events.length ? 'A partida em andamento será salva no seu feed antes de começar a nova.' : '';
     updateTeamForm();
     updateFormKind();
     openSheet('#sheetNew');
@@ -633,7 +710,7 @@
     if (voice.wanted) voice.reopen();
     save();
     recompute();
-    renderVoice();
+    go('jogar');
     say('Nova partida. Bola com ' + teams[ci.firstServer === 1 ? 1 : 0].name + '.');
   }
 
@@ -765,47 +842,21 @@
   }
 
   function renderStats() {
-    const s = state.stats;
-    const { rows } = E.replayDetailed(cfg, match.events);
-    const pct = (won, played) => played ? Math.round(won / played * 100) + '%' : '–';
-    const head = '<div class="vs-head"><span class="t" style="--tc:' + colorVar(match.teams[0].color) + '"><i></i>' + esc(name(0)) + '</span>' +
-      '<span class="score">' + esc(E.scoreLine(state, cfg) || '0-0') + '</span>' +
-      '<span class="t" style="--tc:' + colorVar(match.teams[1].color) + '">' + esc(name(1)) + '<i></i></span></div>';
-    let html = '<section class="group">' + head + '<div>';
-    html += statRow(cfg.kind === 'rally' && cfg.scoring === 'sideout' ? 'Rallies ganhos' : 'Pontos ganhos', s.points);
-    if (cfg.kind === 'games') html += statRow('Pontos ganhos no saque', s.serveWon, (v, t) => pct(v, s.servePlayed[t]));
-    html += statRow('Aces', s.aces) + statRow('Winners', s.winners) + statRow('Erros', s.errors) + statRow('Duplas faltas', s.doubleFaults);
-    if (cfg.kind === 'games') html += statRow('Quebras', s.breaks);
-    html += statRow('Maior sequência de pontos', s.maxStreak);
-    html += '</div><p class="hint">Aces, winners e erros só contam quando o lance é falado com o detalhe, ex.: <b>“ponto ' + esc(name(0).toLowerCase()) + ' ace”</b>, <b>“erro ' + esc(name(1).toLowerCase()) + '”</b>.</p></section>';
-    html += '<section class="group"><h3>Momento</h3>' + momentumSvg(rows) + '</section>';
-    const ps = playerStats();
-    if (ps.length) {
-      html += '<section class="group"><h3>Por jogador</h3><div class="table-wrap"><table class="players-table"><thead><tr><th>Jogador</th><th>Pontos</th><th>Aces</th><th>Winners</th><th>Erros</th><th>D. faltas</th></tr></thead><tbody>' +
-        ps.map(p => '<tr><td><i style="--tc:' + colorVar(match.teams[p.team].color) + '"></i>' + esc(p.player) + '</td><td>' + p.pts + '</td><td>' + p.ace + '</td><td>' + p.winner + '</td><td>' + p.error + '</td><td>' + p.df + '</td></tr>').join('') +
-        '</tbody></table></div></section>';
-    }
-    html += '<section class="group"><h3>Exportar</h3><div class="actions"><button class="btn" type="button" data-export="csv"><svg><use href="#i-download"/></svg>Planilha (CSV)</button><button class="btn" type="button" data-export="json"><svg><use href="#i-download"/></svg>Dados (JSON)</button></div></section>';
-    $('#statsBody').innerHTML = html;
+    $('#statsBody').innerHTML = sumHTML(match, S.matchStats(match), true);
   }
 
   // Fim de jogo
   function openEnd() {
     if (!state.done) return;
     const w = state.winner;
-    const first = match.events[0], last = match.events[match.events.length - 1];
-    const mins = first && last ? Math.max(1, Math.round((last.t - first.t) / 60000)) : 0;
-    const sets = state.sets.map(s => E.setText(s)).join('  ·  ');
-    const byVoice = match.events.filter(e => e.src === 'voz').length;
+    const st = S.matchStats(match);
     $('#endBody').innerHTML =
-      '<div class="end-hero" style="--tc:' + colorVar(match.teams[w].color) + '"><svg><use href="#i-award"/></svg><h3>' + esc(name(w)) + ' venceu</h3><p>' + esc(sets) + '</p></div>' +
-      '<p class="hint center">' + state.stats.points[0] + ' a ' + state.stats.points[1] + ' em pontos' + (mins ? ' · ' + mins + ' min' : '') +
-      (byVoice ? ' · ' + byVoice + (byVoice === 1 ? ' lance por voz' : ' lances por voz') : '') + '</p>' +
-      '<div class="actions" style="justify-content:center"><button class="btn" type="button" id="endStats"><svg><use href="#i-chart"/></svg>Estatísticas</button>' +
-      '<button class="btn" type="button" data-export="csv"><svg><use href="#i-download"/></svg>CSV</button>' +
-      '<button class="btn" type="button" id="endUndo"><svg><use href="#i-undo"/></svg>Desfazer último</button></div>' +
-      '<button class="btn-primary" type="button" id="endRematch">Revanche</button>' +
-      '<button class="btn" type="button" id="endNew" style="justify-self:center">Mudar formato ou times</button>';
+      '<div class="end-hero" style="--tc:' + colorVar(match.teams[w].color) + '"><svg><use href="#i-award"/></svg><h3>' + esc(name(w)) + ' venceu</h3><p>' + esc(state.sets.map(s => E.setText(s)).join('  ·  ')) + '</p></div>' +
+      '<p class="hint center">' + state.stats.points[0] + ' a ' + state.stats.points[1] + ' em pontos · ' + fmtDur(st.durationMs) +
+      (st.byVoice ? ' · ' + st.byVoice + (st.byVoice === 1 ? ' lance por voz' : ' lances por voz') : '') + '</p>' +
+      '<button class="btn-primary" type="button" id="endSave"><svg><use href="#i-share"/></svg>Salvar e compartilhar</button>' +
+      '<div class="actions" style="justify-content:center"><button class="btn" type="button" id="endRematch"><svg><use href="#i-play"/></svg>Salvar e revanche</button>' +
+      '<button class="btn" type="button" id="endUndo"><svg><use href="#i-undo"/></svg>Desfazer último</button></div>';
     openSheet('#sheetEnd');
   }
 
@@ -824,18 +875,27 @@
       ['dupla falta ' + a, 'ponto de ' + name(1) + ' (dupla falta de ' + name(0) + ')'],
       [b + ' errou', 'ponto de ' + name(0) + ' (erro de ' + name(1) + ')'],
     ];
+    const p1 = match.teams[1].players[0] || b;
+    const pro = [
+      ['ponto forehand ' + (p0 || a), 'golpe do ponto: forehand (ou direita), backhand (revés), voleio, smash, drop, lob, ataque, bloqueio'],
+      ['peteca na rede do ' + p1, 'erro com tipo: na rede ou pra fora (o ponto vai para o outro time)'],
+      ['ponto ' + (p0 || a) + ' com levantamento ' + (match.teams[0].players[1] || 'da Bia'), 'quem deu a assistência (vôlei, futevôlei, duplas)'],
+    ];
     const fix = [
-      ['desfazer', 'apaga o último lance (também: “anula”, “volta o ponto”)'],
+      ['desfazer', 'apaga o último lance (também: “volta o ponto”)'],
       ['corrige, ponto ' + b, 'troca o último ponto pelo certo'],
       ['refazer', 'devolve o que foi desfeito'],
       ['saque ' + a, 'define quem está sacando'],
       ['placar', 'o aparelho fala o placar'],
+      ['finalizar partida', 'encerra e salva (diga “confirmar” duas vezes, ou “cancelar”)'],
     ];
     const list = items => '<div class="list cmds">' + items.map(([q, d]) => '<div class="cmd"><q>' + esc((prefs.wake ? 'placar, ' : '') + q) + '</q><span>' + esc(d) + '</span></div>').join('') + '</div>';
     $('#helpBody').innerHTML =
       '<section class="group"><h3>Marcar ponto</h3>' + list(rows) + '</section>' +
       '<section class="group"><h3>Com detalhe (estatística)</h3>' + list(detail) + '</section>' +
-      '<section class="group"><h3>Corrigir e consultar</h3>' + list(fix) + '</section>' +
+      '<section class="group"><h3>Estatística de jogador</h3>' + list(pro) + '</section>' +
+      '<section class="group"><h3>Corrigir, consultar e encerrar</h3>' + list(fix) + '</section>' +
+      '<section class="group"><h3>Onde deixar o aparelho</h3><p class="hint">Na lateral, na altura da rede e perto do meio da quadra, nunca no fundo atrás de um time. Longe do alto-falante de música. Com barulho ou quadra grande, use uma lapela sem fio ou fone e escolha em Ajustes, Microfone. Faça o teste de nível do lugar onde você joga.</p></section>' +
       '<section class="group"><h3>Como falar</h3><p class="hint">Fale depois que o lance acabar, numa frase curta e virado para o aparelho. Um bipe agudo confirma; um bipe grave quer dizer que faltou o time. O aparelho não escuta enquanto anuncia o placar. Se dois jogadores gritarem juntos, só o primeiro conta (intervalo mínimo em Ajustes).</p></section>' +
       '<section class="group"><h3>Teclado e controle</h3><div class="list cmds">' +
       '<div class="cmd"><span><span class="kbd">←</span> <span class="kbd">1</span> <span class="kbd">PgUp</span></span><span>ponto ' + esc(name(0)) + '</span></div>' +
@@ -850,14 +910,14 @@
     const c = E.makeConfig(m.cfgInput);
     const { rows } = E.replayDetailed(c, m.events);
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const head = ['n', 'data_hora', 'tipo', 'time_ponto', 'detalhe', 'jogador', 'time_jogador', 'resultado', 'placar_apos', 'ouvido', 'origem'];
+    const head = ['n', 'data_hora', 'tipo', 'time_ponto', 'detalhe', 'tipo_erro', 'golpe', 'jogador', 'time_jogador', 'assistencia', 'resultado', 'placar_apos', 'ouvido', 'origem'];
     const lines = [head.join(';')];
     rows.forEach((r, i) => {
       const ev = r.ev;
       lines.push([
         i + 1, new Date(ev.t).toISOString(), ev.type === 'server' ? 'saque' : 'ponto', m.teams[ev.team] ? m.teams[ev.team].name : '',
-        ev.tag ? TAGS[ev.tag] : '', ev.player || '', ev.player && m.teams[ev.playerTeam] ? m.teams[ev.playerTeam].name : '',
-        outcomeLabel(r.out), r.score, ev.heard || '', ev.src || '',
+        ev.tag ? TAGS[ev.tag] : '', ev.errType || '', ev.shot || '', ev.player || '', ev.player && m.teams[ev.playerTeam] ? m.teams[ev.playerTeam].name : '',
+        ev.assist || '', outcomeLabel(r.out), r.score, ev.heard || '', ev.src || '',
       ].map(q).join(';'));
     });
     return lines.join('\r\n');
@@ -881,7 +941,7 @@
   function fileBase(m) {
     const d = new Date(m.createdAt || Date.now());
     const slug = s => G.fold(s).replace(/ /g, '-') || 'time';
-    return 'canta-' + slug(m.teams[0].name) + '-x-' + slug(m.teams[1].name) + '-' + d.toISOString().slice(0, 10);
+    return 'ultra-' + slug(m.teams[0].name) + '-x-' + slug(m.teams[1].name) + '-' + d.toISOString().slice(0, 10);
   }
 
   function exportMatch(kind, m) {
@@ -927,6 +987,385 @@
     if (show) $('#typeInput').focus();
   }
 
+  // =========================================================
+  // Telas no padrão Strava: Início (menu + feed), Jogar, Partida (resumo), Você (perfil)
+  // =========================================================
+  const S = window.CantaStats, SH = window.CantaShare;
+  const HEX = { azul: '#007AFF', laranja: '#FF9500', verde: '#34C759', rosa: '#FF2D55', roxo: '#AF52DE', amarelo: '#FFCC00' };
+  const sportLabel = sp => (E.SPORTS[sp] || E.SPORTS.beach).label;
+  const history = () => store.get(KEY_HIST, []).filter(validMatch);
+  const fmtDur = ms => { const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
+  function fmtWhen(t) {
+    if (!t) return '';
+    const d = new Date(t), now = new Date();
+    const day = d.toDateString() === now.toDateString() ? 'Hoje' : d.toDateString() === new Date(now - 864e5).toDateString() ? 'Ontem'
+      : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    return day + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+  function dayPart(t) { const h = new Date(t || Date.now()).getHours(); return h < 12 ? 'manhã' : h < 18 ? 'tarde' : 'noite'; }
+
+  let currentView = 'inicio', currentMatchId = null;
+  function go(view, id) {
+    if (SCREEN) view = 'jogar';
+    if (view === 'partida' && !id) view = 'inicio';
+    currentView = view;
+    currentMatchId = id || null;
+    document.body.dataset.view = view;
+    $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
+    const tab = view === 'partida' ? 'inicio' : view;
+    $$('.tabbar .tab').forEach(b => b.classList.toggle('on', b.dataset.go === tab));
+    if (view === 'inicio') renderHome();
+    if (view === 'partida') renderMatchView(id);
+    if (view === 'voce') renderMe();
+    if (view === 'jogar') { render(); renderVoice(); }
+    const hash = '#' + view + (id ? '-' + id : '');
+    if (location.hash !== hash) history_replace(hash);
+  }
+  function history_replace(hash) { try { window.history.replaceState(null, '', hash); } catch (e) { console.info('[rota] replaceState indisponivel', e); } }
+  function routeFromHash() {
+    const h = (location.hash || '').slice(1);
+    if (h.startsWith('partida-')) return go('partida', h.slice(8));
+    if (['inicio', 'jogar', 'voce'].includes(h)) return go(h);
+    go('inicio');
+  }
+
+  // ---------- desenhos reaproveitados ----------
+  function sparkSvg(tl) {
+    if (!tl || tl.length < 2) return '';
+    const W = 300, H = 56, max = Math.max(3, ...tl.map(Math.abs));
+    const x = i => (W * i / tl.length).toFixed(1), y = d => (H / 2 - (H / 2 - 4) * d / max).toFixed(1);
+    let d = 'M0 ' + y(0);
+    tl.forEach((v, i) => { d += ' L' + x(i + 1) + ' ' + y(v); });
+    return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<line class="z" x1="0" x2="' + W + '" y1="' + y(0) + '" y2="' + y(0) + '"/>' +
+      '<path class="a" d="' + d + ' L' + W + ' ' + y(0) + ' Z"/><path class="l" d="' + d + '" vector-effect="non-scaling-stroke"/></svg>';
+  }
+
+  function momentumSvgFor(st, teams) {
+    const tl = st.timeline;
+    if (tl.length < 2) return '<p class="hint">O gráfico de momento aparece depois de alguns pontos.</p>';
+    const W = 600, H = 150, pad = 18;
+    const max = Math.max(3, ...tl.map(Math.abs));
+    const x = i => pad + (W - 2 * pad) * (i / tl.length);
+    const y = d => H / 2 - (H / 2 - pad) * (d / max);
+    let line = 'M' + x(0) + ' ' + y(0);
+    tl.forEach((d, i) => { line += ' L' + x(i + 1).toFixed(1) + ' ' + y(d).toFixed(1); });
+    const area = line + ' L' + x(tl.length).toFixed(1) + ' ' + y(0) + ' Z';
+    const c0 = colorVar(teams[0].color), c1 = colorVar(teams[1].color);
+    const uid0 = 'cp' + Math.round(Math.random() * 1e6);
+    return '<svg class="momentum" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Momento da partida, ponto a ponto">' +
+      '<defs><clipPath id="' + uid0 + 't"><rect x="0" y="0" width="' + W + '" height="' + y(0) + '"/></clipPath><clipPath id="' + uid0 + 'b"><rect x="0" y="' + y(0) + '" width="' + W + '" height="' + (H - y(0)) + '"/></clipPath></defs>' +
+      st.setMarks.map(m => '<line class="grid" x1="' + x(m) + '" x2="' + x(m) + '" y1="' + pad + '" y2="' + (H - pad) + '"/>').join('') +
+      '<line class="zero" x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(0) + '" y2="' + y(0) + '"/>' +
+      '<path d="' + area + '" clip-path="url(#' + uid0 + 't)" style="fill:' + c0 + ';fill-opacity:.24;stroke:none"/>' +
+      '<path d="' + area + '" clip-path="url(#' + uid0 + 'b)" style="fill:' + c1 + ';fill-opacity:.24;stroke:none"/>' +
+      '<path d="' + line + '" style="fill:none;stroke:var(--fg);stroke-width:1.8"/>' +
+      '<text x="' + pad + '" y="12">' + esc(teams[0].name) + ' na frente</text>' +
+      '<text x="' + pad + '" y="' + (H - 4) + '">' + esc(teams[1].name) + ' na frente</text></svg>';
+  }
+
+  function bkRow(label, a, b, teams) {
+    const tot = (a || 0) + (b || 0);
+    const w = v => (tot ? Math.round(v / tot * 100) : 0) + '%';
+    return '<div class="bk-row"><b>' + a + '</b><div class="bk-mid"><span>' + esc(label) + '</span><div class="bk-bars">' +
+      '<u><em style="width:' + w(a) + ';--tc:' + colorVar(teams[0].color) + '"></em></u><u><em style="width:' + w(b) + ';--tc:' + colorVar(teams[1].color) + '"></em></u>' +
+      '</div></div><b>' + b + '</b></div>';
+  }
+
+  function resultHTML(m, st) {
+    const cols = st.state.sets.map(x => (x.matchTb && x.tb ? { v: x.tb, w: x.games[0] > x.games[1] ? 0 : 1 } : { v: x.games, w: x.games[0] > x.games[1] ? 0 : 1 }));
+    if (!st.state.done) cols.push(st.cfg.kind === 'games' && !st.state.isMatchTb ? { v: st.state.games, w: null } : { v: st.state.points, w: null });
+    return '<div class="result">' + [0, 1].map(t => {
+      const lose = st.winner != null && st.winner !== t;
+      return '<div class="result-row' + (lose ? ' lose' : '') + '" style="--tc:' + colorVar(m.teams[t].color) + '"><i></i><b>' + esc(m.teams[t].name) + '</b>' +
+        '<span class="result-sets">' + cols.map(c => '<span class="' + (c.w === t || c.w === null ? 'w' : '') + '">' + c.v[t] + '</span>').join('') + '</span>' +
+        '<span class="result-win">' + (st.winner === t ? '<svg><use href="#i-award"/></svg>' : '') + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  function titleFor(m, st) {
+    if (st.winner != null) return esc(m.teams[st.winner].name) + ' venceu ' + esc(m.teams[1 - st.winner].name);
+    return esc(m.teams[0].name) + ' × ' + esc(m.teams[1].name);
+  }
+
+  function kpiHTML(items, big) {
+    return '<div class="kpis' + (big ? ' big' : '') + '">' + items.map(([l, v]) => '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>').join('') + '</div>';
+  }
+
+  function scoreShort(st) {
+    if (st.cfg.kind === 'games' || st.cfg.setsToWin > 1) return st.state.setsWon.join('-') + (st.cfg.setsToWin === 1 && st.state.sets[0] ? '' : '');
+    return st.state.points.join('-');
+  }
+  function placarText(st) {
+    const sets = st.state.sets.map(x => E.setText(x));
+    if (!st.state.done) sets.push(st.cfg.kind === 'games' && !st.state.isMatchTb ? st.state.games.join('-') : st.state.points.join('-'));
+    return sets.join(' ');
+  }
+
+  // Corpo do resumo (usado no resumo salvo e nas estatisticas ao vivo)
+  function sumHTML(m, st, live) {
+    const T = st.teams;
+    let h = '<div class="sum">';
+    h += '<div class="panel"><div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) +
+      '</b><span>' + esc(fmtWhen(m.endedAt || m.createdAt)) + ' · ' + esc(formatSummary(st.cfg)) + '</span></span></div>' +
+      '<h2 class="card-title">' + titleFor(m, st) + ' ' + (live ? '<span class="badge">Ao vivo</span>' : st.winner == null ? '<span class="badge muted">Encerrada</span>' : '') + '</h2>' +
+      resultHTML(m, st) +
+      (live ? '' : '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button>') + '</div>';
+    h += '<div class="panel">' + kpiHTML([
+      ['Placar', placarText(st)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
+      ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
+    ], true) + '</div>';
+    h += '<div class="panel"><h3>Momento</h3>' + momentumSvgFor(st, m.teams) + '</div>';
+    const leg = '<div class="legend"><span><i style="--tc:' + colorVar(m.teams[0].color) + '"></i>' + esc(m.teams[0].name) + '</span><span>' + esc(m.teams[1].name) + '<i style="--tc:' + colorVar(m.teams[1].color) + '"></i></span></div>';
+    let comp = bkRow('Pontos ganhos', T[0].pts, T[1].pts, m.teams);
+    if (st.cfg.kind === 'games') comp += bkRow('Pontos no saque', T[0].serveWon, T[1].serveWon, m.teams);
+    comp += bkRow('Aces', T[0].aces, T[1].aces, m.teams) + bkRow('Winners', T[0].winners, T[1].winners, m.teams) +
+      bkRow('Erros', T[0].errors, T[1].errors, m.teams) + bkRow('Na rede', T[0].rede, T[1].rede, m.teams) + bkRow('Pra fora', T[0].fora, T[1].fora, m.teams) +
+      bkRow('Duplas faltas', T[0].df, T[1].df, m.teams);
+    if (st.cfg.kind === 'games') comp += bkRow('Quebras', T[0].breaks, T[1].breaks, m.teams);
+    comp += bkRow('Maior sequência', T[0].maxStreak, T[1].maxStreak, m.teams);
+    h += '<div class="panel"><h3>Comparativo</h3>' + leg + '<div class="bk">' + comp + '</div></div>';
+    const shots = S.SHOTS.filter(k => T[0].shots[k] || T[1].shots[k]);
+    if (shots.length) {
+      h += '<div class="panel"><h3>Pontos por golpe</h3>' + leg + '<div class="bk">' + shots.map(k => bkRow(G.SHOT_LABEL[k] || k, T[0].shots[k] || 0, T[1].shots[k] || 0, m.teams)).join('') + '</div></div>';
+    }
+    const ps = st.players.filter(p => p.pts + p.errors + p.df + p.assists + p.aces > 0);
+    if (ps.length) {
+      h += '<div class="panel"><h3>Por jogador</h3><div class="table-wrap"><table class="players-table"><thead><tr><th>Jogador</th><th>Pts</th><th>Aces</th><th>Win.</th><th>Assist.</th><th>Erros</th><th>Rede</th><th>Fora</th></tr></thead><tbody>' +
+        ps.map(p => '<tr><td><i style="--tc:' + colorVar(m.teams[p.team].color) + '"></i>' + esc(p.name) + (st.mvp && st.mvp === p ? ' <span class="badge">Destaque</span>' : '') + '</td><td>' + p.pts + '</td><td>' + p.aces + '</td><td>' + p.winners + '</td><td>' + p.assists + '</td><td>' + (p.errors + p.df) + '</td><td>' + p.rede + '</td><td>' + p.fora + '</td></tr>').join('') +
+        '</tbody></table></div></div>';
+    } else {
+      h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
+    }
+    h += '<div class="actions"><button class="btn" type="button" data-export="csv"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Planilha (CSV)</button>' +
+      '<button class="btn" type="button" data-export="json"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Dados (JSON)</button></div>';
+    if (!live) h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
+    return h + '</div>';
+  }
+
+  // ---------- Início ----------
+  function renderHome() {
+    const live = match.events.length && !match.finished;
+    if (live) {
+      $('#liveCard').innerHTML = '<div class="live"><div class="live-top"><span class="live-dot"></span>Partida em andamento · ' + esc(sportLabel(cfg.sport)) + '</div>' +
+        '<div class="live-score">' + [0, 1].map(t => '<span>' + esc(name(t)) + '<b>' + esc(placarText({ state, cfg }).split(' ').map(x => x.split('-')[t] || x).join(' ')) + '</b></span>').join('') + '</div>' +
+        '<button class="btn-light" type="button" data-go="jogar"><svg><use href="#i-play"/></svg>Continuar</button></div>';
+    } else $('#liveCard').innerHTML = '';
+    $('#sportQuick').innerHTML = Object.keys(E.SPORTS).map(sp =>
+      '<button class="quick-tile" type="button" data-sport="' + sp + '"><svg><use href="#s-' + sp + '"/></svg>' + esc(E.SPORTS[sp].label) + '</button>').join('');
+    const hist = history().sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
+    $('#feedCount').textContent = hist.length ? hist.length + (hist.length === 1 ? ' partida' : ' partidas') : '';
+    if (!hist.length) {
+      $('#feed').innerHTML = '<div class="empty-state"><svg><use href="#i-flag"/></svg><b>Sua primeira partida aparece aqui</b><span>Escolha o esporte acima, jogue falando os pontos e toque em Finalizar. Cada partida vira um card com placar, estatísticas e imagem para compartilhar.</span></div>';
+      return;
+    }
+    $('#feed').innerHTML = hist.slice(0, 40).map(m => {
+      const st = S.matchStats(m);
+      const players = m.teams.map(t => (t.players || []).join(' e ')).filter(Boolean).join(' × ');
+      return '<article class="card" data-open="' + esc(m.id) + '">' +
+        '<div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) + ' à ' + dayPart(m.endedAt) + '</b><span>' + esc(fmtWhen(m.endedAt)) + (players ? ' · ' + esc(players) : '') + '</span></span></div>' +
+        '<h3 class="card-title">' + titleFor(m, st) + (st.winner == null ? ' <span class="badge muted">Encerrada</span>' : '') + '</h3>' +
+        kpiHTML([['Placar', placarText(st)], ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts], ['Duração', fmtDur(st.durationMs)]]) +
+        sparkSvg(st.timeline) +
+        '<div class="card-actions"><button type="button" data-share="' + esc(m.id) + '"><svg><use href="#i-share"/></svg>Compartilhar</button><button type="button" data-open="' + esc(m.id) + '"><svg><use href="#i-chart"/></svg>Estatísticas</button></div>' +
+        '</article>';
+    }).join('');
+  }
+
+  // ---------- Partida salva ----------
+  function findMatch(id) { return history().find(m => m.id === id) || null; }
+  function renderMatchView(id) {
+    const m = findMatch(id);
+    if (!m) { $('#matchBody').innerHTML = '<div class="empty-state"><b>Partida não encontrada</b><span>Ela pode ter sido excluída neste aparelho.</span></div>'; return; }
+    $('#matchBody').innerHTML = sumHTML(m, S.matchStats(m), false);
+  }
+
+  // ---------- Você (perfil) ----------
+  function initials(n) { return String(n || '?').trim().split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase(); }
+  function trendSvg(series, k1, k2, l1, l2) {
+    const n = series.length;
+    if (n < 2) return '<p class="hint">O gráfico de evolução aparece a partir da 2ª partida.</p>';
+    const W = 600, H = 170, L = 30, R = 10, Tp = 14, B = 22;
+    const max = Math.max(4, ...series.map(r => Math.max(r[k1] || 0, r[k2] || 0)));
+    const x = i => L + (W - L - R) * (n === 1 ? 0.5 : i / (n - 1));
+    const y = v => Tp + (H - Tp - B) * (1 - v / max);
+    const path = k => series.map((r, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(r[k] || 0).toFixed(1)).join(' ');
+    const ticks = [0, Math.round(max / 2), max];
+    return '<svg class="trend" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Evolução por partida">' +
+      ticks.map(t => '<line class="g" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text x="0" y="' + (y(t) + 4) + '">' + t + '</text>').join('') +
+      '<path class="s1" d="' + path(k1) + '"/><path class="s2" d="' + path(k2) + '"/>' +
+      series.map((r, i) => '<circle class="d1" cx="' + x(i) + '" cy="' + y(r[k1] || 0) + '" r="3.5"/><circle class="d2" cx="' + x(i) + '" cy="' + y(r[k2] || 0) + '" r="3"/>').join('') +
+      '<text x="' + L + '" y="' + (H - 4) + '">1ª</text><text x="' + (W - R - 24) + '" y="' + (H - 4) + '">' + n + 'ª</text></svg>' +
+      '<div class="legend"><span><i style="--tc:var(--brand-ink)"></i>' + esc(l1) + '</span><span><i style="--tc:var(--danger)"></i>' + esc(l2) + '</span></div>';
+  }
+
+  function renderMe() {
+    const hist = history();
+    const known = S.knownPlayers(hist);
+    const body = $('#meBody');
+    if (!known.length) {
+      body.innerHTML = '<div class="empty-state"><svg><use href="#i-user"/></svg><b>Seu perfil nasce das suas partidas</b><span>Ao criar a partida, coloque o nome dos jogadores (o seu também). Depois de finalizar, aqui aparecem vitórias, médias, evolução, sequências e confrontos.</span><button class="btn-primary" type="button" data-go="jogar" style="padding:0 18px;width:auto">Jogar agora</button></div>';
+      return;
+    }
+    let me = known.find(k => k.key === S.fold(prefs.me || '')) || known[0];
+    const p = S.profile(hist, me.name);
+    const pct = p.winRate == null ? '–' : Math.round(p.winRate * 100) + '%';
+    const one = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
+    const cur = p.currentStreak;
+    let h = '<div class="panel"><div class="me-head"><span class="me-avatar">' + esc(initials(p.name)) + '</span><div><h2>' + esc(p.name) + '</h2><p>' +
+      p.matches + (p.matches === 1 ? ' partida' : ' partidas') + ' · ' + Object.keys(p.sports).map(sportLabel).join(', ') + '</p></div></div>' +
+      (known.length > 1 ? '<div class="me-pick">' + known.slice(0, 12).map(k => '<button class="pill' + (k.key === me.key ? ' on' : '') + '" type="button" data-me="' + esc(k.name) + '">' + esc(k.name) + '</button>').join('') + '</div>' : '') + '</div>';
+    h += '<div class="streaks"><div class="streak hot"><b>' + (cur.kind ? cur.len + ' ' + (cur.kind === 'V' ? (cur.len === 1 ? 'vitória' : 'vitórias') : (cur.len === 1 ? 'derrota' : 'derrotas')) : '–') + '</b><span>sequência atual</span></div>' +
+      '<div class="streak"><b>' + p.bestWinStreak + '</b><span>melhor sequência de vitórias</span></div><div class="streak"><b>' + pct + '</b><span>aproveitamento</span></div></div>';
+    h += '<div class="panel"><h3>Últimos jogos</h3><div class="form-guide">' + p.series.slice(-12).map(r => '<i class="' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '" title="' + esc(r.team + ' × ' + r.opp) + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</i>').join('') + '</div></div>';
+    h += '<div class="panel">' + kpiHTML([
+      ['Partidas', p.matches], ['Vitórias', p.wins], ['Derrotas', p.losses],
+      ['Pontos seus / jogo', one(p.avg.pts)], ['Erros / jogo', one(p.avg.errors)], ['Aces', p.aces],
+      ['Pontos do time / jogo', one(p.avg.teamPts)], ['Pontos sofridos / jogo', one(p.avg.oppPts)], ['Tempo em quadra', fmtDur(p.durationMs)],
+    ], true) + '</div>';
+    const attributed = p.series.some(r => r.pts || r.errors);
+    h += '<div class="panel"><h3>Evolução</h3>' + (attributed ? trendSvg(p.series, 'pts', 'errors', 'Seus pontos', 'Seus erros') : trendSvg(p.series, 'teamPts', 'oppPts', 'Pontos do time', 'Pontos sofridos')) + '</div>';
+    const shots = S.SHOTS.filter(k => p.shots[k]);
+    if (shots.length) {
+      const maxS = Math.max(...shots.map(k => p.shots[k]));
+      h += '<div class="panel"><h3>Seus golpes de ponto</h3><div class="bk">' + shots.sort((a, b) => p.shots[b] - p.shots[a]).map(k =>
+        '<div class="bk-row" style="grid-template-columns:88px minmax(0,1fr) 28px"><span class="sec-meta">' + esc(G.SHOT_LABEL[k] || k) + '</span><div class="bk-bars" style="grid-template-columns:1fr"><u style="justify-content:flex-start"><em style="width:' + Math.round(p.shots[k] / maxS * 100) + '%;--tc:var(--brand)"></em></u></div><b>' + p.shots[k] + '</b></div>').join('') + '</div></div>';
+    }
+    const opp = Object.values(p.opponents).sort((a, b) => b.matches - a.matches);
+    if (opp.length) h += '<div class="panel"><h3>Confrontos</h3><div class="h2h">' + opp.slice(0, 10).map(o => '<div class="h2h-row"><b>' + esc(o.name) + '</b><span class="rec"><span class="wl">' + o.wins + 'V</span> ' + o.losses + 'D</span><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></div>').join('') + '</div></div>';
+    const par = Object.values(p.partners).sort((a, b) => b.matches - a.matches);
+    if (par.length) h += '<div class="panel"><h3>Parceiros</h3><div class="h2h">' + par.slice(0, 8).map(o => '<div class="h2h-row"><b>' + esc(o.name) + '</b><span class="rec"><span class="wl">' + o.wins + 'V</span> ' + o.losses + 'D</span><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></div>').join('') + '</div></div>';
+    body.innerHTML = h;
+  }
+
+  // ---------- Finalizar (confirmação dupla) ----------
+  let finishStep = 0, finishTimer = null;
+  function openFinish(viaVoice) {
+    if (!match.events.length) { setFeedback('', 'miss', 'Nada para finalizar: a partida ainda não tem pontos'); return; }
+    finishStep = 1;
+    renderFinish();
+    openSheet('#sheetFinish');
+    if (viaVoice) say('Para encerrar, confirme duas vezes.');
+    clearTimeout(finishTimer);
+    finishTimer = setTimeout(() => { if (finishStep && isOpen('#sheetFinish')) closeSheet('#sheetFinish'); finishStep = 0; }, 30000);
+  }
+  function renderFinish() {
+    const st = S.matchStats(match);
+    const steps = '<div class="steps"><i class="on"></i><i class="' + (finishStep >= 2 ? 'on' : '') + '"></i></div>';
+    const body = finishStep === 1
+      ? '<p class="big">Finalizar a partida?</p><p>' + esc(name(0)) + ' ' + esc(placarText(st)) + ' ' + esc(name(1)) + ' · ' + st.teams[0].pts + ' a ' + st.teams[1].pts + ' em pontos</p>' +
+        '<div class="finish-actions"><button class="btn-danger" type="button" data-finish="next">Finalizar</button><button class="btn-ghost" type="button" data-finish="cancel">Continuar jogando</button></div>'
+      : '<p class="big">Tem certeza?</p><p>A partida será encerrada e salva com o placar atual. Depois disso não dá para marcar mais pontos nela.</p>' +
+        '<div class="finish-actions"><button class="btn-danger" type="button" data-finish="confirm">Sim, encerrar e salvar</button><button class="btn-ghost" type="button" data-finish="cancel">Voltar</button></div>';
+    $('#finishBody').innerHTML = '<div class="finish-step">' + steps + body + '</div>';
+  }
+  function finishAdvance() {
+    if (finishStep === 1) { finishStep = 2; renderFinish(); earcon.play('ok'); return; }
+    if (finishStep === 2) { finishStep = 0; closeSheet('#sheetFinish'); finalize(); }
+  }
+
+  // Salva no historico, zera o placar ao vivo e abre o resumo com o compartilhar (como o Strava ao salvar).
+  function finalize() {
+    if (!match.events.length) return;
+    const saved = Object.assign({}, match, { endedAt: Date.now(), finished: true, redo: [] });
+    const hist = store.get(KEY_HIST, []).filter(m => m.id !== saved.id);
+    hist.unshift(saved);
+    store.set(KEY_HIST, hist.slice(0, 100));
+    if (voice.wanted) voice.stop();
+    match = newMatch(Object.assign({}, match.cfgInput), match.teams.map(t => Object.assign({}, t)));
+    endShownFor = null; lastVoicePointAt = 0;
+    save(); recompute();
+    say('Partida salva.');
+    go('partida', saved.id);
+    setTimeout(() => openShare(saved.id), 450);
+  }
+
+  // ---------- Compartilhar ----------
+  const share = { id: null, tpl: 'resumo', fmt: 'story', img: null };
+  function shareData(m) {
+    const st = S.matchStats(m);
+    const T = st.teams;
+    const cols = st.state.sets.map(x => ({ vals: x.matchTb && x.tb ? x.tb : x.games, won: x.games[0] > x.games[1] ? 0 : 1 }));
+    if (!st.state.done) cols.push({ vals: st.cfg.kind === 'games' && !st.state.isMatchTb ? st.state.games : st.state.points, won: null });
+    const mvp = st.mvp ? {
+      name: st.mvp.name, teamName: m.teams[st.mvp.team].name, won: st.winner == null ? null : st.winner === st.mvp.team,
+      stats: [{ label: 'Pontos', value: String(st.mvp.pts) }, { label: 'Aces', value: String(st.mvp.aces) }, { label: 'Assistências', value: String(st.mvp.assists) }, { label: 'Erros', value: String(st.mvp.errors + st.mvp.df) }],
+    } : null;
+    return {
+      sportLabel: sportLabel(st.cfg.sport), dateText: fmtWhen(m.endedAt || m.createdAt),
+      teams: m.teams.map(t => ({ name: t.name, hex: HEX[t.color] || '#007AFF', players: t.players })),
+      winner: st.winner, setCols: cols, scoreText: placarText(st),
+      stats: [
+        { label: 'Pontos', value: T[0].pts + '-' + T[1].pts }, { label: 'Duração', value: fmtDur(st.durationMs) }, { label: 'Aces', value: T[0].aces + '-' + T[1].aces },
+        { label: 'Winners', value: T[0].winners + '-' + T[1].winners }, { label: 'Erros', value: (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df) }, { label: 'Maior sequência', value: T[0].maxStreak + '-' + T[1].maxStreak },
+      ],
+      timeline: st.timeline, mvp,
+      playersLine: m.teams.map(t => (t.players || []).join(' e ') || t.name).join('  ×  '),
+    };
+  }
+  function openShare(id) {
+    const m = findMatch(id);
+    if (!m) { setFeedback('', 'miss', 'Partida não encontrada para compartilhar'); return; }
+    share.id = id;
+    $('#shareTpls').innerHTML = SH.TEMPLATES.map(t => '<button class="pill' + (t.id === share.tpl ? ' on' : '') + '" type="button" data-tpl="' + t.id + '">' + esc(t.name) + '</button>').join('');
+    drawShare();
+    openSheet('#sheetShare');
+  }
+  function drawShare() {
+    const m = findMatch(share.id);
+    if (!m) return;
+    SH.render($('#shareCanvas'), share.tpl, share.fmt, shareData(m), share.img);
+    $('#photoPick').hidden = share.tpl !== 'foto';
+    $('#sharePreview').classList.toggle('dark', share.tpl === 'sticker');
+    $$('#shareTpls .pill').forEach(b => b.classList.toggle('on', b.dataset.tpl === share.tpl));
+    const canShareFiles = !!(navigator.canShare && navigator.share);
+    $('#btnShareNow').hidden = !canShareFiles;
+    $('#shareHint').textContent = share.tpl === 'sticker'
+      ? 'Fundo transparente: copie ou salve e cole por cima de uma foto no story do Instagram.'
+      : canShareFiles ? 'Compartilhar abre o Instagram, o WhatsApp e os outros apps do aparelho.' : 'Neste navegador, salve a imagem e poste pelo app.';
+  }
+  function shareFile(blob) {
+    const m = findMatch(share.id);
+    const base = 'ultra-' + (m ? G.fold(m.teams[0].name).replace(/ /g, '-') + '-x-' + G.fold(m.teams[1].name).replace(/ /g, '-') : 'partida');
+    return new File([blob], base + '-' + share.tpl + '.png', { type: 'image/png' });
+  }
+  async function doShare(kind) {
+    const canvas = $('#shareCanvas');
+    try {
+      if (kind === 'copy') {
+        if (!navigator.clipboard || !window.ClipboardItem) throw new Error('este navegador não copia imagens; use Salvar imagem');
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': SH.toBlob(canvas) })]);
+        setFeedback('', 'ok', 'Imagem copiada'); $('#shareHint').textContent = 'Imagem copiada. Cole no story ou na conversa.';
+        return;
+      }
+      const file = shareFile(await SH.toBlob(canvas));
+      if (kind === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Minha partida no ULTRA' });
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(file); a.download = file.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      $('#shareHint').textContent = 'Imagem salva: ' + file.name;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // o usuario fechou o menu de compartilhar
+      console.error('[compartilhar] falhou', e);
+      $('#shareHint').textContent = 'Não deu para ' + (kind === 'copy' ? 'copiar' : kind === 'share' ? 'compartilhar' : 'salvar') + ': ' + (e && e.message ? e.message : e);
+    }
+  }
+
+  function deleteMatch(id, btn) {
+    if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
+    store.set(KEY_HIST, store.get(KEY_HIST, []).filter(m => m.id !== id));
+    go('inicio');
+  }
+
+  function quickStart(sp) {
+    const base = Object.assign({ sport: sp, firstServer: 0 }, E.SPORTS[sp].defaults);
+    openNew({ cfgInput: base, teams: match.teams });
+  }
+
   // ---------- eventos ----------
   function bind() {
     $$('.board .team').forEach(el => el.addEventListener('click', () => addPoint(Number(el.dataset.team), { src: 'toque' })));
@@ -946,12 +1385,31 @@
     $('#btnHelp').addEventListener('click', () => { renderHelp(); openSheet('#sheetHelp'); });
     $('#btnLog').addEventListener('click', () => { renderLog(); openSheet('#sheetLog'); });
     $('#btnStats').addEventListener('click', () => { renderStats(); openSheet('#sheetStats'); });
-    $('#btnNew').addEventListener('click', () => openNew());
     $('#matchChip').addEventListener('click', () => openNew());
-    $('#btnPrefs').addEventListener('click', openPrefs);
+    $('#btnBack').addEventListener('click', () => go('inicio'));
+    $('#btnFinish').addEventListener('click', () => openFinish(false));
+    $('#finishBody').addEventListener('click', e => {
+      const b = e.target.closest('[data-finish]');
+      if (!b) return;
+      if (b.dataset.finish === 'cancel') closeSheet('#sheetFinish'); else finishAdvance();
+    });
+    $('#shareTpls').addEventListener('click', e => { const b = e.target.closest('[data-tpl]'); if (b) { share.tpl = b.dataset.tpl; drawShare(); } });
+    $$('input[name="shareFmt"]').forEach(el => el.addEventListener('change', () => { share.fmt = getRadio('shareFmt'); drawShare(); }));
+    $('#photoInput').addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const img = new Image();
+      img.onload = () => { share.img = img; drawShare(); };
+      img.onerror = () => { $('#shareHint').textContent = 'Não consegui abrir essa foto. Tente outra (JPG ou PNG).'; };
+      img.src = URL.createObjectURL(f);
+    });
+    $('#btnShareNow').addEventListener('click', () => doShare('share'));
+    $('#btnSaveImg').addEventListener('click', () => doShare('save'));
+    $('#btnCopyImg').addEventListener('click', () => doShare('copy'));
     $('#btnTv').addEventListener('click', () => toggleTv(true));
     $('#btnTvExit').addEventListener('click', () => toggleTv(false));
     $('#btnCsv').addEventListener('click', () => exportMatch('csv'));
+    window.addEventListener('hashchange', routeFromHash);
 
     $('#logList').addEventListener('click', e => {
       const b = e.target.closest('[data-del]');
@@ -976,17 +1434,35 @@
 
     document.addEventListener('click', e => {
       const ex = e.target.closest('[data-export]');
-      if (ex) exportMatch(ex.dataset.export);
-      const h = e.target.closest('[data-hist]');
-      if (h) { const item = store.get(KEY_HIST, [])[Number(h.dataset.hist)]; if (item) exportMatch('csv', item); }
-      if (e.target.closest('#endStats')) { $('#sheetEnd').close(); renderStats(); openSheet('#sheetStats'); }
-      if (e.target.closest('#endUndo')) { $('#sheetEnd').close(); undo({}); }
-      if (e.target.closest('#endRematch')) {
-        $('#sheetEnd').close();
-        const ci = Object.assign({}, match.cfgInput, { firstServer: 1 - E.makeConfig(match.cfgInput).firstServer });
-        startMatch(ci, match.teams.map(t => Object.assign({}, t)));
+      if (ex) exportMatch(ex.dataset.export, ex.dataset.mid ? findMatch(ex.dataset.mid) : null);
+      const gv = e.target.closest('[data-go]');
+      if (gv) { closeAllSheets(); go(gv.dataset.go); return; }
+      const sh = e.target.closest('[data-share]');
+      if (sh) { e.stopPropagation(); openShare(sh.dataset.share); return; }
+      const op = e.target.closest('[data-open]');
+      if (op) { go('partida', op.dataset.open); return; }
+      const sp = e.target.closest('[data-sport]');
+      if (sp) { quickStart(sp.dataset.sport); return; }
+      const me = e.target.closest('[data-me]');
+      if (me) { prefs.me = me.dataset.me; savePrefs(); renderMe(); return; }
+      const act = e.target.closest('[data-action]');
+      if (act) {
+        const a = act.dataset.action;
+        if (a === 'prefs') openPrefs();
+        if (a === 'home') go('inicio');
+        if (a === 'share') openShare(currentMatchId);
+        if (a === 'delete-match') deleteMatch(act.dataset.mid, act);
       }
-      if (e.target.closest('#endNew')) { $('#sheetEnd').close(); openNew(); }
+      if (e.target.closest('#endSave')) { closeSheet('#sheetEnd'); finalize(); }
+      if (e.target.closest('#endUndo')) { closeSheet('#sheetEnd'); undo({}); }
+      if (e.target.closest('#endRematch')) {
+        closeSheet('#sheetEnd');
+        const ci = Object.assign({}, match.cfgInput, { firstServer: 1 - E.makeConfig(match.cfgInput).firstServer });
+        const teams = match.teams.map(t => Object.assign({}, t));
+        finalize();
+        closeAllSheets();
+        startMatch(ci, teams);
+      }
     });
 
     // Nova partida
@@ -1011,7 +1487,7 @@
       const box = $('#newError');
       if (err) { box.textContent = err; box.hidden = false; return; }
       box.hidden = true;
-      $('#sheetNew').close();
+      closeSheet('#sheetNew');
       startMatch(ci, teams);
     });
 
@@ -1019,6 +1495,9 @@
     $('#pTts').addEventListener('change', e => { prefs.tts = e.target.checked; speaker.enabled = prefs.tts; savePrefs(); });
     $('#pBeep').addEventListener('change', e => { prefs.beep = e.target.checked; earcon.enabled = prefs.beep; savePrefs(); });
     $('#pWake').addEventListener('change', e => { prefs.wake = e.target.checked; ctx = buildCtx(); voice.phrases = voicePhrases(); if (voice.wanted) voice.reopen(); savePrefs(); renderVoice(); });
+    $('#pDetail').addEventListener('change', e => { prefs.detail = e.target.checked; savePrefs(); voice.phrases = voicePhrases(); if (voice.wanted) voice.reopen(); });
+    $('#pMic').addEventListener('change', e => { prefs.mic = e.target.value; savePrefs(); if (micTest) { toggleMicTest(); toggleMicTest(); } switchEngine(); });
+    $('#btnMicTest').addEventListener('click', toggleMicTest);
     $$('input[name="engine"]').forEach(el => el.addEventListener('change', () => { prefs.engine = getRadio('engine'); savePrefs(); switchEngine(); renderEngineNote(); }));
     $('#pAwake').addEventListener('change', e => { prefs.awake = e.target.checked; savePrefs(); if (prefs.awake) requestWakeLock(); else if (wakeLock) wakeLock.release().catch(err => console.info('[tela] liberar falhou', err)); });
     $('#pLocal').addEventListener('change', e => { prefs.local = e.target.checked; if (voice.kind === 'web') { voice.useLocal = prefs.local; voice.phrases = voicePhrases(); voice.reopen(); } savePrefs(); });
@@ -1038,13 +1517,14 @@
       refreshLocalStatus();
     });
     $('#btnWindow').addEventListener('click', () => {
-      const w = window.open(location.pathname + '?tela=tv', 'canta-tv', 'popup,width=1280,height=720');
+      const w = window.open(location.pathname + '?tela=tv', 'ultra-tv', 'popup,width=1280,height=720');
       if (!w) setFeedback('', 'miss', 'O navegador bloqueou a nova janela. Libere pop-ups para este site.');
     });
 
     document.addEventListener('keydown', e => {
       if (e.target.closest && e.target.closest('input, select, textarea')) return;
-      if (document.querySelector('dialog[open]') || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Escape' && anySheetOpen()) { e.preventDefault(); closeAllSheets(); return; }
+      if (anySheetOpen() || currentView !== 'jogar' || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key;
       const act = {
         ArrowLeft: () => addPoint(0, { src: 'teclado' }), 1: () => addPoint(0, { src: 'teclado' }), PageUp: () => addPoint(0, { src: 'teclado' }),
@@ -1057,7 +1537,7 @@
     });
     document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('tv')) toggleTv(false); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
-    window.addEventListener('storage', e => { if (e.key === KEY_HIST && $('#sheetPrefs').open) renderHistory(); });
+    window.addEventListener('storage', e => { if (e.key === KEY_HIST && currentView === 'inicio') renderHome(); });
   }
 
   function openPrefs() {
@@ -1070,7 +1550,8 @@
     setRadio('theme', prefs.theme);
     setRadio('engine', prefs.engine);
     renderEngineNote();
-    renderHistory();
+    $('#pDetail').checked = prefs.detail;
+    fillMics();
     refreshLocalStatus().catch(e => { console.error('[voz] status offline', e); $('#localStatus').textContent = 'Não consegui consultar a voz offline: ' + e.message; });
     openSheet('#sheetPrefs');
   }
@@ -1101,7 +1582,7 @@
   // ---------- inicio ----------
   applyTheme();
   render();
-  if (SCREEN) bindScreen();
+  if (SCREEN) { bindScreen(); go('jogar'); }
   else {
     bind();
     if (params.get('demo')) save();
@@ -1109,9 +1590,13 @@
     const open = {
       nova: () => openNew(), ajustes: openPrefs, lances: () => { renderLog(); openSheet('#sheetLog'); },
       estatisticas: () => { renderStats(); openSheet('#sheetStats'); }, comandos: () => { renderHelp(); openSheet('#sheetHelp'); },
-      fim: () => openEnd(), tv: () => toggleTv(true),
+      fim: () => openEnd(), tv: () => { go('jogar'); toggleTv(true); }, finalizar: () => { go('jogar'); openFinish(false); },
+      compartilhar: () => { const h = history(); if (h[0]) { go('partida', h[0].id); openShare(h[0].id); } },
     }[params.get('abrir')];
-    if (open) open();
+    const hadHash = !!location.hash;
+    routeFromHash();
+    if (params.get('demo') && !hadHash) go('jogar');
+    if (open) { if (['lances', 'estatisticas', 'comandos'].includes(params.get('abrir'))) go('jogar'); open(); }
     renderVoice();
     renderMic();
     requestWakeLock();
@@ -1120,5 +1605,5 @@
     }
   }
   // Para testes manuais no console: Canta.hear('ponto azul')
-  window.Canta = { hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match };
+  window.Canta = { hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match, go, history };
 })();

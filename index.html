@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ULTRA">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Placar de quadra por comando de voz: tênis, beach tennis, padel, peteca e pontos corridos.">
-<title>Canta Placar</title>
+<meta name="description" content="Placar por voz e estatísticas de partida para tênis, beach tennis, padel, peteca, vôlei de praia e futevôlei.">
+<title>ULTRA</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
@@ -41,6 +42,18 @@
     <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6a8 8 0 0 1 0 12"/></symbol>
     <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3.5 4v4h4"/><path d="M12 7.5V12l3 2"/></symbol>
     <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M11 10V4a1.5 1.5 0 0 1 3 0v6"/><path d="M14 10V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6.5 6.5 0 0 1-5-2.4L3 16.5a1.5 1.5 0 0 1 2.3-2L8 17"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h13V9"/><path d="M10 20v-6h4v6"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20.5c1.4-3.6 4.4-5.5 8-5.5s6.6 1.9 8 5.5"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3.5"/><path d="m7.5 8 4.5-4.5L16.5 8"/><path d="M5 12v7.5h14V12"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4.5h11l-2 4 2 4H5"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 8.5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="s-volei" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3c2.6 2.2 4 5.3 4 9"/><path d="M3.6 9.2c3.3-.6 6.6.3 8.4 2.8 1.7 2.5 1.7 5.8.5 8.9"/><path d="M20.6 15.3c-3 1.4-6.4 1.2-8.6-.7"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M9 2h12l-5.4 7.4H3.6z"/><path d="M11.6 10.6h4.6l-3.6 4.8H8z"/><path d="M8.4 16.6h12l-5.4 7.4H3z"/></symbol>
     <!-- esportes -->
     <symbol id="s-tenis" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.4 5.8a9 9 0 0 1 0 12.4"/><path d="M18.6 5.8a9 9 0 0 0 0 12.4"/></symbol>
     <symbol id="s-beach" viewBox="0 0 24 24"><circle cx="15.5" cy="7" r="3"/><path d="M3 21c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 4.5 0"/><path d="M4 16.5c1.5-1 3-1 4.5 0s3 1 4.5 0"/><path d="m4.5 3.5 4 9"/></symbol>
@@ -52,78 +65,123 @@
 </svg>
 
 <div class="app" id="app">
-  <header class="topbar">
-    <div class="brand" aria-label="Canta Placar">
-      <span class="brand-mark" aria-hidden="true"><svg><use href="#i-mic"/></svg></span>
-      <span class="brand-name">Canta</span>
-    </div>
-    <button class="match-chip" id="matchChip" type="button" title="Formato da partida">
-      <svg class="ico" aria-hidden="true"><use id="matchChipIcon" href="#s-beach"/></svg>
-      <span id="matchChipText">Beach Tennis</span>
-    </button>
-    <nav class="top-actions" aria-label="Ações">
-      <button class="icon-btn" id="btnTv" type="button" title="Modo TV (T)"><svg><use href="#i-tv"/></svg></button>
-      <button class="icon-btn" id="btnStats" type="button" title="Estatísticas"><svg><use href="#i-chart"/></svg></button>
-      <button class="icon-btn" id="btnLog" type="button" title="Lances"><svg><use href="#i-list"/></svg></button>
-      <button class="icon-btn" id="btnNew" type="button" title="Nova partida"><svg><use href="#i-plus"/></svg></button>
-      <button class="icon-btn" id="btnPrefs" type="button" title="Ajustes"><svg><use href="#i-sliders"/></svg></button>
-    </nav>
-    <button class="icon-btn tv-exit" id="btnTvExit" type="button" title="Sair do modo TV (Esc)"><svg><use href="#i-x"/></svg></button>
-  </header>
 
-  <main class="stage">
-    <section class="board" id="board" aria-live="polite">
-      <div class="board-head" aria-hidden="true">
-        <span class="head-format" id="headFormat"></span>
-        <span class="sets head-sets" id="headSets"></span>
-        <span class="head-game" id="headGame">Game</span>
+  <!-- INICIO: menu, partida em andamento e feed -->
+  <section class="view" id="view-inicio" data-tab="inicio">
+    <header class="hdr">
+      <div class="brand" aria-label="ULTRA"><span class="brand-mark" aria-hidden="true"><svg><use href="#i-bolt"/></svg></span><span class="brand-name wordmark">ULTRA</span></div>
+      <button class="icon-btn" type="button" data-action="prefs" title="Ajustes"><svg><use href="#i-sliders"/></svg></button>
+    </header>
+    <div class="scroll">
+      <div class="page">
+        <div id="liveCard"></div>
+        <section class="block">
+          <div class="sec-head"><h2>Começar partida</h2></div>
+          <div class="quick" id="sportQuick"></div>
+        </section>
+        <section class="block">
+          <div class="sec-head"><h2>Suas partidas</h2><span class="sec-meta" id="feedCount"></span></div>
+          <div class="feed" id="feed"></div>
+        </section>
       </div>
-      <button class="team" data-team="0" type="button" aria-label="Marcar ponto">
-        <span class="team-id">
-          <span class="team-name"><span class="name-text"></span><svg class="serve" aria-label="Sacando"><use href="#s-tenis"/></svg></span>
-          <span class="team-players"></span>
-        </span>
-        <span class="sets"></span>
-        <span class="game"><span class="game-val"></span></span>
-      </button>
-      <button class="team" data-team="1" type="button" aria-label="Marcar ponto">
-        <span class="team-id">
-          <span class="team-name"><span class="name-text"></span><svg class="serve" aria-label="Sacando"><use href="#s-tenis"/></svg></span>
-          <span class="team-players"></span>
-        </span>
-        <span class="sets"></span>
-        <span class="game"><span class="game-val"></span></span>
-      </button>
-    </section>
-    <div class="chips" id="chips" aria-live="polite"></div>
-  </main>
-
-  <footer class="dock" id="dock">
-    <button class="voice" id="voice" type="button" data-state="off">
-      <span class="voice-ico" aria-hidden="true">
-        <svg class="v-mic"><use href="#i-mic"/></svg>
-        <span class="v-bars"><i></i><i></i><i></i><i></i></span>
-      </span>
-      <span class="voice-text">
-        <b id="voiceState">Microfone desligado</b>
-        <span id="voiceHeard">Toque no microfone e diga “ponto azul”</span>
-      </span>
-      <span class="voice-result" id="voiceResult" hidden></span>
-    </button>
-    <form class="typer" id="typer" hidden>
-      <input id="typeInput" type="text" autocomplete="off" enterkeyhint="send" placeholder="Digite um comando, ex.: ponto azul ace">
-      <button class="btn" type="submit">Enviar</button>
-    </form>
-    <div class="dock-row">
-      <button class="dock-btn" id="btnHelp" type="button"><svg><use href="#i-help"/></svg><span>Comandos</span></button>
-      <button class="dock-btn" id="btnUndo" type="button"><svg><use href="#i-undo"/></svg><span>Desfazer</span></button>
-      <button class="mic-btn" id="btnMic" type="button" aria-pressed="false" title="Ligar microfone (espaço)">
-        <svg class="on"><use href="#i-mic"/></svg><svg class="off"><use href="#i-mic-off"/></svg>
-      </button>
-      <button class="dock-btn" id="btnRedo" type="button"><svg><use href="#i-redo"/></svg><span>Refazer</span></button>
-      <button class="dock-btn" id="btnType" type="button" aria-pressed="false"><svg><use href="#i-keyboard"/></svg><span>Digitar</span></button>
     </div>
-  </footer>
+  </section>
+
+  <!-- JOGAR: placar ao vivo -->
+  <section class="view view-play" id="view-jogar" data-tab="jogar">
+    <header class="topbar">
+      <button class="icon-btn" id="btnBack" type="button" title="Voltar ao início"><svg><use href="#i-back"/></svg></button>
+      <button class="match-chip" id="matchChip" type="button" title="Formato da partida">
+        <svg class="ico" aria-hidden="true"><use id="matchChipIcon" href="#s-beach"/></svg>
+        <span id="matchChipText">Beach Tennis</span>
+      </button>
+      <nav class="top-actions" aria-label="Ações">
+        <button class="icon-btn" id="btnTv" type="button" title="Modo TV (T)"><svg><use href="#i-tv"/></svg></button>
+        <button class="icon-btn" id="btnStats" type="button" title="Estatísticas ao vivo"><svg><use href="#i-chart"/></svg></button>
+        <button class="icon-btn" id="btnLog" type="button" title="Lances"><svg><use href="#i-list"/></svg></button>
+        <button class="btn-finish" id="btnFinish" type="button" title="Finalizar partida"><svg><use href="#i-flag"/></svg><span>Finalizar</span></button>
+      </nav>
+      <button class="icon-btn tv-exit" id="btnTvExit" type="button" title="Sair do modo TV (Esc)"><svg><use href="#i-x"/></svg></button>
+    </header>
+  <main class="stage">
+      <section class="board" id="board" aria-live="polite">
+        <div class="board-head" aria-hidden="true">
+          <span class="head-format" id="headFormat"></span>
+          <span class="sets head-sets" id="headSets"></span>
+          <span class="head-game" id="headGame">Game</span>
+        </div>
+        <button class="team" data-team="0" type="button" aria-label="Marcar ponto">
+          <span class="team-id">
+            <span class="team-name"><span class="name-text"></span><svg class="serve" aria-label="Sacando"><use href="#s-tenis"/></svg></span>
+            <span class="team-players"></span>
+          </span>
+          <span class="sets"></span>
+          <span class="game"><span class="game-val"></span></span>
+        </button>
+        <button class="team" data-team="1" type="button" aria-label="Marcar ponto">
+          <span class="team-id">
+            <span class="team-name"><span class="name-text"></span><svg class="serve" aria-label="Sacando"><use href="#s-tenis"/></svg></span>
+            <span class="team-players"></span>
+          </span>
+          <span class="sets"></span>
+          <span class="game"><span class="game-val"></span></span>
+        </button>
+      </section>
+      <div class="chips" id="chips" aria-live="polite"></div>
+    </main>
+  
+    <footer class="dock" id="dock">
+      <button class="voice" id="voice" type="button" data-state="off">
+        <span class="voice-ico" aria-hidden="true">
+          <svg class="v-mic"><use href="#i-mic"/></svg>
+          <span class="v-bars"><i></i><i></i><i></i><i></i></span>
+        </span>
+        <span class="voice-text">
+          <b id="voiceState">Microfone desligado</b>
+          <span id="voiceHeard">Toque no microfone e diga “ponto azul”</span>
+        </span>
+        <span class="voice-result" id="voiceResult" hidden></span>
+      </button>
+      <form class="typer" id="typer" hidden>
+        <input id="typeInput" type="text" autocomplete="off" enterkeyhint="send" placeholder="Digite um comando, ex.: ponto azul ace">
+        <button class="btn" type="submit">Enviar</button>
+      </form>
+      <div class="dock-row">
+        <button class="dock-btn" id="btnHelp" type="button"><svg><use href="#i-help"/></svg><span>Comandos</span></button>
+        <button class="dock-btn" id="btnUndo" type="button"><svg><use href="#i-undo"/></svg><span>Desfazer</span></button>
+        <button class="mic-btn" id="btnMic" type="button" aria-pressed="false" title="Ligar microfone (espaço)">
+          <svg class="on"><use href="#i-mic"/></svg><svg class="off"><use href="#i-mic-off"/></svg>
+        </button>
+        <button class="dock-btn" id="btnRedo" type="button"><svg><use href="#i-redo"/></svg><span>Refazer</span></button>
+        <button class="dock-btn" id="btnType" type="button" aria-pressed="false"><svg><use href="#i-keyboard"/></svg><span>Digitar</span></button>
+      </div>
+    </footer>
+  </section>
+
+  <!-- PARTIDA: resumo depois de salvar (como a atividade do Strava) -->
+  <section class="view" id="view-partida" data-tab="inicio">
+    <header class="hdr">
+      <button class="icon-btn" type="button" data-action="home" title="Voltar"><svg><use href="#i-back"/></svg></button>
+      <h1 class="hdr-title">Partida</h1>
+      <button class="icon-btn" type="button" data-action="share" title="Compartilhar"><svg><use href="#i-share"/></svg></button>
+    </header>
+    <div class="scroll"><div class="page" id="matchBody"></div></div>
+  </section>
+
+  <!-- VOCE: perfil e estatisticas somadas -->
+  <section class="view" id="view-voce" data-tab="voce">
+    <header class="hdr">
+      <h1 class="hdr-title left">Você</h1>
+      <button class="icon-btn" type="button" data-action="prefs" title="Ajustes"><svg><use href="#i-sliders"/></svg></button>
+    </header>
+    <div class="scroll"><div class="page" id="meBody"></div></div>
+  </section>
+
+  <nav class="tabbar" aria-label="Navegação">
+    <button class="tab" type="button" data-go="inicio"><svg><use href="#i-home"/></svg><span>Início</span></button>
+    <button class="tab tab-play" type="button" data-go="jogar"><span class="tab-play-btn"><svg><use href="#i-mic"/></svg></span><span>Jogar</span></button>
+    <button class="tab" type="button" data-go="voce"><svg><use href="#i-user"/></svg><span>Você</span></button>
+  </nav>
 </div>
 
 <div class="banner" id="banner" aria-live="assertive">
@@ -135,8 +193,8 @@
 </div>
 
 <!-- Nova partida -->
-<dialog class="sheet" id="sheetNew" aria-labelledby="newTitle">
-  <form method="dialog" class="sheet-form" id="formNew">
+<section class="sheet" id="sheetNew" role="dialog" aria-modal="true" aria-labelledby="newTitle" hidden>
+  <form class="sheet-form" id="formNew" novalidate>
     <header class="sheet-head">
       <h2 id="newTitle" tabindex="-1" autofocus>Nova partida</h2>
       <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
@@ -149,7 +207,7 @@
           <label class="sport"><input type="radio" name="sport" value="beach"><svg><use href="#s-beach"/></svg><b>Beach Tennis</b><small>No-Ad</small></label>
           <label class="sport"><input type="radio" name="sport" value="padel"><svg><use href="#s-padel"/></svg><b>Padel</b><small>Star point</small></label>
           <label class="sport"><input type="radio" name="sport" value="peteca"><svg><use href="#s-peteca"/></svg><b>Peteca</b><small>21, teto 25</small></label>
-          <label class="sport"><input type="radio" name="sport" value="volei"><svg><use href="#s-rally"/></svg><b>Vôlei de praia</b><small>21 · 21 · 15</small></label>
+          <label class="sport"><input type="radio" name="sport" value="volei"><svg><use href="#s-volei"/></svg><b>Vôlei de praia</b><small>21 · 21 · 15</small></label>
           <label class="sport"><input type="radio" name="sport" value="futevolei"><svg><use href="#s-futevolei"/></svg><b>Futevôlei</b><small>Set de 18</small></label>
         </div>
       </section>
@@ -246,10 +304,10 @@
       <p class="hint center" id="newNote"></p>
     </div>
   </form>
-</dialog>
+</section>
 
 <!-- Ajustes -->
-<dialog class="sheet" id="sheetPrefs" aria-labelledby="prefsTitle">
+<section class="sheet" id="sheetPrefs" role="dialog" aria-modal="true" aria-labelledby="prefsTitle" hidden>
   <div class="sheet-form">
     <header class="sheet-head">
       <h2 id="prefsTitle" tabindex="-1" autofocus>Ajustes</h2>
@@ -269,6 +327,18 @@
               <label><input type="radio" name="cooldown" value="4"><span>4 s</span></label>
             </div>
           </div>
+        </div>
+      </section>
+      <section class="group">
+        <h3>Microfone</h3>
+        <div class="list">
+          <div class="row"><span>Entrada<small>Lapela sem fio ou fone perto da boca ouvem bem mais longe que o microfone do celular. Vale para a voz offline; a voz do navegador usa o microfone padrão do sistema.</small></span>
+            <select id="pMic" aria-label="Microfone"><option value="">Padrão do aparelho</option></select>
+          </div>
+          <div class="row"><span>Teste de nível<small id="micHint">Ligue o teste e fale do lugar onde você joga</small></span>
+            <span class="meter-wrap"><span class="meter" aria-hidden="true"><i id="micMeter"></i></span><button class="btn" type="button" id="btnMicTest">Testar</button></span>
+          </div>
+          <label class="row"><span>Golpes e assistência no modo offline<small>Mais palavras na escuta offline: no teste com ruído, o acerto caiu de 10 para 9 comandos em 12</small></span><input class="switch" type="checkbox" id="pDetail"></label>
         </div>
       </section>
       <section class="group">
@@ -304,16 +374,12 @@
           <div class="row"><span>Placar numa segunda janela<small>Arraste para a TV ligada no notebook</small></span><button class="btn" type="button" id="btnWindow"><svg><use href="#i-window"/></svg>Abrir</button></div>
         </div>
       </section>
-      <section class="group">
-        <h3>Partidas anteriores</h3>
-        <div class="list" id="historyList"></div>
-      </section>
     </div>
   </div>
-</dialog>
+</section>
 
 <!-- Lances -->
-<dialog class="sheet" id="sheetLog" aria-labelledby="logTitle">
+<section class="sheet" id="sheetLog" role="dialog" aria-modal="true" aria-labelledby="logTitle" hidden>
   <div class="sheet-form">
     <header class="sheet-head">
       <h2 id="logTitle" tabindex="-1" autofocus>Lances</h2>
@@ -326,10 +392,10 @@
       <ol class="log" id="logList"></ol>
     </div>
   </div>
-</dialog>
+</section>
 
 <!-- Estatísticas -->
-<dialog class="sheet" id="sheetStats" aria-labelledby="statsTitle">
+<section class="sheet" id="sheetStats" role="dialog" aria-modal="true" aria-labelledby="statsTitle" hidden>
   <div class="sheet-form">
     <header class="sheet-head">
       <h2 id="statsTitle" tabindex="-1" autofocus>Estatísticas</h2>
@@ -337,10 +403,10 @@
     </header>
     <div class="sheet-body" id="statsBody"></div>
   </div>
-</dialog>
+</section>
 
 <!-- Comandos -->
-<dialog class="sheet" id="sheetHelp" aria-labelledby="helpTitle">
+<section class="sheet" id="sheetHelp" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
   <div class="sheet-form">
     <header class="sheet-head">
       <h2 id="helpTitle" tabindex="-1" autofocus>Comandos de voz</h2>
@@ -348,10 +414,10 @@
     </header>
     <div class="sheet-body" id="helpBody"></div>
   </div>
-</dialog>
+</section>
 
 <!-- Fim de jogo -->
-<dialog class="sheet" id="sheetEnd" aria-labelledby="endTitle">
+<section class="sheet" id="sheetEnd" role="dialog" aria-modal="true" aria-labelledby="endTitle" hidden>
   <div class="sheet-form">
     <header class="sheet-head">
       <h2 id="endTitle" tabindex="-1" autofocus>Fim de jogo</h2>
@@ -359,10 +425,54 @@
     </header>
     <div class="sheet-body" id="endBody"></div>
   </div>
-</dialog>
+</section>
+
+<!-- Finalizar (confirmação dupla) -->
+<section class="sheet sheet-small" id="sheetFinish" role="dialog" aria-modal="true" aria-labelledby="finishTitle" hidden>
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="finishTitle" tabindex="-1">Finalizar partida</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="finishBody"></div>
+  </div>
+</section>
+
+<!-- Compartilhar -->
+<section class="sheet sheet-share" id="sheetShare" role="dialog" aria-modal="true" aria-labelledby="shareTitle" hidden>
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="shareTitle" tabindex="-1">Compartilhar</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body share-body">
+      <div class="share-preview" id="sharePreview"><canvas id="shareCanvas" aria-label="Imagem da partida"></canvas></div>
+      <div class="share-tpls" id="shareTpls" role="radiogroup" aria-label="Estilo"></div>
+      <div class="share-row">
+        <div class="seg" role="radiogroup" aria-label="Formato">
+          <label><input type="radio" name="shareFmt" value="story" checked><span>Story</span></label>
+          <label><input type="radio" name="shareFmt" value="quadrado"><span>Quadrado</span></label>
+        </div>
+        <label class="btn" id="photoPick" hidden><svg><use href="#i-image"/></svg>Escolher foto<input type="file" id="photoInput" accept="image/*" hidden></label>
+      </div>
+      <div class="share-actions">
+        <button class="btn-primary" type="button" id="btnShareNow"><svg><use href="#i-share"/></svg>Compartilhar</button>
+        <div class="share-sub">
+          <button class="btn" type="button" id="btnSaveImg"><svg><use href="#i-download"/></svg>Salvar imagem</button>
+          <button class="btn" type="button" id="btnCopyImg"><svg><use href="#i-copy"/></svg>Copiar</button>
+        </div>
+      </div>
+      <p class="hint center" id="shareHint"></p>
+    </div>
+  </div>
+</section>
+
+<div class="scrim" id="scrim" hidden></div>
 
 <script src="engine.js"></script>
 <script src="grammar.js"></script>
+<script src="stats.js"></script>
+<script src="share.js"></script>
 <script src="voice.js"></script>
 <script src="app.js"></script>
 </body>

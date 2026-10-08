@@ -422,7 +422,7 @@
       parts.push('Game ' + names[L.team] + '. ' + leadLine(s.games, names));
       if (L.tiebreak) parts.push('Tiebreak');
     } else if (L.type === 'sideout') {
-      parts.push('Troca de saque. Bola com ' + names[s.server]);
+      parts.push('Troca de saque. Vez do ' + names[s.server]);
       parts.push(leadLine(s.points, names));
     } else {
       // Ponto comum: comeca pelo nome de quem pontuou, para um erro de reconhecimento (time trocado)

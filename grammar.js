@@ -46,7 +46,8 @@
   }
 
   const FILLER = new Set(('o a os as do da dos das de pro pra pros pras para pelo pela pelos pelas no na nos nas ' +
-    'um uma time equipe dupla lado e ai foi mais com que agora ja eh').split(' '));
+    'um uma time equipe dupla lado e ai foi mais com que agora ja eh jogador jogadora atleta bola peteca golpe ' +
+    'feito fez numa num em').split(' '));
   const POINT = ['ponto', 'pontos'];
   const ACE = new Set(['ace', 'aces', 'eis', 'eice', 'ase', 'ais', 'eice']);
   const WINNER = ['winner', 'winer', 'uiner', 'uinner', 'vencedora', 'vencedor'];
@@ -58,6 +59,23 @@
   const REDO = ['refazer', 'refaz', 'refaca'];
   const SERVE = new Set(['saque', 'saca', 'sacando', 'sacar', 'saco', 'servico', 'serve']);
   const ANNOUNCE = ['placar'];
+  // Golpe (detalhe para estatistica). Palavra -> id. Em pt-BR, forehand = "direita" e backhand = "reves"/"esquerda".
+  const SHOTS = {
+    forehand: 'forehand', forehande: 'forehand', forrand: 'forehand', direita: 'forehand',
+    backhand: 'backhand', becand: 'backhand', bekand: 'backhand', reves: 'backhand', esquerda: 'backhand',
+    voleio: 'voleio', voleo: 'voleio', volei: 'voleio',
+    smash: 'smash', smesh: 'smash', esmache: 'smash', cortada: 'smash', cortou: 'smash',
+    drop: 'drop', deixadinha: 'drop', curtinha: 'drop',
+    lob: 'lob', lobby: 'lob', balao: 'lob',
+    ataque: 'ataque', atacou: 'ataque', bloqueio: 'bloqueio', bloqueou: 'bloqueio', toco: 'bloqueio',
+  };
+  const SHOT_LABEL = { forehand: 'forehand', backhand: 'backhand', voleio: 'voleio', smash: 'smash', drop: 'drop', lob: 'lob', ataque: 'ataque', bloqueio: 'bloqueio', saque: 'saque' };
+  const ASSIST = new Set(['assistencia', 'assistencias', 'levantamento', 'levantada', 'levantou', 'passe', 'passou']);
+  const FINISH = new Set(['finalizar', 'finaliza', 'finalize', 'encerrar', 'encerra', 'encerre']);
+  const FINISH_OBJ = new Set(['partida', 'jogo']);
+  const CONFIRM = new Set(['confirmar', 'confirma', 'confirmado', 'confirmo']);
+  const CANCEL = new Set(['cancelar', 'cancela', 'cancelado']);
+  const shotOf = w => SHOTS[w] || null;
 
   const anyNear = (w, list) => list.some(t => near(w, t) >= 0);
   // Desfazer/refazer/corrigir: tolerancia maxima de 1 letra ("refazer" e "desfazer" distam 2).
@@ -150,7 +168,7 @@
       if (m) return { m, end: j + m.len };
       const tg = tags ? tagAt(toks, j) : null;
       if (tg) { tags.push(tg.tag); j += tg.len; continue; }
-      if (FILLER.has(toks[j])) { j++; continue; }
+      if (FILLER.has(toks[j]) || shotOf(toks[j])) { j++; continue; }
       return null;
     }
     return null;
@@ -209,11 +227,44 @@
     return found;
   }
 
+  // Separa "com assistencia/levantamento da Ana" do resto da frase.
+  function splitAssist(toks, ctx) {
+    const i = toks.findIndex(w => ASSIST.has(w));
+    if (i < 0) return { toks, assist: null };
+    let j = i + 1;
+    while (j < toks.length && FILLER.has(toks[j])) j++;
+    const m = j < toks.length ? matchTeamAt(toks, j, ctx) : null;
+    let start = i;
+    while (start > 0 && FILLER.has(toks[start - 1])) start--;
+    const end = m ? j + m.len : i + 1;
+    return { toks: toks.slice(0, start).concat(toks.slice(end)), assist: m && m.player ? { player: m.player, team: m.team } : null };
+  }
+
+  function details(toks, p) {
+    let shot = null;
+    for (let i = 0; i < toks.length; i++) {
+      if (shotOf(toks[i])) { shot = shotOf(toks[i]); break; }
+      // "ponto de saque" e golpe; "saque azul" sozinho e comando de quem saca
+      if (toks[i] === 'saque' && toks.some(isPointWord)) shot = 'saque';
+    }
+    if (!shot && p.tag === 'ace') shot = 'saque';
+    let errType = null;
+    if (p.tag === 'error' || p.tag === 'df') {
+      if (toks.includes('rede')) errType = 'rede';
+      else if (toks.includes('fora')) errType = 'fora';
+    }
+    return { shot, errType };
+  }
+
   function parsePoint(toks, ctx) {
-    const found = findPoints(toks, ctx);
+    const sa = splitAssist(toks, ctx);
+    const found = findPoints(sa.toks, ctx);
     if (!found.length) return null;
     if (found.some(f => f.team !== found[0].team)) return { conflict: true };
-    return found[0];
+    const p = Object.assign({}, found[0], details(sa.toks, found[0]));
+    // assistencia so vale para jogador do mesmo time de quem fez o ponto
+    if (sa.assist && sa.assist.team === p.team && sa.assist.player !== p.player) { p.assist = sa.assist.player; }
+    return p;
   }
 
   function parseServe(toks, ctx) {
@@ -242,6 +293,9 @@
       if (p && !p.conflict) return Object.assign({ intent: 'replace' }, p);
       return { intent: 'undo' };
     }
+    if (toks.some(w => FINISH.has(w)) && toks.some(w => FINISH_OBJ.has(w))) return { intent: 'finish' };
+    if (toks.length <= 3 && toks.some(w => CONFIRM.has(w))) return { intent: 'confirm' };
+    if (toks.length <= 3 && toks.some(w => CANCEL.has(w)) && !toks.some(w => UNDO_OBJ.has(w))) return { intent: 'cancel' };
     if (toks.some(w => anyStrict(w, REDO))) return { intent: 'redo' };
     if (toks.some(w => anyStrict(w, UNDO))) return { intent: 'undo' };
     for (let i = 0; i < toks.length; i++) {
@@ -285,9 +339,15 @@
 
   // Gramatica fechada para o reconhecedor offline (Vosk): ele so devolve uma destas frases ou [unk].
   // Toda saida passa de novo por parse(), entao voz offline e voz do navegador seguem a mesma regra.
-  function voskGrammar(ctx) {
+  // opts.detail: inclui golpes, tipo de erro e assistencia. Medido com voz gravada (07-08/10/2026): o vocabulario
+  // maior baixou o acerto com ruido moderado de 11 para 9 comandos em 12 (sem mudar o audio limpo, 12/12).
+  function voskGrammar(ctx, opts) {
+    const detail = !opts || opts.detail !== false;
     // Sem palavra curta solta: no teste com voz gravada, "a bola foi fora" virou "anula" (desfazer).
-    const out = new Set(['desfazer', 'volta o ponto', 'refazer', 'placar', 'qual o placar']);
+    const out = new Set(['desfazer', 'volta o ponto', 'refazer', 'placar', 'qual o placar', 'finalizar partida', 'encerrar partida', 'confirmar', 'cancelar']);
+    if (detail) ['forehand', 'backhand', 'de direita', 'de esquerda', 'revés', 'voleio', 'smash', 'cortada', 'drop',
+      'lob', 'balão', 'ataque', 'bloqueio', 'na rede', 'pra fora', 'bola fora', 'peteca na rede', 'com assistência', 'com levantamento',
+      'ponto de saque'].forEach(x => out.add(x));
     const pre = ctx.requireWake ? ['placar '] : [''];
     ctx.teams.forEach(t => t.aliases.forEach(a => {
       const n = (a.raw && a.raw.length ? a.raw : a.tokens).join(' ');
@@ -299,5 +359,5 @@
     return Array.from(out);
   }
 
-  return { fold, tokenize, lev, near, buildContext, parse, parseAlternatives, biasPhrases, voskGrammar };
+  return { fold, tokenize, lev, near, buildContext, parse, parseAlternatives, biasPhrases, voskGrammar, SHOT_LABEL };
 });
