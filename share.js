@@ -4,9 +4,12 @@
 (function (root) {
   'use strict';
   const FONT = '"Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-  // Marca ULTRA: limao sobre quase-preto (raio em gestalt).
-  const GREEN = '#C3FA3E', GREEN_DARK = '#0C1004', GREEN_MID = '#2B3F07', MINT = '#E2F9A8', INK = '#101500';
-  const BOLT = ['M9 2h12l-5.4 7.4H3.6z', 'M11.6 10.6h4.6l-3.6 4.8H8z', 'M8.4 16.6h12l-5.4 7.4H3z'];
+  // Marca ULTRA PLAY: verde-limão oficial #AFFB48 sobre quase-preto.
+  const GREEN = '#AFFB48', GREEN_DARK = '#0C1004', GREEN_MID = '#2B3F07', MINT = '#E2F9A8', INK = '#101500';
+  // Logo oficial ULTRA PLAY (arquivos em ../ULTRA PLAY): símbolo 93x90 e horizontal 182x46.
+  const BOLT = ["M1.18933 44.2966L26.7433 0H52.2503L21.1534 53.8324H8.37638C1.37723 53.8324 -1.91097 49.5108 1.14235 44.2497L1.18933 44.2966Z", "M91.4739 44.8604L65.9199 89.157H40.413L71.5099 35.3246H84.2869C91.286 35.3246 94.5742 39.6462 91.5209 44.9073L91.4739 44.8604Z", "M52.2973 25.7418V0H91.8496L71.4628 35.3246H65.0273C58.0282 35.3246 52.2504 31.0029 52.2504 25.7418H52.2973Z", "M40.366 63.4151V89.157H0.813721L21.2005 53.8324H27.636C34.6351 53.8324 40.4129 58.154 40.4129 63.4151H40.366Z"];
+  const LOGO = ["M0.595607 22.7648L13.3915 0.583801H26.1638L10.5924 27.5398H4.19444C0.689691 27.5398 -0.956837 25.3758 0.57208 22.7413L0.595607 22.7648Z", "M45.8045 23.0471L33.0087 45.2282H20.2363L35.8078 18.2722H42.2057C45.7105 18.2722 47.357 20.4362 45.8281 23.0706L45.8045 23.0471Z", "M26.1874 13.4737V0.583801H45.9928L35.7843 18.2722H32.5618C29.057 18.2722 26.1639 16.1082 26.1639 13.4737H26.1874Z", "M20.2128 32.3382V45.2282H0.407471L10.6159 27.5398H13.8384C17.3432 27.5398 20.2364 29.7038 20.2364 32.3382H20.2128Z", "M64.2158 44.7909C58.0965 44.7909 53.8067 40.6272 53.8067 34.4448V0H60.4938V34.4448C60.4938 37.0313 62.0709 32.96 64.2158 32.96C66.3608 32.96 67.9379 37.0313 67.9379 34.4448V0H74.4988V34.4448C74.4988 40.6272 70.3352 44.7909 64.2158 44.7909Z", "M79.0124 44.16V0H85.6995V37.8514H97.6227V44.16H79.0124Z", "M94.0583 6.30857L91.2001 3.15429L94.0583 0H115.381L112.4 3.15429L115.381 6.30857H108.063V44.16H101.376V6.30857H94.0583Z", "M139.968 44.16H133.029L128.171 25.9282H124.702V44.16H118.015V0H128.487C134.859 0 138.959 4.16366 138.959 10.5353V15.3929C138.959 19.4935 137.256 22.6478 134.354 24.4142L139.968 44.16ZM124.702 6.30857V19.6197H128.171C130.758 19.6197 132.272 18.1056 132.272 15.5191V10.4091C132.272 7.82263 130.758 6.30857 128.171 6.30857H124.702Z", "M157.542 44.16L156.091 34.3817L152.495 32.16L148.9 34.3817L147.449 44.16H140.761L148.079 0H157.038L164.356 44.16H157.542ZM149.783 27.947H155.208L152.495 9.46286L149.783 27.947Z", "M161.007 38.4H179.407L175.8 44.156L161.007 44.1564V38.4Z", "M164.064 18V5.15911H167.109C168.962 5.15911 170.154 6.36983 170.154 8.22258V9.7268C170.154 11.5796 168.962 12.7903 167.109 12.7903H166.008V18H164.064ZM166.008 10.9559H167.017C167.769 10.9559 168.21 10.5156 168.21 9.76349V8.18589C168.21 7.43378 167.769 6.99353 167.017 6.99353H166.008V10.9559ZM171.418 18V5.15911H173.363V16.1656H176.83V18H171.418ZM171.625 33L171.203 30.1567H169.112L168.69 33H166.746L168.874 20.1591H171.479L173.606 33H171.625ZM169.369 28.2856H170.947L170.158 22.9107L169.369 28.2856ZM178.374 20.1591H180.41L177.806 27.6252V33H175.861V27.6252L173.256 20.1591H175.329L176.833 25.057L178.374 20.1591Z"];
+  const LOGO_EVEN = [0, 1, 2, 3];
 
   const TEMPLATES = [
     { id: 'resumo', name: 'Resumo' },
@@ -32,20 +35,19 @@
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
-  // Marca: raio ULTRA (tres pecas separadas, o olho completa o raio) + letreiro em italico pesado.
+  // Marca oficial ULTRA PLAY. bolt: só o símbolo (altura s). wordmark: logo horizontal (altura s, largura s*182/46),
+  // verde-limão sobre fundo escuro (pedido em branco vira o verde oficial) e na cor dada sobre fundo claro.
   function bolt(ctx, x, y, s, color) {
-    ctx.save(); ctx.translate(x, y); ctx.scale(s / 24, s / 24); ctx.fillStyle = color;
-    for (const d of BOLT) ctx.fill(new Path2D(d));
+    ctx.save(); ctx.translate(x, y); ctx.scale(s / 90, s / 90); ctx.fillStyle = color;
+    for (const d of BOLT) ctx.fill(new Path2D(d), 'evenodd');
     ctx.restore();
   }
 
+  const LOGO_RATIO = 182 / 46;
   function wordmark(ctx, x, y, s, color) {
-    bolt(ctx, x, y, s, GREEN);
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.font = 'italic ' + font(900, s * 0.78);
-    ctx.textBaseline = 'middle';
-    ctx.fillText('ULTRA', x + s * 1.2, y + s * 0.54);
+    const col = String(color || '').toUpperCase() === '#FFFFFF' ? GREEN : color;
+    ctx.save(); ctx.translate(x, y); ctx.scale(s / 46, s / 46); ctx.fillStyle = col;
+    LOGO.forEach((d, i) => ctx.fill(new Path2D(d), LOGO_EVEN.includes(i) ? 'evenodd' : 'nonzero'));
     ctx.restore();
   }
 
@@ -209,8 +211,7 @@
     if (d.sticker) drawMascot(ctx, d.sticker, W * 0.62, story ? H * 0.6 : H * 0.6, W * 0.24, true);
     const s = W * 0.06;
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = W * 0.02;
-    ctx.font = 'italic ' + font(900, s * 0.78);
-    const tw = s * 1.2 + ctx.measureText('ULTRA').width;
+    const tw = s * LOGO_RATIO;
     wordmark(ctx, W / 2 - tw / 2, story ? H * 0.8 : H * 0.86, s, '#FFFFFF');
     ctx.restore();
   }

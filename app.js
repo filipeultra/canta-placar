@@ -1,4 +1,4 @@
-/* ULTRA · interface (placar por voz + partidas no estilo Strava).
+/* ULTRA PLAY · interface (placar por voz + partidas no estilo Strava).
    Estado da partida = configuracao + lista de lances. Toda mudanca grava a lista, recalcula o
    placar pelo motor (engine.js) e redesenha. A voz entra por handleHeard(), o toque e o teclado
    pelo mesmo caminho (addPoint/undo/redo), entao as tres entradas se comportam igual. */
@@ -14,8 +14,8 @@
     { id: 'rosa', name: 'Rosa' }, { id: 'roxo', name: 'Roxo' }, { id: 'amarelo', name: 'Amarelo' },
   ];
   const DEFAULT_TEAMS = () => [{ name: 'Verde', color: 'verde', players: [] }, { name: 'Laranja', color: 'laranja', players: [] }];
-  const colorVar = id => 'var(--c-' + (PALETTE.some(p => p.id === id) ? id : 'azul') + ')';
-  const colorName = id => (PALETTE.find(p => p.id === id) || PALETTE[0]).name;
+  const colorVar = id => 'var(--c-' + (PALETTE.some(p => p.id === id) ? id : 'verde') + ')';
+  const colorName = id => (PALETTE.find(p => p.id === id) || PALETTE.find(p => p.id === 'verde') || PALETTE[0]).name;
   const TAGS = { ace: 'ace', df: 'dupla falta', winner: 'winner', error: 'erro' };
   const ERR_LABEL = { rede: 'na rede', fora: 'pra fora' };
   const DETAIL_KEYS = ['tag', 'shot', 'errType', 'player', 'playerTeam', 'assist'];
@@ -38,6 +38,18 @@
       }
     },
   };
+
+  const KEY_HIST_BACKUP = 'canta.history.backup';
+  function readHist() {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY_HIST); } catch (e) { console.warn('[armazenamento] leitura do histórico falhou', e); return []; }
+    if (!raw) return [];
+    try { const v = JSON.parse(raw); if (Array.isArray(v)) return v.filter(m => m && typeof m === 'object'); } catch (e) { console.warn('[armazenamento] histórico ilegível', e); }
+    try { if (!localStorage.getItem(KEY_HIST_BACKUP)) localStorage.setItem(KEY_HIST_BACKUP, raw); } catch (e) { console.warn('[armazenamento] cópia de segurança falhou', e); }
+    return [];
+  }
+  const HIST_MAX = 100;
+  const writeHist = hist => store.set(KEY_HIST, hist.slice(0, HIST_MAX));
 
   const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true };
   const prefs = Object.assign({}, DEFAULT_PREFS, store.get(KEY_PREFS, {}));
@@ -63,7 +75,8 @@
   }
   function validMatch(m) {
     if (!m || typeof m !== 'object' || !m.cfgInput || !Array.isArray(m.teams) || m.teams.length !== 2 || !Array.isArray(m.events)) return null;
-    m.redo = Array.isArray(m.redo) ? m.redo : [];
+    m.events = m.events.filter(e => e && typeof e === 'object' && typeof e.type === 'string');
+    m.redo = Array.isArray(m.redo) ? m.redo.filter(e => e && typeof e === 'object') : [];
     m.teams.forEach((t, i) => { t.name = String(t.name || (i ? 'Laranja' : 'Verde')); t.players = Array.isArray(t.players) ? t.players : []; t.color = t.color || (i ? 'laranja' : 'verde'); });
     // partida vazia com os times padrao antigos (Azul x Laranja) passa para o padrao novo
     if (!m.events.length && m.teams[0].name === 'Azul' && m.teams[0].color === 'azul' && !m.teams[0].players.length && !m.teams[1].players.length) m.teams = DEFAULT_TEAMS();
@@ -89,7 +102,8 @@
     return m;
   }
 
-  let match = (params.get('demo') ? demoMatch() : null) || validMatch(store.get(KEY_MATCH, null)) || defaultMatch();
+  const DEMO_RUN = !!params.get('demo'); // demonstração: nada vai para o armazenamento (antes apagava a partida real)
+  let match = (DEMO_RUN ? demoMatch() : null) || validMatch(store.get(KEY_MATCH, null)) || defaultMatch();
   let cfg = E.currentConfig(E.makeConfig(match.cfgInput), match.events);
   let state = E.replay(cfg, match.events);
   let ctx = buildCtx();
@@ -221,9 +235,12 @@
         }
         addPoint(r.team, Object.assign(pick(r), { heard, src }));
         return;
-      case 'replace':
+      case 'replace': {
+        const last = match.events[match.events.length - 1];
+        if (!last || last.type !== 'point') { earcon.play('miss'); setFeedback(heard, 'miss', 'O último lance não é um ponto: diga “desfazer” se quiser apagar'); return; }
         if (undo({ silent: true, heard })) addPoint(r.team, Object.assign(pick(r), { heard, src }));
         return;
+      }
       case 'finish':
         earcon.play('ok'); setFeedback(heard, 'ok', 'Finalizar: confirme duas vezes');
         openFinish(src === 'voz');
@@ -336,20 +353,21 @@
   try { channel = new BroadcastChannel('canta-placar'); } catch (e) { console.warn('[tela] BroadcastChannel indisponivel', e); }
 
   function save() {
-    store.set(KEY_MATCH, match);
+    if (!DEMO_RUN) store.set(KEY_MATCH, match);
     if (channel && !SCREEN) {
       try { channel.postMessage({ type: 'match', match }); } catch (e) { console.warn('[tela] envio para a segunda janela falhou', e); }
     }
   }
 
   function archiveCurrent() {
-    if (!match.events.length) return;
-    const hist = store.get(KEY_HIST, []);
+    if (!match.events.length || DEMO_RUN) return true;
+    const hist = readHist().filter(m => m.id !== match.id);
+    const last = match.events.reduce((a, e) => Math.max(a, e.t || 0), 0);
     hist.unshift({
-      id: match.id, endedAt: Date.now(), cfgInput: match.cfgInput, teams: match.teams, events: match.events,
+      id: match.id, createdAt: match.createdAt, endedAt: last || Date.now(), cfgInput: match.cfgInput, teams: match.teams, events: match.events,
       done: state.done, winner: state.winner, score: E.scoreLine(state, cfg), finished: true,
     });
-    store.set(KEY_HIST, hist.slice(0, 100));
+    return writeHist(hist);
   }
 
   function recompute() {
@@ -709,7 +727,7 @@
   }
 
   function startMatch(ci, teams) {
-    archiveCurrent();
+    if (!archiveCurrent()) return; // sem espaço para guardar a atual: não troca (antes a partida sumia)
     match = newMatch(ci, teams);
     endShownFor = null;
     lastVoicePointAt = 0;
@@ -735,19 +753,6 @@
     $('#localStatus').innerHTML = esc(L[0]) + '<small>' + esc(L[1]) + '</small>';
     $('#btnLocal').hidden = st !== 'downloadable';
     $('#localRow').hidden = st !== 'available';
-  }
-
-  function renderHistory() {
-    const hist = store.get(KEY_HIST, []);
-    const list = $('#historyList');
-    if (!hist.length) { list.innerHTML = '<div class="hist"><small>Nenhuma partida arquivada ainda.</small></div>'; return; }
-    list.innerHTML = hist.slice(0, 12).map((h, i) => {
-      const d = new Date(h.endedAt);
-      const when = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const sport = E.SPORTS[(h.cfgInput || {}).sport] ? E.SPORTS[h.cfgInput.sport].label : '';
-      return '<div class="hist"><b>' + esc(h.teams[0].name) + ' × ' + esc(h.teams[1].name) + '</b><small>' + esc(sport) + ' · ' + esc(h.score || '') + ' · ' + esc(when) + '</small>' +
-        '<button class="btn" type="button" data-hist="' + i + '"><svg><use href="#i-download"/></svg>CSV</button></div>';
-    }).join('');
   }
 
   function renderEngineNote() {
@@ -803,50 +808,6 @@
     return '<div class="stat"><span class="v">' + f(vals[0], 0) + '</span><div class="mid"><span class="lbl">' + esc(label) + '</span>' +
       '<div class="bars"><span><b style="width:' + w(vals[0]) + ';--tc:' + colorVar(match.teams[0].color) + '"></b></span><span><b style="width:' + w(vals[1]) + ';--tc:' + colorVar(match.teams[1].color) + '"></b></span></div></div>' +
       '<span class="v">' + f(vals[1], 1) + '</span></div>';
-  }
-
-  function momentumSvg(rows) {
-    const tl = state.timeline;
-    if (tl.length < 2) return '<p class="hint">O gráfico de momento aparece depois de alguns pontos.</p>';
-    const W = 600, H = 150, pad = 18;
-    const max = Math.max(3, ...tl.map(Math.abs));
-    const x = i => pad + (W - 2 * pad) * (i / (tl.length));
-    const y = d => H / 2 - (H / 2 - pad) * (d / max);
-    let line = 'M' + x(0) + ' ' + y(0);
-    tl.forEach((d, i) => { line += ' L' + x(i + 1).toFixed(1) + ' ' + y(d).toFixed(1); });
-    const area = line + ' L' + x(tl.length).toFixed(1) + ' ' + y(0) + ' Z';
-    const marks = [];
-    let n = 0;
-    rows.forEach(r => {
-      if (r.ev.type !== 'point') return;
-      n++;
-      if (r.out && (r.out.type === 'set' || r.out.type === 'match')) marks.push(n);
-    });
-    const c0 = colorVar(match.teams[0].color), c1 = colorVar(match.teams[1].color);
-    return '<svg class="momentum" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Momento da partida, ponto a ponto">' +
-      '<defs><clipPath id="cpTop"><rect x="0" y="0" width="' + W + '" height="' + y(0) + '"/></clipPath><clipPath id="cpBot"><rect x="0" y="' + y(0) + '" width="' + W + '" height="' + (H - y(0)) + '"/></clipPath></defs>' +
-      marks.map(m => '<line class="grid" x1="' + x(m) + '" x2="' + x(m) + '" y1="' + pad + '" y2="' + (H - pad) + '"/>').join('') +
-      '<line class="zero" x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(0) + '" y2="' + y(0) + '"/>' +
-      '<path d="' + area + '" clip-path="url(#cpTop)" style="fill:' + c0 + ';fill-opacity:.22;stroke:none"/>' +
-      '<path d="' + area + '" clip-path="url(#cpBot)" style="fill:' + c1 + ';fill-opacity:.22;stroke:none"/>' +
-      '<path d="' + line + '" style="fill:none;stroke:var(--fg-2);stroke-width:1.6"/>' +
-      '<text x="' + pad + '" y="12">' + esc(name(0)) + ' na frente</text>' +
-      '<text x="' + pad + '" y="' + (H - 4) + '">' + esc(name(1)) + ' na frente</text>' +
-      '</svg>';
-  }
-
-  function playerStats() {
-    const map = new Map();
-    for (const ev of match.events) {
-      if (ev.type !== 'point' || !ev.player) continue;
-      const pt = ev.playerTeam != null ? ev.playerTeam : ev.team;
-      const key = pt + '|' + ev.player;
-      if (!map.has(key)) map.set(key, { team: pt, player: ev.player, pts: 0, ace: 0, winner: 0, error: 0, df: 0 });
-      const r = map.get(key);
-      if (pt === ev.team) { r.pts++; if (ev.tag === 'ace') r.ace++; if (ev.tag === 'winner') r.winner++; }
-      else { if (ev.tag === 'error') r.error++; if (ev.tag === 'df') r.df++; }
-    }
-    return Array.from(map.values()).sort((a, b) => a.team - b.team || b.pts - a.pts);
   }
 
   function renderStats() {
@@ -918,13 +879,13 @@
   function csvFor(m) {
     const c = E.makeConfig(m.cfgInput);
     const { rows } = E.replayDetailed(c, m.events);
-    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const q = v => { let t = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; }; // nome "=..." não vira fórmula
     const head = ['n', 'data_hora', 'tipo', 'time_ponto', 'detalhe', 'tipo_erro', 'golpe', 'jogador', 'time_jogador', 'assistencia', 'resultado', 'placar_apos', 'ouvido', 'origem'];
     const lines = [head.join(';')];
     rows.forEach((r, i) => {
       const ev = r.ev;
       lines.push([
-        i + 1, new Date(ev.t).toISOString(), ev.type === 'server' ? 'saque' : 'ponto', m.teams[ev.team] ? m.teams[ev.team].name : '',
+        i + 1, new Date(ev.t).toISOString(), ev.type === 'server' ? 'saque' : ev.type === 'config' ? 'regra' : 'ponto', m.teams[ev.team] ? m.teams[ev.team].name : '',
         ev.tag ? TAGS[ev.tag] : '', ev.errType || '', ev.shot || '', ev.player || '', ev.player && m.teams[ev.playerTeam] ? m.teams[ev.playerTeam].name : '',
         ev.assist || '', outcomeLabel(r.out), r.score, ev.heard || '', ev.src || '',
       ].map(q).join(';'));
@@ -1007,7 +968,7 @@
   const HEX = { azul: '#1A8CFF', laranja: '#FC4C02', verde: '#12E07A', rosa: '#FF2E88', roxo: '#9D5CFF', amarelo: '#FFD400' };
   const sportLabel = sp => (E.SPORTS[sp] || E.SPORTS.beach).label;
   const SPORT_SHORT = { beach: 'Beach', volei: 'Vôlei', futevolei: 'Futevôlei' };
-  const history = () => store.get(KEY_HIST, []).filter(validMatch);
+  const history = () => readHist().filter(validMatch);
   const fmtDur = ms => { const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
   function fmtWhen(t) {
     if (!t) return '';
@@ -1107,10 +1068,6 @@
     return '<div class="kpis' + (big ? ' big' : '') + '">' + items.map(([l, v]) => '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>').join('') + '</div>';
   }
 
-  function scoreShort(st) {
-    if (st.cfg.kind === 'games' || st.cfg.setsToWin > 1) return st.state.setsWon.join('-') + (st.cfg.setsToWin === 1 && st.state.sets[0] ? '' : '');
-    return st.state.points.join('-');
-  }
   function placarText(st) {
     const sets = st.state.sets.map(x => E.setText(x));
     if (!st.state.done) sets.push(st.cfg.kind === 'games' && !st.state.isMatchTb ? st.state.games.join('-') : st.state.points.join('-'));
@@ -1356,11 +1313,11 @@
   };
   function openPro(feature) {
     $('#proBody').innerHTML =
-      '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
+      '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
       '<ul class="pro-list">' +
       '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Abra o gráfico da partida e veja cada ponto: quem fez, ace, winner, erro na rede ou pra fora, golpe e placar naquele instante.</span></li>' +
       '<li><svg><use href="#i-download"/></svg><span><b>Exportar planilha e dados</b>Todos os lances em CSV para Excel e Google Planilhas, e em JSON para análise.</span></li>' +
-      '<li><svg><use href="#i-trophy"/></svg><span><b>Histórico completo</b>Recordes, conquistas e confrontos de todas as suas partidas, sem limite.</span></li>' +
+      '<li><svg><use href="#i-trophy"/></svg><span><b>Histórico completo</b>Hoje o aparelho guarda as últimas ' + HIST_MAX + ' partidas. No Pro, todas, com recordes e confrontos de tudo (quando houver conta na nuvem).</span></li>' +
       '</ul>' +
       '<p class="hint center">Preço ainda não definido. Nesta versão de teste o Pro é só uma demonstração, sem cobrança.</p>' +
       (isPro() ? '<button class="btn-ghost" type="button" id="proOff">Desligar demonstração do Pro</button>' : '<button class="btn-primary" type="button" id="proOn"><svg><use href="#i-bolt"/></svg>Ativar demonstração do Pro</button>');
@@ -1371,7 +1328,7 @@
     closeSheet('#sheetPro');
     if (currentView === 'partida') renderMatchView(currentMatchId);
     if (currentView === 'voce') renderMe();
-    setFeedback('', 'ok', on ? 'ULTRA Pro ativado (demonstração)' : 'ULTRA Pro desligado');
+    setFeedback('', 'ok', on ? 'ULTRA PLAY Pro ativado (demonstração)' : 'ULTRA PLAY Pro desligado');
   }
 
   // ---------- Momento ponto a ponto (Pro) ----------
@@ -1479,19 +1436,22 @@
   }
 
   // Salva no historico, zera o placar ao vivo e abre o resumo com o compartilhar (como o Strava ao salvar).
-  function finalize() {
-    if (!match.events.length) return;
+  function finalize(opts) {
+    const o = opts || {};
+    if (!match.events.length) return false;
     const saved = Object.assign({}, match, { endedAt: Date.now(), finished: true, redo: [] });
-    const hist = store.get(KEY_HIST, []).filter(m => m.id !== saved.id);
+    const hist = readHist().filter(m => m.id !== saved.id);
     hist.unshift(saved);
-    store.set(KEY_HIST, hist.slice(0, 100));
+    if (!writeHist(hist)) return false; // cota cheia: a partida continua ao vivo, nada se perde
     if (voice.wanted) voice.stop();
     match = newMatch(Object.assign({}, match.cfgInput), match.teams.map(t => Object.assign({}, t)));
     endShownFor = null; lastVoicePointAt = 0;
     save(); recompute();
+    if (o.quiet) return true;
     say('Partida salva.');
     go('partida', saved.id);
     setTimeout(() => openShare(saved.id), 450);
+    return true;
   }
 
   // ---------- Compartilhar ----------
@@ -1507,7 +1467,7 @@
     } : null;
     return {
       sportLabel: sportLabel(st.cfg.sport), dateText: fmtWhen(m.endedAt || m.createdAt),
-      teams: m.teams.map(t => ({ name: t.name, hex: HEX[t.color] || '#007AFF', players: t.players })),
+      teams: m.teams.map(t => ({ name: t.name, hex: HEX[t.color] || HEX.verde, players: t.players })),
       winner: st.winner, setCols: cols, scoreText: placarText(st),
       stats: [
         { label: 'Pontos', value: T[0].pts + '-' + T[1].pts }, { label: 'Duração', value: fmtDur(st.durationMs) }, { label: 'Aces', value: T[0].aces + '-' + T[1].aces },
@@ -1563,7 +1523,7 @@
       }
       const file = shareFile(await SH.toBlob(canvas));
       if (kind === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Minha partida no ULTRA' });
+        await navigator.share({ files: [file], title: 'Minha partida no ULTRA PLAY' });
         return;
       }
       const a = document.createElement('a');
@@ -1580,7 +1540,7 @@
 
   function deleteMatch(id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
-    store.set(KEY_HIST, store.get(KEY_HIST, []).filter(m => m.id !== id));
+    if (!writeHist(readHist().filter(m => m.id !== id))) return;
     go('inicio');
   }
 
@@ -1734,8 +1694,6 @@
       if (ms) { meSport = ms.dataset.mesport; renderMe(); return; }
       const me = e.target.closest('[data-me]');
       if (me) { prefs.me = me.dataset.me; savePrefs(); renderMe(); return; }
-      const md = e.target.closest('[data-medemo]');
-      if (md) { meDemo = md.dataset.medemo === '1'; renderMe(); document.querySelector('#view-voce .scroll').scrollTo(0, 0); return; }
       const act = e.target.closest('[data-action]');
       if (act) {
         const a = act.dataset.action;
@@ -1753,7 +1711,7 @@
         closeSheet('#sheetEnd');
         const ci = Object.assign({}, match.cfgInput, { firstServer: 1 - E.makeConfig(match.cfgInput).firstServer });
         const teams = match.teams.map(t => Object.assign({}, t));
-        finalize();
+        if (!finalize({ quiet: true })) return;
         closeAllSheets();
         startMatch(ci, teams);
       }
@@ -1831,7 +1789,13 @@
     });
     document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('tv')) toggleTv(false); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
-    window.addEventListener('storage', e => { if (e.key === KEY_HIST && currentView === 'inicio') renderHome(); });
+    window.addEventListener('storage', e => {
+      if (e.key === KEY_HIST && currentView === 'inicio') renderHome();
+      // outra aba mexeu na partida ao vivo: segue a gravação dela (antes, a última aba a gravar apagava os pontos da outra)
+      if (e.key === KEY_MATCH && e.newValue && !DEMO_RUN) {
+        try { const m = validMatch(JSON.parse(e.newValue)); if (m) { match = m; ctx = buildCtx(); recompute(); } } catch (err) { console.warn('[abas] partida de outra aba ilegível', err); }
+      }
+    });
   }
 
   function openPrefs() {

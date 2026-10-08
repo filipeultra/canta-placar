@@ -11,12 +11,15 @@
   const SHOTS = ['saque', 'forehand', 'backhand', 'voleio', 'smash', 'drop', 'lob', 'ataque', 'bloqueio'];
   const fold = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
+  const GAP_MAX = 5 * 60000; // pausa maior que isso entre dois pontos não conta como tempo de jogo
+
   function blankLine() {
     return { pts: 0, aces: 0, winners: 0, errors: 0, rede: 0, fora: 0, df: 0, assists: 0, shots: {} };
   }
 
   function matchStats(m) {
-    const det = E.replayDetailed(E.makeConfig(m.cfgInput), m.events || []);
+    const evs = (m.events || []).filter(e => e && typeof e === 'object'); // lance corrompido no armazenamento não derruba a tela
+    const det = E.replayDetailed(E.makeConfig(m.cfgInput), evs);
     const cfg = det.cfg; // regra em vigor no fim (inclui o "continuar partida")
     const s = det.state;
     const teams = [0, 1].map(t => Object.assign(blankLine(), {
@@ -64,9 +67,11 @@
       }
       if (ev.assist) P(ev.assist, w).assists++;
     }
-    const pts = (m.events || []).filter(e => e.type === 'point');
-    const t0 = pts.length ? pts[0].t : m.createdAt;
-    const t1 = m.endedAt || (pts.length ? pts[pts.length - 1].t : m.createdAt);
+    // Tempo em quadra: soma dos intervalos entre pontos, cada um limitado a 5 min (como o "tempo em movimento" do Strava).
+    // Não usa endedAt: a partida pode ficar aberta horas antes do Finalizar (no iPhone saiu "29h44" para 4 pontos).
+    const ts = evs.filter(e => e.type === 'point' && Number.isFinite(e.t)).map(e => e.t).sort((a, b) => a - b);
+    let durationMs = 0;
+    for (let i = 1; i < ts.length; i++) durationMs += Math.min(ts[i] - ts[i - 1], GAP_MAX);
     const list = Array.from(players.values());
     // destaque: quem mais contribuiu (pontos + aces + assistencias - erros)
     const score = p => p.pts + p.aces + p.assists - p.errors - p.df;
@@ -74,8 +79,8 @@
     return {
       cfg, state: s, rows: det.rows, teams, players: list, mvp, setMarks,
       timeline: s.timeline.slice(),
-      durationMs: Math.max(0, (t1 || 0) - (t0 || 0)),
-      byVoice: (m.events || []).filter(e => e.src === 'voz').length,
+      durationMs,
+      byVoice: evs.filter(e => e.src === 'voz').length,
       winner: s.done ? s.winner : null,
       leader: s.stats.points[0] === s.stats.points[1] ? null : s.stats.points[0] > s.stats.points[1] ? 0 : 1,
       setsText: s.sets.map(x => E.setText(x)),
