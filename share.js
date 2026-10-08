@@ -223,11 +223,18 @@
       ctx.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
     }
     const g = ctx.createLinearGradient(0, H * 0.35, 0, H);
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.82)');
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.42, 'rgba(0,0,0,0.62)'); g.addColorStop(1, 'rgba(0,0,0,0.88)'); // placar legível também sobre areia/céu claros
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // Topo escurecido: em foto clara (céu, areia) o logo branco e verde sumia.
+    const gt = ctx.createLinearGradient(0, 0, 0, H * 0.2);
+    gt.addColorStop(0, 'rgba(0,0,0,0.55)'); gt.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gt; ctx.fillRect(0, 0, W, H * 0.2);
     const P = W * 0.07;
     const c = { fg: '#FFFFFF', dim: 'rgba(255,255,255,0.55)', label: 'rgba(255,255,255,0.8)', accent: GREEN };
-    wordmark(ctx, P, P, W * 0.065, '#FFFFFF');
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = W * 0.02; ctx.shadowOffsetY = W * 0.003;
+    wordmark(ctx, P, P, W * 0.075, '#FFFFFF');
+    ctx.restore();
     const story = H > W * 1.2;
     const rowH = W * 0.105;
     let y = H - (story ? H * 0.36 : H * 0.52);

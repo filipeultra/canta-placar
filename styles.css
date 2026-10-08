@@ -1149,3 +1149,17 @@ body.screen .voice, body.screen .tv-exit { display: none; }
 /* telas largas: perfil numa coluna de leitura e calendário sem quadrados gigantes */
 #meBody { max-width: 760px; margin-inline: auto; width: 100%; }
 .cal, .cal-legend { max-width: 520px; }
+
+/* filtro por esporte no perfil (seletor do Strava) */
+.sport-filter { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px; }
+.sport-filter::-webkit-scrollbar { display: none; }
+.sf { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); font: 700 14px/1 var(--font-display); white-space: nowrap; }
+.sf .ic { font-size: 17px; }
+.sf small { font: 600 12px/1 var(--font); color: var(--fg-3); }
+.sf.on { background: #101500; border-color: #101500; color: #C3FA3E; }
+.sf.on small { color: #DDF9A0; }
+.sport-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 7px 2px 5px; border-radius: 999px; background: var(--surface-2); color: var(--fg-2); font-size: 11px; font-weight: 600; vertical-align: 1px; }
+.sport-tag .ic { font-size: 12px; }
+.sf { height: 34px; gap: 6px; padding: 0 12px 0 10px; font-size: 13px; }
+.sf .ic { font-size: 16px; }
+.sport-tag { margin: 0 6px 0 0; padding: 1px 6px 1px 4px; vertical-align: 0; }

@@ -1006,6 +1006,7 @@
   const ph = (icon, title, right) => '<div class="ph"><h3>' + ic(icon) + esc(title) + '</h3>' + (right || '') + '</div>';
   const HEX = { azul: '#1A8CFF', laranja: '#FC4C02', verde: '#12E07A', rosa: '#FF2E88', roxo: '#9D5CFF', amarelo: '#FFD400' };
   const sportLabel = sp => (E.SPORTS[sp] || E.SPORTS.beach).label;
+  const SPORT_SHORT = { beach: 'Beach', volei: 'Vôlei', futevolei: 'Futevôlei' };
   const history = () => store.get(KEY_HIST, []).filter(validMatch);
   const fmtDur = ms => { const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
   function fmtWhen(t) {
@@ -1222,6 +1223,7 @@
   const DM = window.CantaDemo;
   let mePeriod = 'month';
   let meDemo = null; // null = automático (exemplo quando ainda não há dados próprios)
+  let meSport = ''; // '' = todos os esportes (como o seletor de esporte do Strava)
   const one = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
 
   function calendarHTML(cal) {
@@ -1257,10 +1259,14 @@
       const me = known.find(k => k.key === S.fold(prefs.me || '')) || known[0];
       who = me.name;
     }
-    const p = S.profile(list, who);
+    const all = S.profile(list, who);
+    const sportsOf = Object.keys(all.sports).sort((a, b) => all.sports[b] - all.sports[a]);
+    if (meSport && !all.sports[meSport]) meSport = '';
+    const p = meSport ? S.profile(list, who, { sport: meSport }) : all;
+    const mixed = !meSport && sportsOf.length > 1; // números de esportes diferentes juntos: marcar o esporte em cada recorde
     const pct = p.winRate == null ? '–' : Math.round(p.winRate * 100) + '%';
     const cur = p.currentStreak;
-    const sportsTxt = Object.keys(p.sports).sort((a, b) => p.sports[b] - p.sports[a]).map(sportLabel).join(' · ');
+    const sportsTxt = sportsOf.map(sportLabel).join(' · ');
     let h = '';
     h += '<div class="seg seg-wide me-switch" role="radiogroup" aria-label="Qual perfil">' +
       '<label><input type="radio" name="meWho" value="0"' + (!useDemo ? ' checked' : '') + (known.length ? '' : ' disabled') + '><span>Meu perfil</span></label>' +
@@ -1274,9 +1280,14 @@
       '</div></div>' +
       (extra ? '<p class="me-bio">' + esc(extra.bio) + '</p>' : '') +
       '<div class="me-counts">' + (extra
-        ? [['Seguidores', extra.followers], ['Seguindo', extra.following], ['Partidas', p.matches]]
-        : [['Partidas', p.matches], ['Vitórias', p.wins], ['Esportes', Object.keys(p.sports).length]]).map(([l, v]) => '<div><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+        ? [['Seguidores', extra.followers], ['Seguindo', extra.following], ['Partidas', all.matches]]
+        : [['Partidas', all.matches], ['Vitórias', all.wins], ['Esportes', sportsOf.length]]).map(([l, v]) => '<div><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
       (!useDemo && known.length > 1 ? '<div class="me-pick"><span class="sec-meta">Ver como:</span>' + known.slice(0, 12).map(k => '<button class="pill' + (k.name === who ? ' on' : '') + '" type="button" data-me="' + esc(k.name) + '">' + esc(k.name) + '</button>').join('') + '</div>' : '') + '</div>';
+
+    // filtro por esporte
+    if (sportsOf.length > 1) h += '<div class="sport-filter" role="radiogroup" aria-label="Esporte">' +
+      '<button class="sf' + (meSport ? '' : ' on') + '" type="button" role="radio" aria-checked="' + !meSport + '" data-mesport="">' + ic('i-grid') + '<span>Todos</span></button>' +
+      sportsOf.map(sp => '<button class="sf' + (meSport === sp ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (meSport === sp) + '" data-mesport="' + sp + '" title="' + esc(sportLabel(sp)) + ': ' + all.sports[sp] + (all.sports[sp] === 1 ? ' partida' : ' partidas') + '">' + ic('s-' + sp) + '<span>' + esc(SPORT_SHORT[sp] || sportLabel(sp)) + '</span></button>').join('') + '</div>';
 
     // sequências
     h += '<div class="streaks">' +
@@ -1303,11 +1314,11 @@
       ['i-trend', 'Maior vitória', R.margin, v => '+' + v + ' pontos'], ['i-clock', 'Partida mais longa', R.longest, v => fmtDur(v)],
     ].filter(x => x[2]);
     if (rec.length) h += '<div class="panel">' + ph('i-trophy', 'Recordes pessoais') + '<div class="recs">' + rec.map(([icn, l, r, f]) =>
-      '<button class="rec-row rec-big" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic">' + ic(icn) + '</span><span class="rec-txt"><em>' + esc(l) + '</em><b>' + esc(f(r.value)) + '</b><small>' + esc(fmtWhen(r.endedAt)) + (r.opp ? ' · contra ' + esc(r.opp) : '') + '</small></span>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
+      '<button class="rec-row rec-big" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic">' + ic(icn) + '</span><span class="rec-txt"><em>' + esc(l) + '</em><b>' + esc(f(r.value)) + '</b><small>' + (mixed && r.sport ? '<span class="sport-tag">' + ic('s-' + r.sport) + esc(SPORT_SHORT[r.sport] || sportLabel(r.sport)) + '</span>' : '') + esc(fmtWhen(r.endedAt)) + (r.opp ? ' · contra ' + esc(r.opp) : '') + '</small></span>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
 
     // conquistas
-    h += '<div class="panel">' + ph('i-medal', 'Conquistas', '<span class="sec-meta">' + p.achievements.filter(a => a.progress >= 1).length + ' de ' + p.achievements.length + '</span>') + '<div class="ach">' +
-      p.achievements.map(a => '<div class="ach-item' + (a.progress >= 1 ? ' got' : '') + '" title="' + esc(a.desc) + '"><span class="ach-ring" style="--p:' + Math.round(a.progress * 100) + '">' + ic(ACH_ICON[a.id] || 'i-award') + '</span><b>' + esc(a.name) + '</b><small>' + (a.progress >= 1 ? esc(a.desc) : Math.round(a.progress * 100) + '% · ' + esc(a.desc)) + '</small></div>').join('') + '</div></div>';
+    h += '<div class="panel">' + ph('i-medal', 'Conquistas', '<span class="sec-meta">' + (meSport ? 'todos os esportes · ' : '') + all.achievements.filter(a => a.progress >= 1).length + ' de ' + all.achievements.length + '</span>') + '<div class="ach">' +
+      all.achievements.map(a => '<div class="ach-item' + (a.progress >= 1 ? ' got' : '') + '" title="' + esc(a.desc) + '"><span class="ach-ring" style="--p:' + Math.round(a.progress * 100) + '">' + ic(ACH_ICON[a.id] || 'i-award') + '</span><b>' + esc(a.name) + '</b><small>' + (a.progress >= 1 ? esc(a.desc) : Math.round(a.progress * 100) + '% · ' + esc(a.desc)) + '</small></div>').join('') + '</div></div>';
 
     const shots = S.SHOTS.filter(k => p.shots[k]);
     if (shots.length) {
@@ -1333,6 +1344,8 @@
     h += '<div class="panel">' + ph('i-history', 'Partidas recentes') + '<div class="recs">' + p.recent.slice(0, 6).map(r =>
       '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(sportLabel(r.sport)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</span></span><small>' + esc(fmtWhen(r.endedAt)) + ' · contra ' + esc(r.oppPlayers || r.opp) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
     body.innerHTML = h;
+    const on = body.querySelector('.sf.on');
+    if (on && meSport) { const strip = on.parentElement; strip.scrollLeft = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2; } // só na horizontal: não mexe na rolagem da página
   }
 
   // ---------- ULTRA Pro (simulado: sem cobrança, só para demonstrar) ----------
@@ -1671,7 +1684,7 @@
     $('#btnPro').addEventListener('click', () => openPro());
     $('#meBody').addEventListener('change', e => {
       if (e.target.name === 'mePeriod') { mePeriod = e.target.value; renderMe(); }
-      if (e.target.name === 'meWho') { meDemo = e.target.value === '1'; renderMe(); document.querySelector('#view-voce .scroll').scrollTo(0, 0); }
+      if (e.target.name === 'meWho') { meDemo = e.target.value === '1'; meSport = ''; renderMe(); document.querySelector('#view-voce .scroll').scrollTo(0, 0); }
     });
     $('#contBody').addEventListener('change', renderContHint);
     $('#contBody').addEventListener('click', e => {
@@ -1717,6 +1730,8 @@
       if (op) { go('partida', op.dataset.open); return; }
       const sp = e.target.closest('[data-sport]');
       if (sp) { quickStart(sp.dataset.sport); return; }
+      const ms = e.target.closest('[data-mesport]');
+      if (ms) { meSport = ms.dataset.mesport; renderMe(); return; }
       const me = e.target.closest('[data-me]');
       if (me) { prefs.me = me.dataset.me; savePrefs(); renderMe(); return; }
       const md = e.target.closest('[data-medemo]');

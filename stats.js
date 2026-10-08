@@ -103,8 +103,9 @@
     return Array.from(map.values()).sort((a, b) => b.matches - a.matches || a.name.localeCompare(b.name));
   }
 
-  // Perfil de um jogador somando o historico.
-  function profile(history, who) {
+  // Perfil de um jogador somando o historico. opts.sport limita a um esporte (filtro do perfil).
+  function profile(history, who, opts) {
+    const only = opts && opts.sport;
     const key = fold(who);
     const out = {
       name: who, matches: 0, wins: 0, losses: 0, noResult: 0,
@@ -115,6 +116,7 @@
       const t = (m.teams || []).findIndex(tm => (tm.players || []).some(n => fold(n) === key));
       if (t < 0) continue;
       const st = matchStats(m);
+      if (only && st.cfg.sport !== only) continue;
       out.matches++;
       out.sports[st.cfg.sport] = (out.sports[st.cfg.sport] || 0) + 1;
       const won = st.winner === null ? null : st.winner === t;
@@ -185,7 +187,7 @@
       const list = out.series.filter(filter || (() => true));
       if (!list.length) return null;
       const top = list.reduce((a, r) => (r[key] > a[key] ? r : a), list[0]);
-      return top[key] > 0 ? { value: top[key], id: top.id, endedAt: top.endedAt, opp: top.oppPlayers || top.opp } : null;
+      return top[key] > 0 ? { value: top[key], id: top.id, endedAt: top.endedAt, opp: top.oppPlayers || top.opp, sport: top.sport } : null;
     };
     out.records = {
       streak: topOf('streak'), aces: topOf('aces'), pts: topOf('pts'), comeback: topOf('comeback', r => r.won === true),
