@@ -10,9 +10,10 @@
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const PALETTE = [
-    { id: 'azul', name: 'Azul' }, { id: 'laranja', name: 'Laranja' }, { id: 'verde', name: 'Verde' },
+    { id: 'verde', name: 'Verde' }, { id: 'laranja', name: 'Laranja' }, { id: 'azul', name: 'Azul' },
     { id: 'rosa', name: 'Rosa' }, { id: 'roxo', name: 'Roxo' }, { id: 'amarelo', name: 'Amarelo' },
   ];
+  const DEFAULT_TEAMS = () => [{ name: 'Verde', color: 'verde', players: [] }, { name: 'Laranja', color: 'laranja', players: [] }];
   const colorVar = id => 'var(--c-' + (PALETTE.some(p => p.id === id) ? id : 'azul') + ')';
   const colorName = id => (PALETTE.find(p => p.id === id) || PALETTE[0]).name;
   const TAGS = { ace: 'ace', df: 'dupla falta', winner: 'winner', error: 'erro' };
@@ -58,13 +59,14 @@
     return { id: uid(), createdAt: Date.now(), cfgInput, teams, events: [], redo: [] };
   }
   function defaultMatch() {
-    return newMatch(Object.assign({ sport: 'beach', firstServer: 0 }, E.SPORTS.beach.defaults),
-      [{ name: 'Azul', color: 'azul', players: [] }, { name: 'Laranja', color: 'laranja', players: [] }]);
+    return newMatch(Object.assign({ sport: 'beach', firstServer: 0 }, E.SPORTS.beach.defaults), DEFAULT_TEAMS());
   }
   function validMatch(m) {
     if (!m || typeof m !== 'object' || !m.cfgInput || !Array.isArray(m.teams) || m.teams.length !== 2 || !Array.isArray(m.events)) return null;
     m.redo = Array.isArray(m.redo) ? m.redo : [];
-    m.teams.forEach((t, i) => { t.name = String(t.name || (i ? 'Laranja' : 'Azul')); t.players = Array.isArray(t.players) ? t.players : []; t.color = t.color || (i ? 'laranja' : 'azul'); });
+    m.teams.forEach((t, i) => { t.name = String(t.name || (i ? 'Laranja' : 'Verde')); t.players = Array.isArray(t.players) ? t.players : []; t.color = t.color || (i ? 'laranja' : 'verde'); });
+    // partida vazia com os times padrao antigos (Azul x Laranja) passa para o padrao novo
+    if (!m.events.length && m.teams[0].name === 'Azul' && m.teams[0].color === 'azul' && !m.teams[0].players.length && !m.teams[1].players.length) m.teams = DEFAULT_TEAMS();
     return m;
   }
   function demoMatch() {
@@ -88,7 +90,7 @@
   }
 
   let match = (params.get('demo') ? demoMatch() : null) || validMatch(store.get(KEY_MATCH, null)) || defaultMatch();
-  let cfg = E.makeConfig(match.cfgInput);
+  let cfg = E.currentConfig(E.makeConfig(match.cfgInput), match.events);
   let state = E.replay(cfg, match.events);
   let ctx = buildCtx();
   let lastVoicePointAt = 0;
@@ -318,6 +320,7 @@
   function describe(ev) {
     if (!ev) return '';
     if (ev.type === 'server') return 'Saque: ' + name(ev.team);
+    if (ev.type === 'config') return 'Partida continua: ' + formatSummary(E.makeConfig(Object.assign({}, cfg, ev.changes || {})));
     let s = 'Ponto ' + name(ev.team);
     const bits = [];
     if (ev.tag) bits.push(TAGS[ev.tag] + (ev.errType ? ' ' + ERR_LABEL[ev.errType] : '') + (ev.player && ev.playerTeam !== ev.team ? ' de ' + ev.player : ''));
@@ -350,7 +353,7 @@
   }
 
   function recompute() {
-    cfg = E.makeConfig(match.cfgInput);
+    cfg = E.currentConfig(E.makeConfig(match.cfgInput), match.events);
     state = E.replay(cfg, match.events);
     render();
   }
@@ -432,7 +435,10 @@
 
   function renderChips() {
     const out = [];
-    if (state.done) out.push(chip(name(state.winner) + ' venceu', state.winner, true));
+    if (state.done) {
+      out.push(chip(name(state.winner) + ' venceu', state.winner, true));
+      out.push('<button class="chip chip-btn" type="button" data-action="continue"><svg><use href="#i-play"/></svg>Continuar partida</button>');
+    }
     for (const x of E.situations(state, cfg)) {
       if (x.type === 'match') out.push(chip('Match point · ' + name(x.team), x.team, true));
       else if (x.type === 'set') out.push(chip('Set point · ' + name(x.team), x.team, false));
@@ -649,7 +655,7 @@
       if (rule) ci.petecaRule = rule;
     }
     const teams = [0, 1].map(t => {
-      const color = getRadio('color' + t) || (t ? 'laranja' : 'azul');
+      const color = getRadio('color' + t) || (t ? 'laranja' : 'verde');
       return { name: $('#t' + t + 'name').value.trim().slice(0, 24) || colorName(color), color, players: splitPlayers($('#t' + t + 'players').value) };
     });
     return { ci, teams };
@@ -770,7 +776,7 @@
 
   let pendingDelete = null;
   function renderLog() {
-    const { rows } = E.replayDetailed(cfg, match.events);
+    const { rows } = E.replayDetailed(E.makeConfig(match.cfgInput), match.events);
     const t0 = match.events.length ? match.events[0].t : 0;
     const list = $('#logList');
     if (!rows.length) { list.innerHTML = '<li class="empty">Nenhum lance ainda. Diga “' + esc(example()) + '” ou toque num time.</li>'; return; }
@@ -856,7 +862,8 @@
       (st.byVoice ? ' · ' + st.byVoice + (st.byVoice === 1 ? ' lance por voz' : ' lances por voz') : '') + '</p>' +
       '<button class="btn-primary" type="button" id="endSave"><svg><use href="#i-share"/></svg>Salvar e compartilhar</button>' +
       '<div class="actions" style="justify-content:center"><button class="btn" type="button" id="endRematch"><svg><use href="#i-play"/></svg>Salvar e revanche</button>' +
-      '<button class="btn" type="button" id="endUndo"><svg><use href="#i-undo"/></svg>Desfazer último</button></div>';
+      '<button class="btn" type="button" id="endUndo"><svg><use href="#i-undo"/></svg>Desfazer último</button></div>' +
+      '<button class="cont-link" type="button" data-action="continue">Vão jogar mais? Continuar partida</button>';
     openSheet('#sheetEnd');
   }
 
@@ -991,7 +998,7 @@
   // Telas no padrão Strava: Início (menu + feed), Jogar, Partida (resumo), Você (perfil)
   // =========================================================
   const S = window.CantaStats, SH = window.CantaShare;
-  const HEX = { azul: '#007AFF', laranja: '#FF9500', verde: '#34C759', rosa: '#FF2D55', roxo: '#AF52DE', amarelo: '#FFCC00' };
+  const HEX = { azul: '#1A8CFF', laranja: '#FC4C02', verde: '#12E07A', rosa: '#FF2E88', roxo: '#9D5CFF', amarelo: '#FFD400' };
   const sportLabel = sp => (E.SPORTS[sp] || E.SPORTS.beach).label;
   const history = () => store.get(KEY_HIST, []).filter(validMatch);
   const fmtDur = ms => { const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
@@ -1010,6 +1017,7 @@
     if (view === 'partida' && !id) view = 'inicio';
     currentView = view;
     currentMatchId = id || null;
+    if (view !== 'jogar') $('#banner').classList.remove('show'); // aviso de game/set e so do placar
     document.body.dataset.view = view;
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
     const tab = view === 'partida' ? 'inicio' : view;
@@ -1314,6 +1322,9 @@
   function drawShare() {
     const m = findMatch(share.id);
     if (!m) return;
+    if (document.fonts && document.fonts.check && !document.fonts.check('800 40px "Bricolage Grotesque"')) {
+      document.fonts.load('800 40px "Bricolage Grotesque"').then(() => drawShare(), e => console.warn('[compartilhar] fonte nao carregou', e));
+    }
     SH.render($('#shareCanvas'), share.tpl, share.fmt, shareData(m), share.img);
     $('#photoPick').hidden = share.tpl !== 'foto';
     $('#sharePreview').classList.toggle('dark', share.tpl === 'sticker');
@@ -1366,6 +1377,51 @@
     openNew({ cfgInput: base, teams: match.teams });
   }
 
+
+  // ---------- Continuar partida (depois do fim configurado) ----------
+  function contChanges() {
+    const ch = { setsToWin: Number(getRadio('contSets')) };
+    if (getRadio('contRule') === 'mudar') {
+      if (cfg.kind === 'games') Object.assign(ch, { gamesPerSet: Number(getRadio('contGames')), deuce: getRadio('contDeuce') });
+      else Object.assign(ch, { pointsToWin: Number($('#contPoints').value), cap: Number($('#contCap').value) });
+    }
+    return ch;
+  }
+  function renderContHint() {
+    const ch = contChanges();
+    $('#contRules').hidden = getRadio('contRule') !== 'mudar';
+    $('#contHint').textContent = formatExplain(Object.assign({}, cfg, ch));
+  }
+  function openContinue() {
+    if (!state.done) { setFeedback('', 'miss', 'A partida ainda não acabou'); return; }
+    const n = Math.max(state.setsWon[0], state.setsWon[1]);
+    const opt = (nm, v, label, on) => '<label><input type="radio" name="' + nm + '" value="' + v + '"' + (on ? ' checked' : '') + '><span>' + label + '</span></label>';
+    const seg = (nm, items) => '<div class="seg" role="radiogroup">' + items.map(([v, l, on]) => opt(nm, v, l, on)).join('') + '</div>';
+    const sel = (id, vals, cur, fmt) => '<select id="' + id + '">' + vals.map(v => '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + (fmt ? fmt(v) : v) + '</option>').join('') + '</select>';
+    const rules = cfg.kind === 'games'
+      ? '<div class="row"><span>Games por set</span>' + seg('contGames', [[4, '4', cfg.gamesPerSet === 4], [6, '6', cfg.gamesPerSet === 6], [8, '8', cfg.gamesPerSet === 8]]) + '</div>' +
+        '<div class="row"><span>No 40-40</span>' + seg('contDeuce', [['ad', 'Vantagem', cfg.deuce === 'ad'], ['golden', 'Ponto de ouro', cfg.deuce === 'golden'], ['star', 'Star point', cfg.deuce === 'star']]) + '</div>'
+      : '<div class="row"><span>Set até</span><div class="pair">' + sel('contPoints', [11, 12, 15, 18, 21, 25], cfg.pointsToWin) + sel('contCap', [0, 18, 21, 25, 30], cfg.cap, v => v ? 'teto ' + v : 'sem teto') + '</div></div>';
+    $('#contBody').innerHTML =
+      '<p class="hint"><b>' + esc(name(state.winner)) + '</b> venceu ' + esc(state.sets.map(x => E.setText(x)).join('  ·  ')) + '. Escolha como seguir; o que já foi jogado não muda.</p>' +
+      '<div class="list"><div class="row"><span>Vence quem fizer</span>' + seg('contSets', [[n + 1, (n + 1) + ' sets', true], [n + 2, (n + 2) + ' sets', false]]) + '</div>' +
+      '<div class="row"><span>Regras dos próximos sets</span>' + seg('contRule', [['manter', 'Manter', true], ['mudar', 'Mudar', false]]) + '</div></div>' +
+      '<div class="list" id="contRules" hidden>' + rules + '</div>' +
+      '<p class="hint" id="contHint"></p>' +
+      '<button class="btn-primary" type="button" id="contOk"><svg><use href="#i-check"/></svg>Confirmar e continuar</button>' +
+      '<button class="btn-ghost" type="button" data-close-cont>Cancelar</button>';
+    closeSheet('#sheetEnd');
+    openSheet('#sheetCont');
+    renderContHint();
+  }
+  function confirmContinue() {
+    const changes = contChanges();
+    closeSheet('#sheetCont');
+    endShownFor = null;
+    commit({ type: 'config', changes, src: 'toque' });
+    if (currentView !== 'jogar') go('jogar');
+    setFeedback('', 'ok', 'Partida continua: vence quem fizer ' + changes.setsToWin + ' sets');
+  }
   // ---------- eventos ----------
   function bind() {
     $$('.board .team').forEach(el => el.addEventListener('click', () => addPoint(Number(el.dataset.team), { src: 'toque' })));
@@ -1404,6 +1460,11 @@
       img.src = URL.createObjectURL(f);
     });
     $('#btnShareNow').addEventListener('click', () => doShare('share'));
+    $('#contBody').addEventListener('change', renderContHint);
+    $('#contBody').addEventListener('click', e => {
+      if (e.target.closest('#contOk')) confirmContinue();
+      if (e.target.closest('[data-close-cont]')) closeSheet('#sheetCont');
+    });
     $('#btnSaveImg').addEventListener('click', () => doShare('save'));
     $('#btnCopyImg').addEventListener('click', () => doShare('copy'));
     $('#btnTv').addEventListener('click', () => toggleTv(true));
@@ -1449,6 +1510,8 @@
       if (act) {
         const a = act.dataset.action;
         if (a === 'prefs') openPrefs();
+        if (a === 'new') openNew();
+        if (a === 'continue') openContinue();
         if (a === 'home') go('inicio');
         if (a === 'share') openShare(currentMatchId);
         if (a === 'delete-match') deleteMatch(act.dataset.mid, act);

@@ -3,7 +3,7 @@
    e quadrado (1080x1080). O "sticker" sai com fundo transparente, para colar em cima de uma foto no story. */
 (function (root) {
   'use strict';
-  const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  const FONT = '"Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
   // Marca ULTRA: limao sobre quase-preto (raio em gestalt).
   const GREEN = '#C3FA3E', GREEN_DARK = '#0C1004', GREEN_MID = '#2B3F07', MINT = '#E2F9A8', INK = '#101500';
   const BOLT = ['M9 2h12l-5.4 7.4H3.6z', 'M11.6 10.6h4.6l-3.6 4.8H8z', 'M8.4 16.6h12l-5.4 7.4H3z'];

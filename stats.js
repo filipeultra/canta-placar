@@ -16,8 +16,8 @@
   }
 
   function matchStats(m) {
-    const cfg = E.makeConfig(m.cfgInput);
-    const det = E.replayDetailed(cfg, m.events || []);
+    const det = E.replayDetailed(E.makeConfig(m.cfgInput), m.events || []);
+    const cfg = det.cfg; // regra em vigor no fim (inclui o "continuar partida")
     const s = det.state;
     const teams = [0, 1].map(t => Object.assign(blankLine(), {
       pts: s.stats.points[t], aces: s.stats.aces[t], winners: s.stats.winners[t], df: s.stats.doubleFaults[t],

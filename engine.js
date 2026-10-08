@@ -270,21 +270,42 @@
     return null;
   }
 
+  // Lance de configuracao: muda a regra DALI PARA FRENTE (os sets ja jogados ficam como estao).
+  // Usado no "continuar partida": se o novo alvo de sets ainda nao foi atingido, a partida reabre.
+  function applyConfig(s, c, ev) {
+    const next = makeConfig(Object.assign({}, c, ev.changes || {}, { sport: c.sport }));
+    if (s.done && s.winner != null && s.setsWon[s.winner] < next.setsToWin) {
+      s.done = false;
+      s.winner = null;
+      if (next.kind === 'rally') { s.setFirstServer = 1 - s.setFirstServer; s.server = s.setFirstServer; }
+    }
+    s.last = { type: 'config', sideSwitch: false };
+    return next;
+  }
+
   function replay(c, events) {
-    const s = initialState(c);
-    for (const ev of events || []) applyEvent(s, c, ev);
-    return s;
+    return replayDetailed(c, events).state;
+  }
+
+  // Configuracao em vigor depois de todos os lances (a do inicio mais as mudancas do "continuar partida").
+  function currentConfig(c, events) {
+    let cc = c;
+    for (const ev of events || []) if (ev && ev.type === 'config') cc = makeConfig(Object.assign({}, cc, ev.changes || {}, { sport: cc.sport }));
+    return cc;
   }
 
   // Igual ao replay, mas devolve o resultado e o placar depois de cada lance (para o historico e o CSV).
   function replayDetailed(c, events) {
     const s = initialState(c);
     const rows = [];
+    let cc = c;
     for (const ev of events || []) {
-      const out = applyEvent(s, c, ev);
-      rows.push({ ev, out: out ? Object.assign({}, out) : null, score: scoreLine(s, c) });
+      let out;
+      if (ev && ev.type === 'config') { cc = applyConfig(s, cc, ev); out = s.last; }
+      else out = applyEvent(s, cc, ev);
+      rows.push({ ev, out: out ? Object.assign({}, out) : null, score: scoreLine(s, cc) });
     }
-    return { state: s, rows };
+    return { state: s, rows, cfg: cc };
   }
 
   function pointLabels(s, c) {
@@ -410,7 +431,7 @@
 
   function speech(s, c, names) {
     const L = s.last;
-    if (!L || L.type === 'server') return scoreSpeech(s, c, names);
+    if (!L || L.type === 'server' || L.type === 'config') return scoreSpeech(s, c, names);
     if (L.type === 'match') return matchLine(s, names);
     const parts = [];
     if (L.type === 'set') {
@@ -438,7 +459,7 @@
 
   return {
     SPORTS, PRESETS, DEUCE,
-    makeConfig, initialState, applyEvent, replay, replayDetailed,
+    makeConfig, initialState, applyEvent, replay, replayDetailed, currentConfig,
     pointLabels, scoreLine, setText, situations, speech, scoreSpeech, isDecidingSet,
   };
 });
