@@ -894,7 +894,7 @@
       const heard = ev.heard ? '“' + esc(ev.heard) + '”' : src === 'toque' ? 'toque na tela' : src;
       const out = outcomeLabel(r.out);
       return '<li><span class="n">' + (i + 1) + '</span>' +
-        '<span class="what"><i style="--tc:' + (team ? colorVar(team.color) : 'var(--fg-3)') + '"></i>' + esc(describe(ev)) + (out ? ' <em>' + esc(out) + '</em>' : '') + '</span>' +
+        '<span class="what"><i style="--tc:' + (team ? colorVar(team.color) : 'var(--fg-3)') + '"></i><span>' + esc(describe(ev)) + (out ? ' <em>' + esc(out) + '</em>' : '') + '</span></span>' +
         '<button class="btn del" type="button" data-del="' + i + '" title="Apagar este lance"><svg><use href="#i-trash"/></svg></button>' +
         '<span class="meta"><span class="score">' + esc(r.score) + '</span><span>' + clock(ev.t - t0) + '</span><span><svg><use href="#' + (SRC_ICON[src] || 'i-hand') + '"/></svg> ' + heard + '</span></span></li>';
     }).reverse().join('');
@@ -1153,9 +1153,9 @@
       '<line class="zero" x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(0) + '" y2="' + y(0) + '"/>' +
       '<path d="' + area + '" clip-path="url(#' + uid0 + 't)" style="fill:' + c0 + ';fill-opacity:.24;stroke:none"/>' +
       '<path d="' + area + '" clip-path="url(#' + uid0 + 'b)" style="fill:' + c1 + ';fill-opacity:.24;stroke:none"/>' +
-      '<path d="' + line + '" style="fill:none;stroke:var(--fg);stroke-width:1.2"/>' +
-      '<text x="' + pad + '" y="12">' + esc(teams[0].name) + ' na frente</text>' +
-      '<text x="' + pad + '" y="' + (H - 4) + '">' + esc(teams[1].name) + ' na frente</text></svg>';
+      '<path d="' + line + '" style="fill:none;stroke:var(--fg);stroke-width:1.6;stroke-linejoin:round" vector-effect="non-scaling-stroke"/>' +
+      '<text x="' + pad + '" y="15" style="fill:' + c0 + '">▲ ' + esc(teams[0].name) + ' na frente</text>' +
+      '<text x="' + pad + '" y="' + (H - 3) + '" style="fill:' + c1 + '">▼ ' + esc(teams[1].name) + ' na frente</text></svg>';
   }
 
   function bkRow(label, a, b, teams) {
@@ -1331,6 +1331,14 @@
 
   const firstName = n => String(n || '').trim().split(/\s+/)[0];
   const userColor = id => { const u = SO.user(id); return u && u.color ? u.color : '#AFFB48'; };
+  // cor de quem só aparece pelo nome (parceiros, adversários): a da pessoa na rede, ou uma fixa tirada do nome
+  const NAME_COLORS = ['#7C8CFF', '#FF7A59', '#3DD9C1', '#FFC94D', '#E57CFF', '#7BD88F'];
+  const nameColor = n => {
+    const u = SO.users().find(x => S.fold(x.name) === S.fold(n || ''));
+    if (u && u.color) return u.color;
+    let h = 0; for (const ch of String(n || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return NAME_COLORS[h % NAME_COLORS.length];
+  };
   function avatarHTML(id, size, extra) {
     const u = SO.user(id);
     const name = u ? u.name : '?';
@@ -2380,14 +2388,14 @@
       const fav = enough.slice().sort((a, b) => b.wins / b.matches - a.wins / a.matches)[0];
       h += '<div class="panel">' + ph('i-swords', 'Confrontos') +
         (tough && fav && tough !== fav ? '<div class="duo"><div class="duo-card warn"><span>' + ic('i-flame') + 'Mais difícil</span><b>' + esc(tough.name) + '</b><small>' + tough.wins + 'V · ' + tough.losses + 'D</small></div><div class="duo-card"><span>' + ic('i-trophy') + 'Melhor saldo</span><b>' + esc(fav.name) + '</b><small>' + fav.wins + 'V · ' + fav.losses + 'D</small></div></div>' : '') +
-        '<div class="h2h">' + opp.slice(0, 8).map(o => '<div class="h2h-row"><span class="mini-av">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
+        '<div class="h2h">' + opp.slice(0, 8).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
     }
     const par = Object.values(p.partners).sort((a, b) => b.matches - a.matches);
-    if (par.length) h += '<div class="panel">' + ph('i-users', 'Parceiros') + '<div class="h2h">' + par.slice(0, 6).map(o => '<div class="h2h-row"><span class="mini-av">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
+    if (par.length) h += '<div class="panel">' + ph('i-users', 'Parceiros') + '<div class="h2h">' + par.slice(0, 6).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
 
     // partidas recentes
     h += '<div class="panel">' + ph('i-history', 'Partidas recentes') + '<div class="recs">' + p.recent.slice(0, 6).map(r =>
-      '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(sportLabel(r.sport)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</span>' + (r.manual ? '<span class="mtag" title="Lançada depois do jogo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span><small>' + esc(fmtWhen(r.endedAt)) + ' · contra ' + esc(r.oppPlayers || r.opp) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
+      '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(sportLabel(r.sport)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</span>' + (r.manual ? '<span class="mtag" title="Lançada depois do jogo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span><small>' + esc(fmtWhen(r.endedAt)) + ' · contra ' + esc(r.oppPlayers || r.opp) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
     body.innerHTML = h;
     const on = body.querySelector('.sf.on');
     if (on && meSport) { const strip = on.parentElement; strip.scrollLeft = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2; } // só na horizontal: não mexe na rolagem da página
@@ -3056,7 +3064,7 @@
   const SPEED_TXT = { rapido: '6 segundos', normal: '10 segundos', longo: '15 segundos' };
   if (params.has('debug')) window.__vidTest = { motionData, motionOpts, findMatch }; // só para testes automatizados
   function replayTileHTML(id, tl, own) {
-    return '<button class="act-replay" type="button" data-replay="' + esc(id) + '"' + (own ? ' data-own="1"' : '') + ' title="Ver o replay ponto a ponto">' + sparkSvg(tl) + '<span class="rp-chip">' + ic('i-play') + 'Replay</span></button>';
+    return '<button class="act-replay" type="button" data-replay="' + esc(id) + '"' + (own ? ' data-own="1"' : '') + ' title="Ver o replay ponto a ponto" aria-label="Ver o replay ponto a ponto">' + sparkSvg(tl) + '<span class="rp-chip" aria-hidden="true">' + ic('i-replay') + '</span></button>';
   }
 
   function deleteMatch(id, btn) {

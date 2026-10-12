@@ -114,9 +114,11 @@
       <div class="page">
         <div id="liveCard"></div>
         <div id="draftCard"></div>
-        <div class="seg seg-wide feed-tabs" role="radiogroup" aria-label="Timeline">
-          <label><input type="radio" name="feedKind" value="seguindo" checked><span>Seguindo</span></label>
-          <label><input type="radio" name="feedKind" value="geral"><span>Geral</span></label>
+        <div class="feed-bar">
+          <div class="seg seg-wide feed-tabs" role="radiogroup" aria-label="Timeline">
+            <label><input type="radio" name="feedKind" value="seguindo" checked><span>Seguindo</span></label>
+            <label><input type="radio" name="feedKind" value="geral"><span>Geral</span></label>
+          </div>
         </div>
         <div class="feed" id="feed"></div>
       </div>
@@ -278,6 +280,7 @@
     <div class="scroll"><div class="page" id="meBody"></div></div>
   </section>
 
+  <div class="tab-scrim" aria-hidden="true"></div>
   <nav class="tabbar" aria-label="Navegação">
     <button class="tab" type="button" data-go="inicio"><svg><use href="#i-home"/></svg><span>Início</span></button>
     <button class="tab tab-play" type="button" data-action="choose"><span class="tab-play-btn"><svg><use href="#i-plus"/></svg></span><span>Nova partida</span></button>
