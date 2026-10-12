@@ -1083,6 +1083,8 @@
       '<h2 class="card-title">' + titleFor(m, st) + ' ' + (live ? '<span class="badge">Ao vivo</span>' : st.winner == null ? '<span class="badge muted">Encerrada</span>' : '') + '</h2>' +
       resultHTML(m, st) +
       (live ? '' : '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button>') + '</div>';
+    const won = live ? [] : achievementsIn(m);
+    if (won.length) h += '<div class="panel ach-won">' + ph('i-medal', won.length === 1 ? 'Conquista nesta partida' : 'Conquistas nesta partida') + '<div class="ach">' + won.map(achItemHTML).join('') + '</div></div>';
     h += '<div class="panel">' + kpiHTML([
       ['Placar', placarText(st)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
       ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
@@ -1146,6 +1148,42 @@
     }).join('');
   }
 
+  // Conquistas que o jogador do perfil ganhou nesta partida (a partida precisa ter o nome dele).
+  function achievementsIn(m) {
+    let list, who;
+    if (m.demo && window.CantaDemo) { list = window.CantaDemo.history(); who = window.CantaDemo.ATHLETE.name; }
+    else {
+      list = history();
+      const known = S.knownPlayers(list);
+      const me = known.find(k => k.key === S.fold(prefs.me || '')) || known[0];
+      if (!me) return [];
+      who = me.name;
+    }
+    if (!(m.teams || []).some(t => (t.players || []).some(n => S.fold(n) === S.fold(who)))) return [];
+    const got = S.profile(list, who).achievements;
+    indexAch(got, who);
+    return got.filter(a => a.earnedId === m.id);
+  }
+
+  function openAch(id) {
+    const a = achIndex[id];
+    if (!a) return;
+    const got = a.progress >= 1;
+    const when = got ? new Date(a.earnedAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    const src = got && a.earnedId ? findMatch(a.earnedId) : null;
+    $('#achBody').innerHTML = '<div class="ach-detail' + (got ? ' got' : '') + '">' + medalHTML(a, 'xl') +
+      '<span class="ach-eyebrow">' + (got ? 'Conquista desbloqueada' : 'Ainda bloqueada') + '</span>' +
+      '<h3>' + esc(a.name) + '</h3><p>' + esc(a.desc) + '</p>' +
+      (got
+        ? '<p class="ach-when">' + ic('i-calendar') + esc(when) + (a.earnedSport ? ' · ' + esc(sportLabel(a.earnedSport)) : '') + '</p>'
+        : '<div class="ach-prog"><span class="ach-bar"><i style="width:' + Math.round(a.progress * 100) + '%"></i></span><small>' + esc(achVal(a, a.value)) + ' de ' + esc(achVal(a, a.goal)) + ' · ' + Math.round(a.progress * 100) + '%</small></div>') +
+      '<div class="finish-actions">' +
+      (got ? '<button class="btn-primary" type="button" data-action="share-ach" data-ach-id="' + a.id + '"><svg><use href="#i-share"/></svg>Compartilhar conquista</button>' : '') +
+      (src && currentMatchId !== a.earnedId ? '<button class="btn-ghost" type="button" data-open="' + esc(a.earnedId) + '">Ver a partida</button>' : '') +
+      '</div></div>';
+    openSheet('#sheetAch');
+  }
+
   // ---------- Partida salva ----------
   function findMatch(id) {
     if (id === 'live') return match;
@@ -1202,7 +1240,29 @@
       '<div class="cal-legend"><span>12 semanas atrás</span><span class="cal-key">menos <i></i><i class="l1"></i><i class="l2"></i> mais</span><span>hoje</span></div>';
   }
 
-  const ACH_ICON = { primeira: 'i-award', dez: 'i-trophy', embalo: 'i-flame', ace: 'i-zap', virada: 'i-swap', pneu: 'i-target', constancia: 'i-calendar', maratona: 'i-clock', multi: 'i-grid', cinquenta: 'i-flag', cem: 'i-trophy' };
+  // Medalhas: ícone e duas cores por conquista (como as do Nike Run Club); o formato vem do grupo (CSS .m-<grupo>).
+  const ACH_LOOK = {
+    estreia: ['i-play', '#3BE68E', '#0A8F4C'], primeira: ['i-award', '#FFE04D', '#F08A00'], dez: ['i-trophy', '#C8FF6A', '#4F8F00'],
+    cinquenta: ['i-flag', '#4DA6FF', '#0047B3'], cem: ['i-trophy', '#45494D', '#0B0C0D', '#AFFB48'],
+    embalo: ['i-flame', '#FF8A3D', '#E5300B'], imparavel: ['i-zap', '#FF5CA8', '#B5005A'], constancia: ['i-calendar', '#45E0D2', '#007F86'], rotina: ['i-activity', '#5C9DFF', '#4B22D6'],
+    pneu: ['i-target', '#FFD84D', '#D98E00'], virada: ['i-swap', '#B78AFF', '#5E21C9'], avalanche: ['i-trend', '#3BE68E', '#00704A'], ace: ['s-tenis', '#D9FF7A', '#3E8A00'],
+    maratona: ['i-clock', '#FF7A7E', '#B3141B'], quadra50: ['i-timer', '#FF7A3D', '#9E2A00'], coruja: ['i-moon', '#6C7BFF', '#141B66'], madrugador: ['i-sun', '#FFC94D', '#FF5E3A'], multi: ['i-grid', '#FF5CA8', '#1A8CFF'],
+  };
+  const achLook = a => ACH_LOOK[a.id] || ['i-award', '#C8FF6A', '#4F8F00'];
+  function medalHTML(a, cls) {
+    const [icon, c1, c2, ink] = achLook(a);
+    return '<span class="medal m-' + a.group + (a.progress >= 1 ? ' got' : '') + (cls ? ' ' + cls : '') + '" style="--m1:' + c1 + ';--m2:' + c2 + (ink ? ';--mi:' + ink : '') + '" aria-hidden="true">' + ic(icon) + '</span>';
+  }
+  const fmtDay = t => new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
+  const achVal = (a, v) => (a.unit === 'ms' ? fmtDur(v) : String(Math.floor(v)));
+  // Conquistas mostradas por último (perfil ou resumo), para o detalhe e o compartilhar saberem de quem são.
+  let achIndex = {};
+  function indexAch(list, who) { list.forEach(a => { achIndex[a.id] = Object.assign({}, a, { who }); }); }
+  function achItemHTML(a) {
+    const got = a.progress >= 1;
+    return '<button class="ach-item' + (got ? ' got' : '') + '" type="button" data-ach="' + a.id + '" title="' + esc(a.desc) + '">' + medalHTML(a) + '<b>' + esc(a.name) + '</b>' +
+      (got ? '<small>' + esc(fmtDay(a.earnedAt)) + '</small>' : '<span class="ach-bar"><i style="width:' + Math.round(a.progress * 100) + '%"></i></span>') + '</button>';
+  }
 
   function renderMe() {
     const hist = history();
@@ -1273,9 +1333,16 @@
     if (rec.length) h += '<div class="panel">' + ph('i-trophy', 'Recordes pessoais') + '<div class="recs">' + rec.map(([icn, l, r, f]) =>
       '<button class="rec-row rec-big" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic">' + ic(icn) + '</span><span class="rec-txt"><em>' + esc(l) + '</em><b>' + esc(f(r.value)) + '</b><small>' + (mixed && r.sport ? '<span class="sport-tag">' + ic('s-' + r.sport) + esc(SPORT_SHORT[r.sport] || sportLabel(r.sport)) + '</span>' : '') + esc(fmtWhen(r.endedAt)) + (r.opp ? ' · contra ' + esc(r.opp) : '') + '</small></span>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
 
-    // conquistas
-    h += '<div class="panel">' + ph('i-medal', 'Conquistas', '<span class="sec-meta">' + (meSport ? 'todos os esportes · ' : '') + all.achievements.filter(a => a.progress >= 1).length + ' de ' + all.achievements.length + '</span>') + '<div class="ach">' +
-      all.achievements.map(a => '<div class="ach-item' + (a.progress >= 1 ? ' got' : '') + '" title="' + esc(a.desc) + '"><span class="ach-ring" style="--p:' + Math.round(a.progress * 100) + '">' + ic(ACH_ICON[a.id] || 'i-award') + '</span><b>' + esc(a.name) + '</b><small>' + (a.progress >= 1 ? esc(a.desc) : Math.round(a.progress * 100) + '% · ' + esc(a.desc)) + '</small></div>').join('') + '</div></div>';
+    // conquistas (sempre de todos os esportes)
+    indexAch(all.achievements, who);
+    const gotList = all.achievements.filter(a => a.progress >= 1);
+    const latest = gotList.slice().sort((a, b) => b.earnedAt - a.earnedAt)[0];
+    h += '<div class="panel">' + ph('i-medal', 'Conquistas', '<span class="sec-meta">' + gotList.length + ' de ' + all.achievements.length + '</span>') +
+      (latest ? '<button class="ach-latest" type="button" data-ach="' + latest.id + '">' + medalHTML(latest, 'lg') + '<span class="ach-latest-txt"><em>Mais recente</em><b>' + esc(latest.name) + '</b><small>' + esc(latest.desc) + ' · ' + esc(fmtDay(latest.earnedAt)) + '</small></span>' + ic('i-chev', 'ic chev') + '</button>' : '') +
+      S.ACH_GROUPS.map(([g, label]) => {
+        const items = all.achievements.filter(a => a.group === g);
+        return '<div class="ach-group"><h4>' + esc(label) + '<span>' + items.filter(a => a.progress >= 1).length + '/' + items.length + '</span></h4><div class="ach">' + items.map(achItemHTML).join('') + '</div></div>';
+      }).join('') + '</div>';
 
     const shots = S.SHOTS.filter(k => p.shots[k]);
     if (shots.length) {
@@ -1394,7 +1461,7 @@
   function loadSticker(id) {
     if (stickerImg[id]) return stickerImg[id];
     const img = new Image();
-    img.onload = () => { if (share.sticker === id) drawShare(); };
+    img.onload = () => { if (share.sticker === id) drawShare(true); };
     img.onerror = () => console.error('[sticker] nao carregou', id);
     img.src = 'stickers/' + id + '.png';
     stickerImg[id] = img;
@@ -1455,7 +1522,7 @@
   }
 
   // ---------- Compartilhar ----------
-  const share = { id: null, tpl: 'resumo', fmt: 'story', img: null, sticker: null, stickerText: null };
+  const share = { id: null, ach: null, tpl: 'resumo', fmt: 'story', img: null, sticker: null, stickerText: null };
   function shareData(m) {
     const st = S.matchStats(m);
     const T = st.teams;
@@ -1477,39 +1544,93 @@
       playersLine: m.teams.map(t => (t.players || []).join(' e ') || t.name).join('  ×  '),
     };
   }
+  // Ícone da medalha como imagem (o canvas não desenha <use>): o símbolo do sprite vira um SVG avulso.
+  const iconImg = {};
+  function symbolImage(id, color) {
+    const k = id + color;
+    if (iconImg[k]) return iconImg[k];
+    const sym = document.getElementById(id);
+    const img = new Image();
+    if (sym) {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + sym.getAttribute('viewBox') + '" width="256" height="256" fill="none" stroke="' + color + '" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + sym.innerHTML + '</svg>';
+      img.onload = () => { if (share.ach && isOpen('#sheetShare')) drawShare(); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+    iconImg[k] = img;
+    return img;
+  }
+  function achShareData(a) {
+    const [icon, c1, c2, ink] = achLook(a);
+    return {
+      who: a.who,
+      ach: { name: a.name, desc: a.desc, group: a.group, c1, c2, icon: symbolImage(icon, ink || '#FFFFFF'),
+        dateText: new Date(a.earnedAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }).replace('.', ''),
+        sportLabel: a.earnedSport ? sportLabel(a.earnedSport) : '' },
+    };
+  }
+  function shareTemplates() {
+    if (share.ach) return SH.ACH_TEMPLATES;
+    const m = findMatch(share.id);
+    const mvp = m && S.matchStats(m).mvp;
+    return SH.TEMPLATES.filter(t => t.id !== 'destaque' || mvp); // sem jogador com estatística, o Destaque sairia vazio
+  }
+  function openShareWith() {
+    const list = shareTemplates();
+    if (!list.some(t => t.id === share.tpl)) share.tpl = list[0].id;
+    renderStickerPicker();
+    $('#shareTpls').innerHTML = list.map(t => '<button class="tpl' + (t.id === share.tpl ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (t.id === share.tpl) + '" data-tpl="' + t.id + '"><canvas aria-hidden="true"></canvas><span>' + esc(t.name) + '</span></button>').join('');
+    drawShare(true);
+    openSheet('#sheetShare');
+  }
   function openShare(id) {
     const m = findMatch(id);
     if (!m) { setFeedback('', 'miss', 'Partida não encontrada para compartilhar'); return; }
-    share.id = id;
-    renderStickerPicker();
-    $('#shareTpls').innerHTML = SH.TEMPLATES.map(t => '<button class="pill' + (t.id === share.tpl ? ' on' : '') + '" type="button" data-tpl="' + t.id + '">' + esc(t.name) + '</button>').join('');
-    drawShare();
-    openSheet('#sheetShare');
+    share.id = id; share.ach = null;
+    $('#shareTitle').textContent = 'Compartilhar partida';
+    openShareWith();
   }
-  function drawShare() {
-    const m = findMatch(share.id);
-    if (!m) return;
-    if (document.fonts && document.fonts.check && !document.fonts.check('800 40px "Bricolage Grotesque"')) {
-      document.fonts.load('800 40px "Bricolage Grotesque"').then(() => drawShare(), e => console.warn('[compartilhar] fonte nao carregou', e));
-    }
-    const data = shareData(m);
+  function openShareAch(id) {
+    const a = achIndex[id];
+    if (!a || a.progress < 1) return;
+    share.ach = a; share.id = null;
+    $('#shareTitle').textContent = 'Compartilhar conquista';
+    openShareWith();
+  }
+  function shareDataNow() {
+    const data = share.ach ? achShareData(share.ach) : shareData(findMatch(share.id));
     if (share.sticker) {
       const img = loadSticker(share.sticker);
       if (img.complete && img.naturalWidth) data.sticker = { img, text: (share.stickerText || '').trim().slice(0, 40) };
     }
+    return data;
+  }
+  // thumbs: redesenha também as miniaturas (ao abrir e quando muda formato, sticker ou foto; não a cada letra digitada)
+  function drawShare(thumbs) {
+    if (!share.ach && !findMatch(share.id)) return;
+    for (const f of ['800 40px "Bricolage Grotesque"', '900 40px "Archivo Condensed"']) {
+      if (document.fonts && document.fonts.check && !document.fonts.check(f)) {
+        document.fonts.load(f).then(() => drawShare(true), e => console.warn('[compartilhar] fonte nao carregou', f, e));
+      }
+    }
+    const data = shareDataNow();
     SH.render($('#shareCanvas'), share.tpl, share.fmt, data, share.img);
+    if (thumbs) $$('#shareTpls .tpl').forEach(b => SH.render(b.querySelector('canvas'), b.dataset.tpl, share.fmt, data, share.img, 0.14));
+    const transparent = SH.TRANSPARENT.includes(share.tpl);
     $('#photoPick').hidden = share.tpl !== 'foto';
-    $('#sharePreview').classList.toggle('dark', share.tpl === 'sticker');
-    $$('#shareTpls .pill').forEach(b => b.classList.toggle('on', b.dataset.tpl === share.tpl));
+    $('#photoPick').classList.toggle('need', share.tpl === 'foto' && !share.img);
+    $('#sharePreview').classList.toggle('transparent', transparent);
+    $('#sharePreview').classList.toggle('square', share.fmt === 'quadrado');
+    $$('#shareTpls .tpl').forEach(b => { const on = b.dataset.tpl === share.tpl; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
     const canShareFiles = !!(navigator.canShare && navigator.share);
     $('#btnShareNow').hidden = !canShareFiles;
-    $('#shareHint').textContent = share.tpl === 'sticker'
+    $('.share-actions').classList.toggle('solo', !canShareFiles);
+    $('#shareHint').textContent = transparent
       ? 'Fundo transparente: copie ou salve e cole por cima de uma foto no story do Instagram.'
       : canShareFiles ? 'Compartilhar abre o Instagram, o WhatsApp e os outros apps do aparelho.' : 'Neste navegador, salve a imagem e poste pelo app.';
   }
   function shareFile(blob) {
-    const m = findMatch(share.id);
-    const base = 'ultra-' + (m ? G.fold(m.teams[0].name).replace(/ /g, '-') + '-x-' + G.fold(m.teams[1].name).replace(/ /g, '-') : 'partida');
+    const m = share.ach ? null : findMatch(share.id);
+    const base = 'ultra-' + (share.ach ? 'conquista-' + share.ach.id : m ? G.fold(m.teams[0].name).replace(/ /g, '-') + '-x-' + G.fold(m.teams[1].name).replace(/ /g, '-') : 'partida');
     return new File([blob], base + '-' + share.tpl + '.png', { type: 'image/png' });
   }
   async function doShare(kind) {
@@ -1621,22 +1742,27 @@
       if (!b) return;
       if (b.dataset.finish === 'cancel') closeSheet('#sheetFinish'); else finishAdvance();
     });
-    $('#shareTpls').addEventListener('click', e => { const b = e.target.closest('[data-tpl]'); if (b) { share.tpl = b.dataset.tpl; drawShare(); } });
-    $$('input[name="shareFmt"]').forEach(el => el.addEventListener('change', () => { share.fmt = getRadio('shareFmt'); drawShare(); }));
+    $('#shareTpls').addEventListener('click', e => {
+      const b = e.target.closest('[data-tpl]'); if (!b) return;
+      share.tpl = b.dataset.tpl; drawShare();
+      if (share.tpl === 'foto' && !share.img) $('#photoInput').click(); // o modelo Foto sem foto não serve: já abre a galeria
+    });
+    $$('input[name="shareFmt"]').forEach(el => el.addEventListener('change', () => { share.fmt = getRadio('shareFmt'); drawShare(true); }));
     $('#photoInput').addEventListener('change', e => {
       const f = e.target.files && e.target.files[0];
       if (!f) return;
       const img = new Image();
-      img.onload = () => { share.img = img; drawShare(); };
+      img.onload = () => { share.img = img; drawShare(true); };
       img.onerror = () => { $('#shareHint').textContent = 'Não consegui abrir essa foto. Tente outra (JPG ou PNG).'; };
       img.src = URL.createObjectURL(f);
+      e.target.value = ''; // permite escolher a mesma foto de novo
     });
     $('#btnShareNow').addEventListener('click', () => doShare('share'));
     $('#stickerPick').addEventListener('click', e => {
       const b = e.target.closest('[data-stk]'); if (!b) return;
       share.sticker = b.dataset.stk || null; share.stickerText = null;
       if (share.sticker) loadSticker(share.sticker);
-      renderStickerPicker(); drawShare();
+      renderStickerPicker(); drawShare(true);
     });
     $('#stickerText').addEventListener('input', e => { share.stickerText = e.target.value; drawShare(); });
     $('#proBody').addEventListener('click', e => { if (e.target.closest('#proOn')) setPro(true); if (e.target.closest('#proOff')) setPro(false); });
@@ -1686,8 +1812,10 @@
       if (gv) { closeAllSheets(); go(gv.dataset.go); return; }
       const sh = e.target.closest('[data-share]');
       if (sh) { e.stopPropagation(); openShare(sh.dataset.share); return; }
+      const ac = e.target.closest('[data-ach]');
+      if (ac) { openAch(ac.dataset.ach); return; }
       const op = e.target.closest('[data-open]');
-      if (op) { go('partida', op.dataset.open); return; }
+      if (op) { closeAllSheets(); go('partida', op.dataset.open); return; }
       const sp = e.target.closest('[data-sport]');
       if (sp) { quickStart(sp.dataset.sport); return; }
       const ms = e.target.closest('[data-mesport]');
@@ -1702,6 +1830,7 @@
         if (a === 'continue') openContinue();
         if (a === 'home') go('inicio');
         if (a === 'share') openShare(currentMatchId);
+        if (a === 'share-ach') { closeSheet('#sheetAch'); openShareAch(act.dataset.achId); }
         if (a === 'delete-match') deleteMatch(act.dataset.mid, act);
         if (a === 'moment') openMoment(findMatch(act.dataset.mid));
       }

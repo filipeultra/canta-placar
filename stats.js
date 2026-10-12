@@ -108,6 +108,29 @@
     return Array.from(map.values()).sort((a, b) => b.matches - a.matches || a.name.localeCompare(b.name));
   }
 
+  // Conquistas em quatro grupos (cada grupo tem um formato de medalha no app). val lê o acumulado até cada partida.
+  const ACH_GROUPS = [['marco', 'Marcos'], ['serie', 'Sequências'], ['quadra', 'Em quadra'], ['jornada', 'Jornada']];
+  const ACHIEVEMENTS = [
+    { id: 'estreia', group: 'marco', name: 'Estreia', desc: 'Jogue a primeira partida', goal: 1, val: s => s.matches },
+    { id: 'primeira', group: 'marco', name: 'Primeira vitória', desc: 'Vença uma partida', goal: 1, val: s => s.wins },
+    { id: 'dez', group: 'marco', name: 'Dez na conta', desc: '10 vitórias', goal: 10, val: s => s.wins },
+    { id: 'cinquenta', group: 'marco', name: 'Meio centenário', desc: '50 partidas jogadas', goal: 50, val: s => s.matches },
+    { id: 'cem', group: 'marco', name: 'Centenário', desc: '100 vitórias', goal: 100, val: s => s.wins },
+    { id: 'embalo', group: 'serie', name: 'Embalado', desc: '3 vitórias seguidas', goal: 3, val: s => s.bestRun },
+    { id: 'imparavel', group: 'serie', name: 'Imparável', desc: '7 vitórias seguidas', goal: 7, val: s => s.bestRun },
+    { id: 'constancia', group: 'serie', name: 'Constância', desc: '4 semanas seguidas jogando', goal: 4, val: s => s.bestWeeks },
+    { id: 'rotina', group: 'serie', name: 'Rotina de atleta', desc: '12 semanas seguidas jogando', goal: 12, val: s => s.bestWeeks },
+    { id: 'pneu', group: 'quadra', name: 'Pneu', desc: 'Feche um set por 6-0', goal: 1, val: s => s.zeroSets },
+    { id: 'virada', group: 'quadra', name: 'Virada histórica', desc: 'Vença depois de estar 6 pontos atrás', goal: 6, val: s => s.comeback },
+    { id: 'avalanche', group: 'quadra', name: 'Avalanche', desc: '10 pontos seguidos numa partida', goal: 10, val: s => s.streak },
+    { id: 'ace', group: 'quadra', name: 'Máquina de aces', desc: '20 aces somados', goal: 20, val: s => s.aces },
+    { id: 'maratona', group: 'jornada', name: 'Maratonista', desc: 'Uma partida de 1h30 ou mais', goal: 90 * 60000, unit: 'ms', val: s => s.longest },
+    { id: 'quadra50', group: 'jornada', name: 'Vida de quadra', desc: '50 horas em quadra', goal: 50 * 3600000, unit: 'ms', val: s => s.ms },
+    { id: 'coruja', group: 'jornada', name: 'Coruja', desc: 'Termine uma partida depois das 22h', goal: 1, val: s => s.night },
+    { id: 'madrugador', group: 'jornada', name: 'Madrugador', desc: 'Comece uma partida antes das 7h', goal: 1, val: s => s.early },
+    { id: 'multi', group: 'jornada', name: 'Multiesporte', desc: 'Jogue 3 esportes diferentes', goal: 3, val: s => s.sports.size },
+  ];
+
   // Perfil de um jogador somando o historico. opts.sport limita a um esporte (filtro do perfil).
   function profile(history, who, opts) {
     const only = opts && opts.sport;
@@ -199,21 +222,33 @@
       margin: topOf('margin', r => r.won === true), longest: topOf('durationMs'),
     };
 
-    // Conquistas (a "vitrine de trofeus" do Strava). progress de 0 a 1.
-    const prog = (v, goal) => Math.min(1, v / goal);
-    out.achievements = [
-      { id: 'primeira', name: 'Primeira vitória', desc: 'Vença uma partida', progress: prog(out.wins, 1) },
-      { id: 'dez', name: 'Dez na conta', desc: '10 vitórias', progress: prog(out.wins, 10) },
-      { id: 'embalo', name: 'Embalado', desc: '5 vitórias seguidas', progress: prog(out.bestWinStreak, 5) },
-      { id: 'ace', name: 'Rei do ace', desc: '20 aces', progress: prog(out.aces, 20) },
-      { id: 'virada', name: 'Virada histórica', desc: 'Vença depois de estar 6 pontos atrás', progress: prog(out.records.comeback ? out.records.comeback.value : 0, 6) },
-      { id: 'pneu', name: 'Pneu', desc: 'Feche um set por 6-0', progress: out.series.some(r => r.zeroSet) ? 1 : 0 },
-      { id: 'constancia', name: 'Constância', desc: '4 semanas seguidas jogando', progress: prog(out.weekStreak, 4) },
-      { id: 'maratona', name: 'Maratonista', desc: '50 horas em quadra', progress: prog(out.durationMs, 50 * 3600000) },
-      { id: 'cem', name: 'Centenário', desc: '100 vitórias', progress: prog(out.wins, 100) },
-      { id: 'multi', name: 'Multiesporte', desc: 'Jogue 3 esportes', progress: prog(Object.keys(out.sports).length, 3) },
-      { id: 'cinquenta', name: 'Cinquentona', desc: '50 partidas', progress: prog(out.matches, 50) },
-    ];
+    // Conquistas (vitrine de medalhas, como no Nike Run Club). Percorre as partidas em ordem para saber
+    // quando cada uma foi conquistada (earnedAt) e em qual partida (earnedId). progress de 0 a 1.
+    const acc = { matches: 0, wins: 0, aces: 0, ms: 0, winRun: 0, bestRun: 0, weeks: 0, bestWeeks: 0, lastWeek: null,
+      zeroSets: 0, comeback: 0, streak: 0, longest: 0, night: 0, early: 0, sports: new Set() };
+    const earned = {};
+    for (const r of out.series) {
+      acc.matches++; acc.aces += r.aces; acc.ms += r.durationMs; acc.sports.add(r.sport);
+      if (r.won === true) { acc.wins++; acc.winRun++; acc.bestRun = Math.max(acc.bestRun, acc.winRun); } else if (r.won === false) acc.winRun = 0;
+      const wk = weekStart(r.endedAt);
+      if (acc.lastWeek !== wk) {
+        acc.weeks = acc.lastWeek !== null && Math.round((wk - acc.lastWeek) / (7 * DAY)) === 1 ? acc.weeks + 1 : 1;
+        acc.lastWeek = wk; acc.bestWeeks = Math.max(acc.bestWeeks, acc.weeks);
+      }
+      if (r.zeroSet) acc.zeroSets++;
+      acc.comeback = Math.max(acc.comeback, r.comeback);
+      acc.streak = Math.max(acc.streak, r.streak);
+      acc.longest = Math.max(acc.longest, r.durationMs);
+      const end = new Date(r.endedAt).getHours(), start = new Date(r.endedAt - r.durationMs).getHours();
+      if (end >= 22 || end < 4) acc.night++;
+      if (start >= 4 && start < 7) acc.early++;
+      for (const a of ACHIEVEMENTS) if (!earned[a.id] && a.val(acc) >= a.goal) earned[a.id] = { at: r.endedAt, id: r.id, sport: r.sport };
+    }
+    out.achievements = ACHIEVEMENTS.map(a => {
+      const value = a.val(acc), e = earned[a.id];
+      return { id: a.id, group: a.group, name: a.name, desc: a.desc, goal: a.goal, unit: a.unit || '', value, progress: e ? 1 : Math.min(1, value / a.goal),
+        earnedAt: e ? e.at : null, earnedId: e ? e.id : null, earnedSport: e ? e.sport : null };
+    });
     const n = out.matches || 1;
     out.avg = {
       pts: out.pts / n, errors: (out.errors + out.df) / n, aces: out.aces / n,
@@ -224,5 +259,5 @@
     return out;
   }
 
-  return { SHOTS, matchStats, setsFor, knownPlayers, profile, fold };
+  return { SHOTS, ACH_GROUPS, matchStats, setsFor, knownPlayers, profile, fold };
 });
