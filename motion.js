@@ -13,7 +13,7 @@
   const D = SH.draw;
   const SIZES = { story: [1080, 1920], quadrado: [1080, 1080] };
   const SPEED = { rapido: 6, normal: 10, longo: 15 };
-  const INTRO = 1.4, OUTRO = 2.8;
+  const INTRO = 0.35, OUTRO = 2.8; // abertura curta: o primeiro quadro já é a capa e o gráfico começa logo
   const GREEN = '#AFFB48', INK = '#101500';
   const duration = o => INTRO + (SPEED[o.speed] || SPEED.normal) + OUTRO;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -149,6 +149,9 @@
       ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = D.font(700, W * 0.02); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       ctx.fillText('SET ' + (j + 2), px(n + 1) + W * 0.008, y - h * 0.01);
     });
+    // a partida inteira bem clarinha por trás: a capa já mostra o desenho do jogo e o traço vai preenchendo
+    ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = W * 0.0022; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(px(0), py(0)); for (let i = 1; i <= N; i++) ctx.lineTo(px(i), py(at(i))); ctx.stroke(); ctx.restore();
     // área até a cabeça, com a cor de quem está na frente (acima: time 0, abaixo: time 1)
     const path = close => {
       ctx.beginPath(); ctx.moveTo(px(0), py(0));
@@ -195,9 +198,28 @@
   }
 
   // lance atual em letras grandes (some aos poucos); só destaques, ou todos
+  // capa: o confronto no lugar do lance, até o primeiro ponto entrar
+  function matchup(ctx, W, d, o, x, y, w, size, k) {
+    ctx.save(); ctx.globalAlpha = clamp(k, 0, 1); shadowOn(ctx, o, W);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    const a = d.teams[0].name.toUpperCase(), b = d.teams[1].name.toUpperCase();
+    D.fit(ctx, a + ' × ' + b, w, 900, size * 0.8, 30, 'cond');
+    const wa = ctx.measureText(a + ' ').width, wx = ctx.measureText('× ').width, wt = ctx.measureText(a + ' × ' + b).width;
+    let cx = x + (w - wt) / 2;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = d.teams[0].hex; ctx.fillText(a, cx, y + size * 0.75); cx += wa;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillText('×', cx, y + size * 0.75); cx += wx;
+    ctx.fillStyle = d.teams[1].hex; ctx.fillText(b, cx, y + size * 0.75);
+    const pl = d.teams.map(t => (t.players || []).join(' e ')).filter(Boolean);
+    if (pl.length === 2) { ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.75)'; D.fit(ctx, pl.join('  ×  '), w, 700, size * 0.26, 12); ctx.fillText(pl.join('  ×  '), x + w / 2, y + size * 1.2); }
+    ctx.restore();
+  }
+
   function ticker(ctx, W, d, o, x, y, w, size, tNow, tp) {
-    if (o.plays === 'nenhum') return;
     const N = d.pts.length;
+    const first = tp(0);
+    if (tNow < first + 0.25) { matchup(ctx, W, d, o, x, y, w, size, tNow < first ? 1 : 1 - (tNow - first) / 0.25); return; }
+    if (o.plays === 'nenhum') return;
     let j = -1;
     for (let i = N - 1; i >= 0; i--) { if (tp(i) <= tNow && (o.plays === 'todos' || d.pts[i].hl)) { j = i; break; } }
     if (j < 0) return;
@@ -294,7 +316,7 @@
     const k = Math.min(N, Math.floor(f));
     const snap = k > 0 ? d.pts[k - 1].after : { sets: [], games: [0, 0], pl: ['0', '0'], done: false };
     background(ctx, W, H, d, o);
-    const intro = ease(t / INTRO);
+    const intro = 1; // sem entrada a partir do preto: o quadro 0 vira a capa do vídeo (miniatura no WhatsApp/Instagram)
     const out = t > INTRO + play ? clamp((t - INTRO - play) / 0.6, 0, 1) : 0;
     // topo: marca e data
     ctx.save(); ctx.globalAlpha = intro; shadowOn(ctx, o, W);
@@ -326,10 +348,13 @@
   function play(canvas, d, o, opts) {
     const [W, H] = SIZES[o.fmt] || SIZES.story;
     const k = (opts && opts.scale) || 1;
-    canvas.width = Math.round(W * k); canvas.height = Math.round(H * k);
+    const cw = Math.round(W * k), chh = Math.round(H * k);
+    if (canvas.width !== cw || canvas.height !== chh) { canvas.width = cw; canvas.height = chh; }
     const ctx = canvas.getContext('2d');
     const total = duration(o);
     let t0 = null, raf = 0, stopped = false;
+    // desenha o quadro 0 já, sem esperar o próximo quadro da tela: nada de canvas preto no começo (nem na gravação)
+    ctx.setTransform(k, 0, 0, k, 0, 0); drawFrame(ctx, W, H, d, o, 0);
     const frame = now => {
       if (stopped) return;
       if (t0 === null) t0 = now;
@@ -361,6 +386,10 @@
     const type = videoType();
     if (!type || !canvas.captureStream) return Promise.reject(new Error('este navegador não grava vídeo'));
     return new Promise((resolve, reject) => {
+      // a capa (quadro 0) precisa estar no canvas antes de o gravador começar, senão o vídeo abre preto
+      const [W, H] = SIZES[o.fmt] || SIZES.story;
+      if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+      const c0 = canvas.getContext('2d'); c0.setTransform(1, 0, 0, 1, 0, 0); drawFrame(c0, W, H, d, o, 0);
       const stream = canvas.captureStream(30);
       const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8000000 });
       const chunks = [];
