@@ -1184,7 +1184,27 @@
   }
 
   function kpiHTML(items, big) {
-    return '<div class="kpis' + (big ? ' big' : '') + '">' + items.map(([l, v]) => '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>').join('') + '</div>';
+    return '<div class="kpis' + (big ? ' big' : '') + '">' + items.map(([l, v, teams]) => (l === 'Placar' && String(v).trim().includes(' ') ? scoreKpiHTML(String(v).trim(), teams) : '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>')).join('') + '</div>';
+  }
+  // Placar com vários sets: a fonte diminui para caber; com muitos sets, mostra os dois primeiros e uma setinha que abre todas as parciais.
+  function scoreKpiHTML(v, teams) {
+    const parts = v.split(/\s+/);
+    const n = v.length;
+    const more = n > 14;
+    const fit = n <= 8 ? '' : n <= 11 ? ' fit-sm' : n <= 14 ? ' fit-xs' : ' fit-sm';
+    const data = ' data-sets="' + esc(parts.join('|')) + '"' + (teams ? ' data-t0="' + esc(teams[0]) + '" data-t1="' + esc(teams[1]) + '"' : '');
+    return '<div class="kpi kpi-score"><span>Placar</span><button class="kpi-sets' + fit + (more ? ' more' : '') + '" type="button"' + data + ' title="Ver todas as parciais"><b>' + (more ? parts.slice(0, 2) : parts).map(x => '<i>' + esc(x) + '</i>').join('') + '</b>' + (more ? ic('i-chev', 'ic kpi-more') : '') + '</button></div>';
+  }
+  function openSets(btn) {
+    const parts = (btn.dataset.sets || '').split('|').filter(Boolean);
+    const t0 = btn.dataset.t0, t1 = btn.dataset.t1;
+    const rows = parts.map((x, i) => {
+      const [a, b] = x.split('-').map(Number);
+      const w = a > b ? 0 : b > a ? 1 : -1;
+      return '<div class="set-row"><span>Set ' + (i + 1) + '</span><b class="' + (w === 0 ? 'w' : '') + '">' + (isNaN(a) ? esc(x) : a) + '</b><b class="' + (w === 1 ? 'w' : '') + '">' + (isNaN(b) ? '' : b) + '</b></div>';
+    }).join('');
+    $('#setsBody').innerHTML = '<div class="set-list">' + (t0 ? '<div class="set-row head"><span></span><b>' + esc(t0) + '</b><b>' + esc(t1) + '</b></div>' : '') + rows + '</div>';
+    openSheet('#sheetSets');
   }
 
   function placarText(st) {
@@ -1208,7 +1228,7 @@
     const won = live || embed ? [] : achievementsIn(m);
     if (won.length) h += '<div class="panel ach-won">' + ph('i-medal', won.length === 1 ? 'Conquista nesta partida' : 'Conquistas nesta partida') + '<div class="ach">' + won.map(achItemHTML).join('') + '</div></div>';
     h += '<div class="panel">' + kpiHTML([
-      ['Placar', placarText(st)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
+      ['Placar', placarText(st), m.teams.map(t => t.name)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
       ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
     ], true) + '</div>';
     const mid = live && !embed ? 'live' : esc(m.id);
@@ -1443,7 +1463,7 @@
     const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
     const kp = [];
     const sc = actScore(a);
-    if (sc) kp.push(['Placar', sc]);
+    if (sc) kp.push(['Placar', sc, a.teams.map(t => t.name)]);
     if (a.durationMs) kp.push(['Duração', fmtDur(a.durationMs)]);
     if (a.stats) kp.push(['Pontos', a.stats.pts[0] + '-' + a.stats.pts[1]]);
     else if (a.result && a.result.sets && a.result.sets.length > 1) kp.push(['Sets', String(a.result.sets.length)]);
@@ -1809,7 +1829,7 @@
     $('#saveTitle').textContent = saveCtx.draft ? 'Salvar partida' : 'Editar partida';
     $('#saveBody').innerHTML =
       '<div class="save-sum"><div class="save-sum-top">' + ic('s-' + st.cfg.sport) + '<b>' + esc(sportLabel(st.cfg.sport)) + '</b><span>' + esc(fmtWhen(m.endedAt)) + '</span></div>' + actResultHTML(a) +
-      kpiHTML([['Placar', actScore(a) || '–'], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], m.manual ? ['Tipo', 'Lançada'] : ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts]]) + '</div>' +
+      kpiHTML([['Placar', actScore(a) || '–', m.teams.map(t => t.name)], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], m.manual ? ['Tipo', 'Lançada'] : ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts]]) + '</div>' +
       postFieldsHTML(p, { prefix: 'sv', tags, titlePh: actTitle(a) }) +
       '<button class="btn-primary" type="submit">' + ic('i-check') + (saveCtx.draft ? 'Concluir e publicar' : 'Salvar alterações') + '</button>' +
       (saveCtx.draft ? '<p class="hint center">Ao concluir, a partida aparece na timeline e no seu perfil, conforme “Quem pode ver”.</p><button class="danger-link" type="button" id="saveDiscard">Descartar partida</button>' : '');
@@ -1955,7 +1975,7 @@
   function manualSumHTML(m, st) {
     const a = toActivity(m, 'me');
     let h = '<div class="sum"><div class="panel">' + actResultHTML(a) + '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button></div>';
-    h += '<div class="panel">' + kpiHTML([['Placar', actScore(a) || '–'], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], ['Sets', st.state.sets.length ? String(st.state.sets.length) : '–']], true) +
+    h += '<div class="panel">' + kpiHTML([['Placar', actScore(a) || '–', m.teams.map(t => t.name)], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], ['Sets', st.state.sets.length ? String(st.state.sets.length) : '–']], true) +
       '<p class="hint">' + ic('i-pencil-line') + ' Lançada depois do jogo. Para ter momento, golpes e comparativo, marque a próxima ao vivo.</p></div>';
     h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
     return h + '</div>';
@@ -2394,6 +2414,19 @@
   // ---------- Você (perfil no padrão Strava; sem nível nem ranking por decisão de produto, 08/10/2026) ----------
   const DM = window.CantaDemo;
   let mePeriod = 'month';
+  // filtro de período de cada painel do perfil (golpes, confrontos, parceiros) e golpes em % ou em pontos
+  const ME_RANGES = [['all', 'Sempre'], ['12', '12m'], ['6', '6m'], ['3', '3m']];
+  const meRange = Object.assign({ golpes: 'all', confrontos: 'all', parceiros: 'all' }, prefs.meRange || {});
+  let meShotsPct = prefs.meShotsPct !== false;
+  const rangeSel = k => '<label class="mini-sel" title="Período"><select data-merange="' + k + '" aria-label="Período">' + ME_RANGES.map(([v, l]) => '<option value="' + v + '"' + (meRange[k] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' + ic('i-chev', 'ic') + '</label>';
+  // perfil só com as partidas dos últimos N meses (o resto do perfil não muda)
+  function profileIn(list, who, months, sport) {
+    if (months === 'all') return null;
+    const since = new Date(); since.setMonth(since.getMonth() - Number(months));
+    const cut = since.getTime();
+    return S.profile(list.filter(m => (m.endedAt || m.createdAt || 0) >= cut), who, sport ? { sport } : undefined);
+  }
+  const emptyRange = '<p class="hint">Sem partidas nesse período.</p>';
   let meDemo = null; // null = automático (exemplo quando ainda não há dados próprios)
   let meSport = ''; // '' = todos os esportes (como o seletor de esporte do Strava)
   const one = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
@@ -2441,6 +2474,8 @@
       (got ? '<small>' + esc(fmtDay(a.earnedAt)) + '</small>' : '<span class="ach-bar"><i style="width:' + Math.round(a.progress * 100) + '%"></i></span>') + '</button>';
   }
 
+  // redesenha sem pular a rolagem (mudar um filtro no meio do perfil não volta para o topo)
+  function keepScroll(fn) { const sc = $('#view-voce .scroll'); const y = sc ? sc.scrollTop : 0; fn(); if (sc) sc.scrollTop = y; }
   function renderMe() {
     const hist = history();
     const known = S.knownPlayers(hist);
@@ -2527,25 +2562,28 @@
         return '<div class="ach-group"><h4>' + esc(label) + '<span>' + items.filter(a => a.progress >= 1).length + '/' + items.length + '</span></h4><div class="ach">' + items.map(achItemHTML).join('') + '</div></div>';
       }).join('') + '</div>';
 
-    const shots = S.SHOTS.filter(k => p.shots[k]);
-    if (shots.length) {
-      const maxS = Math.max(...shots.map(k => p.shots[k]));
-      h += '<div class="panel">' + ph('i-racket', 'Golpes de ponto') + '<div class="bars1">' + shots.sort((a, b) => p.shots[b] - p.shots[a]).map(k =>
-        '<div class="bar1"><span>' + esc(G.SHOT_LABEL[k] || k) + '</span><u><em style="width:' + Math.round(p.shots[k] / maxS * 100) + '%"></em></u><b>' + p.shots[k] + '</b></div>').join('') + '</div></div>';
+    if (S.SHOTS.some(k => p.shots[k])) {
+      const ps = profileIn(list, who, meRange.golpes, meSport) || p;
+      const shots = S.SHOTS.filter(k => ps.shots[k]);
+      const tot = shots.reduce((n, k) => n + ps.shots[k], 0);
+      const maxS = shots.length ? Math.max(...shots.map(k => ps.shots[k])) : 1;
+      const unit = '<div class="seg seg-sm" role="radiogroup" aria-label="Mostrar em"><label><input type="radio" name="meShotsUnit" value="pct"' + (meShotsPct ? ' checked' : '') + '><span>%</span></label><label><input type="radio" name="meShotsUnit" value="pts"' + (meShotsPct ? '' : ' checked') + '><span>pts</span></label></div>';
+      h += '<div class="panel">' + ph('i-racket', 'Golpes de ponto', '<span class="ph-tools">' + unit + rangeSel('golpes') + '</span>') + (shots.length ? '<div class="bars1">' + shots.sort((a, b) => ps.shots[b] - ps.shots[a]).map(k =>
+        '<div class="bar1"><span>' + esc(G.SHOT_LABEL[k] || k) + '</span><u><em style="width:' + Math.round(ps.shots[k] / maxS * 100) + '%"></em></u><b>' + (meShotsPct ? Math.round(ps.shots[k] / tot * 100) + '%' : ps.shots[k]) + '</b></div>').join('') + '</div>' : emptyRange) + '</div>';
     }
 
     // confrontos e parceiros
-    const opp = Object.values(p.opponents).sort((a, b) => b.matches - a.matches);
-    if (opp.length) {
+    if (Object.keys(p.opponents).length) {
+      const opp = Object.values((profileIn(list, who, meRange.confrontos, meSport) || p).opponents).sort((a, b) => b.matches - a.matches);
       const enough = opp.filter(o => o.matches >= 3);
       const tough = enough.slice().sort((a, b) => a.wins / a.matches - b.wins / b.matches)[0];
       const fav = enough.slice().sort((a, b) => b.wins / b.matches - a.wins / a.matches)[0];
-      h += '<div class="panel">' + ph('i-swords', 'Confrontos') +
+      h += '<div class="panel">' + ph('i-swords', 'Confrontos', rangeSel('confrontos')) + (opp.length ? '' : emptyRange) +
         (tough && fav && tough !== fav ? '<div class="duo"><div class="duo-card warn"><span>' + ic('i-flame') + 'Mais difícil</span><b>' + esc(tough.name) + '</b><small>' + tough.wins + 'V · ' + tough.losses + 'D</small></div><div class="duo-card"><span>' + ic('i-trophy') + 'Melhor saldo</span><b>' + esc(fav.name) + '</b><small>' + fav.wins + 'V · ' + fav.losses + 'D</small></div></div>' : '') +
         '<div class="h2h">' + opp.slice(0, 8).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
     }
-    const par = Object.values(p.partners).sort((a, b) => b.matches - a.matches);
-    if (par.length) h += '<div class="panel">' + ph('i-users', 'Parceiros') + '<div class="h2h">' + par.slice(0, 6).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
+    const par = Object.keys(p.partners).length ? Object.values((profileIn(list, who, meRange.parceiros, meSport) || p).partners).sort((a, b) => b.matches - a.matches) : null;
+    if (par) h += '<div class="panel">' + ph('i-users', 'Parceiros', rangeSel('parceiros')) + (par.length ? '' : emptyRange) + '<div class="h2h">' + par.slice(0, 6).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
 
     // partidas recentes
     h += '<div class="panel">' + ph('i-history', 'Partidas recentes') + '<div class="recs">' + p.recent.slice(0, 6).map(r =>
@@ -3360,6 +3398,8 @@
     $('#btnPro').addEventListener('click', () => openPro());
     $('#meBody').addEventListener('change', e => {
       if (e.target.name === 'mePeriod') { mePeriod = e.target.value; renderMe(); }
+      if (e.target.dataset && e.target.dataset.merange) { meRange[e.target.dataset.merange] = e.target.value; prefs.meRange = Object.assign({}, meRange); savePrefs(); keepScroll(renderMe); }
+      if (e.target.name === 'meShotsUnit') { meShotsPct = e.target.value === 'pct'; prefs.meShotsPct = meShotsPct; savePrefs(); keepScroll(renderMe); }
       if (e.target.name === 'meWho') { meDemo = e.target.value === '1'; meSport = ''; renderMe(); document.querySelector('#view-voce .scroll').scrollTo(0, 0); }
     });
     $('#contBody').addEventListener('change', renderContHint);
@@ -3396,6 +3436,8 @@
     });
 
     document.addEventListener('click', e => {
+      const ss = e.target.closest('[data-sets]');
+      if (ss) { e.stopPropagation(); openSets(ss); return; }
       const zp = e.target.closest('[data-zap]');
       if (zp) { onZap(zp); return; }
       const zs = e.target.closest('[data-zaps]');
