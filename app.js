@@ -1553,7 +1553,7 @@
     const img = new Image();
     if (sym) {
       const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + sym.getAttribute('viewBox') + '" width="256" height="256" fill="none" stroke="' + color + '" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + sym.innerHTML + '</svg>';
-      img.onload = () => { if (share.ach && isOpen('#sheetShare')) drawShare(); };
+      img.onload = () => { if (share.ach && isOpen('#sheetShare')) drawShare(true); };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     }
     iconImg[k] = img;
