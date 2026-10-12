@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- segurança: só roda script do próprio app (e do motor de voz offline); bloqueia código injetado em textos -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net blob: 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' https://cdn.jsdelivr.net https://ccoreilly.github.io blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'self'">
+<meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#F3F4F1" media="(prefers-color-scheme: light)">
 <link rel="preload" href="fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/archivo-condensed-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -11,6 +14,16 @@
 <meta name="apple-mobile-web-app-title" content="ULTRA PLAY">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="description" content="Placar por voz e estatísticas de partida para tênis, beach tennis, padel, peteca, vôlei de praia e futevôlei.">
+<!-- prévia do link no WhatsApp, Instagram e redes -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ULTRA PLAY">
+<meta property="og:title" content="ULTRA PLAY · o placar que escuta">
+<meta property="og:description" content="Marque os pontos falando, veja as estatísticas e o replay da partida. Beach tennis, padel, tênis, peteca e vôlei.">
+<meta property="og:image" content="https://filipeultra.github.io/canta-placar/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary_large_image">
 <title>ULTRA PLAY</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">

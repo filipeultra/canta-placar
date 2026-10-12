@@ -40,16 +40,23 @@
   };
 
   const KEY_HIST_BACKUP = 'canta.history.backup';
-  function readHist() {
-    let raw = null;
-    try { raw = localStorage.getItem(KEY_HIST); } catch (e) { console.warn('[armazenamento] leitura do histórico falhou', e); return []; }
+  function readHistRaw() {
+    try { return localStorage.getItem(KEY_HIST); } catch (e) { console.warn('[armazenamento] leitura do histórico falhou', e); return null; }
+  }
+  function readHist(rawIn) {
+    const raw = rawIn === undefined ? readHistRaw() : rawIn;
     if (!raw) return [];
     try { const v = JSON.parse(raw); if (Array.isArray(v)) return v.filter(m => m && typeof m === 'object'); } catch (e) { console.warn('[armazenamento] histórico ilegível', e); }
     try { if (!localStorage.getItem(KEY_HIST_BACKUP)) localStorage.setItem(KEY_HIST_BACKUP, raw); } catch (e) { console.warn('[armazenamento] cópia de segurança falhou', e); }
     return [];
   }
-  const HIST_MAX = 100;
-  const writeHist = hist => store.set(KEY_HIST, hist.slice(0, HIST_MAX));
+  // ~7 KB por partida ao vivo: 300 partidas cabem com folga nos 5 MB do navegador
+  const HIST_MAX = 300;
+  let histFullWarned = false;
+  const writeHist = hist => {
+    if (hist.length > HIST_MAX && !histFullWarned) { histFullWarned = true; setTimeout(() => toast('O aparelho guarda as últimas ' + HIST_MAX + ' partidas. Exporte um backup em Ajustes para não perder as antigas.'), 400); }
+    return store.set(KEY_HIST, hist.slice(0, HIST_MAX));
+  };
 
   const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true, myName: '', city: '', feedKind: 'seguindo', lastSport: '', privacy: null };
   const prefs = Object.assign({}, DEFAULT_PREFS, store.get(KEY_PREFS, {}));
@@ -73,6 +80,62 @@
   function defaultMatch() {
     return newMatch(Object.assign({ sport: 'beach', firstServer: 0 }, E.SPORTS.beach.defaults), DEFAULT_TEAMS());
   }
+  // Partida que veio de fora (link das estatísticas, arquivo de backup): só passa o que o app conhece.
+  // Textos ficam curtos e são escapados ao desenhar; esporte, golpes, tipos e cores só de listas fechadas, porque
+  // alguns deles viram nome de ícone ou de classe (sem escape) no HTML. Um link montado à mão não injeta nada.
+  const CFG_KEYS = ['sport', 'setsToWin', 'firstServer', 'gamesPerSet', 'tiebreakTo', 'matchTiebreakTo', 'deuce', 'decider', 'tbSwitch', 'pointsToWin', 'decidingSetPoints', 'winBy', 'cap', 'decidingCap', 'preset', 'switchEvery'];
+  const cTxt = (v, n) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n) : '');
+  const cInt = (v, lo, hi) => { const x = Math.round(Number(v)); return Number.isFinite(x) ? Math.max(lo, Math.min(hi, x)) : lo; };
+  const pickIn = (v, list) => (list.includes(v) ? v : undefined);
+  function cleanMatch(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.cfgInput || typeof raw.cfgInput !== 'object' || !Array.isArray(raw.teams) || raw.teams.length !== 2 || !Array.isArray(raw.events)) return null;
+    const cfg = {};
+    for (const k of CFG_KEYS) { const v = raw.cfgInput[k]; if (typeof v === 'number' && Number.isFinite(v)) cfg[k] = v; else if (typeof v === 'string' && /^[a-z0-9-]{1,20}$/i.test(v)) cfg[k] = v; }
+    cfg.sport = pickIn(cfg.sport, Object.keys(E.SPORTS)) || 'beach';
+    const colors = PALETTE.map(p => p.id);
+    const teams = raw.teams.map((t, i) => ({
+      name: cTxt(t && t.name, 30) || (i ? 'Laranja' : 'Verde'),
+      color: pickIn(t && t.color, colors) || (i ? 'laranja' : 'verde'),
+      players: (Array.isArray(t && t.players) ? t.players : []).map(n => cTxt(n, 40)).filter(Boolean).slice(0, 4),
+    }));
+    const T = Object.keys(TAGS), SH = Object.keys(G.SHOT_LABEL), ER = Object.keys(ERR_LABEL), SRC = Object.keys(SRC_ICON);
+    const events = [];
+    for (const e of raw.events.slice(0, 2000)) {
+      if (!e || typeof e !== 'object' || !['point', 'server', 'config'].includes(e.type)) continue;
+      const o = { type: e.type };
+      if (e.team === 0 || e.team === 1) o.team = e.team; else if (e.type !== 'config') continue;
+      if (typeof e.t === 'number' && Number.isFinite(e.t)) o.t = e.t;
+      if (e.type === 'point') {
+        o.tag = pickIn(e.tag, T); o.shot = pickIn(e.shot, SH); o.errType = pickIn(e.errType, ER);
+        o.player = cTxt(e.player, 40) || undefined; o.assist = cTxt(e.assist, 40) || undefined;
+        if (e.playerTeam === 0 || e.playerTeam === 1) o.playerTeam = e.playerTeam;
+      }
+      if (e.type === 'config' && e.changes && typeof e.changes === 'object') { o.changes = {}; for (const k of CFG_KEYS) { const v = e.changes[k]; if (typeof v === 'number' && Number.isFinite(v)) o.changes[k] = v; else if (typeof v === 'string' && /^[a-z0-9-]{1,20}$/i.test(v)) o.changes[k] = v; } }
+      o.src = pickIn(e.src, SRC);
+      if (typeof e.heard === 'string') o.heard = cTxt(e.heard, 120) || undefined;
+      Object.keys(o).forEach(k => o[k] === undefined && delete o[k]);
+      events.push(o);
+    }
+    const p = raw.post && typeof raw.post === 'object' ? raw.post : {};
+    const post = {
+      status: p.status === 'rascunho' ? 'rascunho' : 'publicada',
+      type: pickIn(p.type, SO.TYPES.map(x => x.id)), title: cTxt(p.title, 60) || undefined, caption: cTxt(p.caption, 140) || undefined, place: cTxt(p.place, 60) || undefined,
+      visibility: pickIn(p.visibility, SO.VISIBILITY.map(x => x.id)), video: p.video && typeof p.video === 'object' ? lookOfSafe(p.video) : undefined,
+      sourceOrig: pickIn(p.sourceOrig, ['live', 'manual']), claimed: cTxt(p.claimed, 40) || undefined, linkId: typeof p.linkId === 'string' && /^link-[a-z0-9]{1,16}$/.test(p.linkId) ? p.linkId : undefined, fromLinkBy: cTxt(p.fromLinkBy, 40) || undefined,
+    };
+    Object.keys(post).forEach(k => post[k] === undefined && delete post[k]);
+    const mn = raw.manual && typeof raw.manual === 'object' ? raw.manual : null;
+    const manual = mn ? {
+      sets: Array.isArray(mn.sets) ? mn.sets.filter(x => Array.isArray(x) && x.length === 2).slice(0, 7).map(x => [cInt(x[0], 0, 99), cInt(x[1], 0, 99)]) : null,
+      final: Array.isArray(mn.final) && mn.final.length === 2 ? [cInt(mn.final[0], 0, 999), cInt(mn.final[1], 0, 999)] : null,
+      winner: mn.winner === 0 || mn.winner === 1 ? mn.winner : null, durationMs: mn.durationMs ? cInt(mn.durationMs, 0, 864e5) : undefined,
+    } : undefined;
+    const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+    const m = { id: typeof raw.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw.id) ? raw.id : uid(), createdAt: num(raw.createdAt) || Date.now(), endedAt: num(raw.endedAt), cfgInput: cfg, teams, events, redo: [], finished: true, post };
+    if (manual) m.manual = manual;
+    return validMatch(m);
+  }
+  const lookOfSafe = v => { const o = {}; for (const k of ['bg', 'chart', 'score', 'plays', 'playsMode', 'names', 'stats', 'speed', 'out', 'opacity']) if (typeof v[k] === 'string' || typeof v[k] === 'boolean' || typeof v[k] === 'number') o[k] = v[k]; return o; };
   function validMatch(m) {
     if (!m || typeof m !== 'object' || !m.cfgInput || !Array.isArray(m.teams) || m.teams.length !== 2 || !Array.isArray(m.events)) return null;
     m.events = m.events.filter(e => e && typeof e === 'object' && typeof e.type === 'string');
@@ -1068,7 +1131,15 @@
   const HEX = { azul: '#1A8CFF', laranja: '#FC4C02', verde: '#12E07A', rosa: '#FF2E88', roxo: '#9D5CFF', amarelo: '#FFD400' };
   const sportLabel = sp => (E.SPORTS[sp] || E.SPORTS.beach).label;
   const SPORT_SHORT = { beach: 'Beach', volei: 'Vôlei', futevolei: 'Futevôlei' };
-  const history = () => readHist().filter(validMatch);
+  // Leitura só para mostrar: guarda a última decodificação e só relê quando o que está salvo mudou
+  // (a timeline e o perfil chamam isto dezenas de vezes por tela; com 100 partidas eram ~100 ms a cada troca).
+  // Quem vai alterar e salvar usa readHist(), que sempre devolve uma cópia nova.
+  let histMemo = { raw: undefined, list: [] }, histVer = 0;
+  const history = () => {
+    const raw = readHistRaw();
+    if (raw !== histMemo.raw) { histMemo = { raw, list: readHist(raw).filter(validMatch) }; histVer++; }
+    return histMemo.list.slice();
+  };
   const fmtDur = ms => { const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
   function fmtWhen(t) {
     if (!t) return '';
@@ -1092,6 +1163,7 @@
     if (view !== 'jogar') $('#banner').classList.remove('show'); // aviso de game/set e so do placar
     document.body.dataset.view = view;
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
+    const sc0 = $('#view-' + view + ' .scroll'); if (sc0 && !back) sc0.scrollTop = 0; // antes de desenhar: depois forçaria recalcular a tela inteira
     const tab = ['partida', 'atividade', 'perfil', 'notificacoes', 'entrar'].includes(view) ? 'inicio' : view;
     $$('.tabbar .tab').forEach(b => b.classList.toggle('on', b.dataset.go === tab));
     if (view === 'inicio') renderHome();
@@ -1102,7 +1174,6 @@
     if (view === 'entrar') renderEntrar(id);
     if (view === 'voce') renderMe();
     if (view === 'jogar') { render(); renderVoice(); }
-    const sc = $('#view-' + view + ' .scroll'); if (sc && !back) sc.scrollTop = 0;
     const hash = '#' + view + (id ? '-' + id : '');
     if (location.hash !== hash) history_replace(hash);
   }
@@ -1252,7 +1323,7 @@
       // colunas sem nenhum valor saem (assistência só existe em alguns esportes; rede/fora só com detalhe)
       const COLS = [['Pts', p => p.pts], ['Erros', p => p.errors + p.df], ['Aces', p => p.aces], ['Win.', p => p.winners], ['Assist.', p => p.assists], ['Rede', p => p.rede], ['Fora', p => p.fora]]
         .filter(([l, f], k) => k < 2 || ps.some(p => f(p) > 0));
-      h += '<div class="panel">' + ph('i-users', 'Por jogador') + '<div class="table-wrap"><table class="players-table"><thead><tr><th>Jogador</th>' + COLS.map(c0 => '<th>' + c0[0] + '</th>').join('') + '</tr></thead><tbody>' +
+      h += '<div class="panel">' + ph('i-users', 'Por jogador') + '<div class="table-wrap" tabindex="0" role="region" aria-label="Estatísticas por jogador"><table class="players-table"><thead><tr><th>Jogador</th>' + COLS.map(c0 => '<th>' + c0[0] + '</th>').join('') + '</tr></thead><tbody>' +
         ps.map(p => '<tr><td><span class="pl-name"><i style="--tc:' + colorVar(m.teams[p.team].color) + '"></i><span>' + esc(p.name) + '</span></span>' + (st.mvp && st.mvp === p ? '<span class="badge">Destaque</span>' : '') + '</td>' + COLS.map(c0 => '<td>' + c0[1](p) + '</td>').join('') + '</tr>').join('') +
         '</tbody></table></div></div>';
     } else {
@@ -1484,7 +1555,7 @@
   function suggestHTML() {
     const list = SO.suggestions().slice(0, 8);
     if (!list.length) return '';
-    return '<section class="suggest"><div class="sec-head"><h2>Jogam perto de você</h2><span class="sec-meta">' + esc(SO.me().city.split(',')[0]) + '</span></div><div class="suggest-row">' +
+    return '<section class="suggest"><div class="sec-head"><h2>Jogam perto de você</h2><span class="sec-meta">' + esc(SO.me().city.split(',')[0]) + '</span></div><div class="suggest-row" tabindex="0" role="region" aria-label="Sugestões de pessoas">' +
       list.map(u => '<div class="sug">' + avatarHTML(u.id, 'lg') + '<b data-user="' + esc(u.id) + '">' + esc(u.name) + '</b><small>' + esc(u.place) + '</small><button class="btn btn-sm follow" type="button" data-follow="' + esc(u.id) + '">' + ic(SO.privacyOf(u.id).level === 'privado' ? 'i-lock' : 'i-user-plus') + esc(followLbl(u.id)) + '</button></div>').join('') +
       '</div></section>';
   }
@@ -1494,13 +1565,32 @@
     syncMe(); materializeClaims();
     const kind = prefs.feedKind === 'geral' ? 'geral' : 'seguindo';
     setRadio('feedKind', kind);
-    const list = SO.feed(kind, myActivities()).slice(0, 40);
+    const list = SO.feed(kind, myActivities()).slice(0, 60);
     let h = kind === 'geral' ? '<p class="feed-note">' + ic('i-pin') + 'Partidas públicas de quem joga em <b>' + esc(SO.me().city) + '</b></p>' : '';
     if (!list.length) h += '<div class="empty-state">' + ic('i-users') + '<b>Nada por aqui ainda</b><span>Siga pessoas que jogam perto de você para ver as partidas delas.</span></div>';
-    list.forEach((a, i) => { h += actCardHTML(a); if (i === 2) h += suggestHTML(); });
+    // 12 por vez: o resto entra quando a pessoa chega perto do fim (a tela abre mais rápido)
+    feedRest = list.slice(FEED_PAGE);
+    list.slice(0, FEED_PAGE).forEach((a, i) => { h += actCardHTML(a); if (i === 2) h += suggestHTML(); });
     if (list.length && list.length <= 2) h += suggestHTML();
-    $('#feed').innerHTML = h;
+    $('#feed').innerHTML = h + feedMoreHTML();
+    watchFeedMore();
     renderBell();
+  }
+  const FEED_PAGE = 12;
+  let feedRest = [], feedObs = null;
+  const feedMoreHTML = () => (feedRest.length ? '<div class="feed-more" id="feedMore"><button class="btn" type="button" data-feedmore>' + ic('i-chev', 'ic down') + 'Ver mais partidas</button></div>' : '');
+  function moreFeed() {
+    const box = $('#feedMore'); if (!box || !feedRest.length) return;
+    const next = feedRest.slice(0, FEED_PAGE); feedRest = feedRest.slice(FEED_PAGE);
+    box.insertAdjacentHTML('beforebegin', next.map(actCardHTML).join(''));
+    if (!feedRest.length) box.remove();
+  }
+  function watchFeedMore() {
+    if (feedObs) feedObs.disconnect();
+    const box = $('#feedMore');
+    if (!box || !('IntersectionObserver' in window)) return;
+    feedObs = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) moreFeed(); }, { root: $('#view-inicio .scroll'), rootMargin: '600px 0px' });
+    feedObs.observe(box);
   }
   function renderBell() {
     const n = SO.unread(myActivities());
@@ -1713,6 +1803,20 @@
     }).join('') + '</div>' : '<p class="hint center">Ninguém ainda.</p>';
     openSheet('#sheetPeople');
   }
+
+  // Erro inesperado: avisa uma vez, sem assustar, e lembra que as partidas já estão salvas (cada lance é gravado na hora).
+  let lastCrashToast = 0;
+  function onCrash(ev) {
+    const src = (ev && (ev.filename || (ev.reason && ev.reason.stack) || '')) || '';
+    if (src && !String(src).includes(location.origin) && !/app\.js|motion\.js|share\.js|stats\.js|engine\.js|social\.js/.test(src)) return; // extensões do navegador etc.
+    if (ev && ev.message && /ResizeObserver loop/.test(ev.message)) return;
+    console.error('[erro]', ev && (ev.error || ev.reason || ev.message));
+    if (Date.now() - lastCrashToast < 15000) return;
+    lastCrashToast = Date.now();
+    try { toast('Algo não saiu como devia. Suas partidas estão salvas; se a tela travar, recarregue.'); } catch (e) { /* sem toast */ }
+  }
+  window.addEventListener('error', onCrash);
+  window.addEventListener('unhandledrejection', onCrash);
 
   let toastTimer = null;
   function toast(msg) {
@@ -2040,7 +2144,7 @@
     syncMe(); materializeClaims();
     const demo = (window.CantaDemo && window.CantaDemo.guestMatches ? window.CantaDemo.guestMatches() : []).map(m => SO.activity(m.id)).filter(Boolean);
     let h = '<div class="panel entrar-hero">' + '<span class="choose-ic alt">' + ic('i-tag') + '</span>' +
-      '<h2>Jogou com alguém que marcou no app?</h2><p>Peça o <b>código</b> ou o <b>link</b> da partida e diga qual jogador era você. Quando o dono aceitar, as estatísticas daquele jogador passam a ser suas, inclusive de jogos antigos.</p>' +
+      '<h2>Jogou com alguém que marcou no app?</h2><p>Peça a quem marcou o <b>link das estatísticas</b> (no botão Compartilhar da partida). Abrindo o link, você vê tudo e salva nas suas partidas escolhendo qual jogador era: os números daquele jogador passam a ser seus.</p><p class="hint">Com o código, a busca funciona por enquanto só com as partidas de exemplo (abaixo); a busca por código em qualquer partida chega com a conta na nuvem.</p>' +
       '<form class="entrar-form" id="entrarForm"><input type="text" id="entrarCode" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="P-XXXXXX" value="' + esc(code || '') + '"><button class="btn btn-brand" type="submit">Buscar</button></form>' +
       (demo.length ? '<div class="demo-codes"><span>Para testar</span>' + demo.map(a => '<button class="pill" type="button" data-code="' + esc(SO.matchCode(a.id)) + '">' + esc(SO.matchCode(a.id)) + ' · ' + esc(SPORT_SHORT[a.sport] || sportLabel(a.sport)) + ' ' + esc(firstName(SO.user(a.ownerId).name)) + '</button>').join('') + '</div>' : '') + '</div>';
     if (code) {
@@ -2159,17 +2263,19 @@
     const d = JSON.parse(new TextDecoder().decode(raw));
     if (!d || d.v !== 1) throw new Error('link de outra versão');
     let h = 0; for (const ch of code) h = (h * 33 + ch.charCodeAt(0)) >>> 0; // mesmo link, mesma partida
-    const m = {
-      id: 'link-' + h.toString(36), createdAt: d.a, endedAt: d.z, cfgInput: d.c, finished: true, redo: [],
-      teams: d.tm.map(t => ({ name: t.n, color: t.c, players: t.p || [] })),
-      events: d.e.map(ev => Object.assign({}, ev, typeof ev.t === 'number' ? { t: d.t0 + ev.t * 100 } : {})),
-      post: Object.assign({ status: 'publicada' }, d.p || {}), manual: d.man || undefined, sharedBy: d.by || '', fromLink: true,
-    };
-    if (!validMatch(m)) throw new Error('partida inválida no link');
+    const t0 = typeof d.t0 === 'number' ? d.t0 : 0;
+    const m = cleanMatch({
+      id: 'link-' + h.toString(36), createdAt: d.a, endedAt: d.z, cfgInput: d.c,
+      teams: Array.isArray(d.tm) ? d.tm.map(t => ({ name: t && t.n, color: t && t.c, players: t && t.p })) : null,
+      events: Array.isArray(d.e) ? d.e.map(ev => Object.assign({}, ev, ev && typeof ev.t === 'number' ? { t: t0 + ev.t * 100 } : {})) : null,
+      post: Object.assign({}, d.p || {}, { status: 'publicada' }), manual: d.man || undefined,
+    });
+    if (!m) throw new Error('partida inválida no link');
+    m.sharedBy = cTxt(d.by, 40); m.fromLink = true;
     return m;
   }
   // partidas abertas por link ficam guardadas à parte (as últimas 10), para recarregar a página sem perder
-  const readLinks = () => { const v = store.get(KEY_LINKS, []); return Array.isArray(v) ? v.filter(x => x && validMatch(x)) : []; };
+  const readLinks = () => { const v = store.get(KEY_LINKS, []); return Array.isArray(v) ? v.filter(x => x && x.fromLink && validMatch(x)) : []; };
   function keepLink(m) { store.set(KEY_LINKS, [m].concat(readLinks().filter(x => x.id !== m.id)).slice(0, 10)); }
   const linkCache = {};
   const statLinkFor = async id => {
@@ -2259,14 +2365,15 @@
     r.onload = () => {
       try {
         const d = JSON.parse(r.result);
-        const incoming = (Array.isArray(d.partidas) ? d.partidas : []).filter(m => validMatch(m));
+        const incoming = (Array.isArray(d.partidas) ? d.partidas : []).slice(0, HIST_MAX).map(cleanMatch).filter(Boolean);
         if (!incoming.length) throw new Error('nenhuma partida no arquivo');
         const cur = readHist(), ids = new Set(cur.map(m => m.id));
         const add = incoming.filter(m => !ids.has(m.id));
         const all = cur.concat(add).sort((a, b) => (b.endedAt || b.createdAt || 0) - (a.endedAt || a.createdAt || 0));
         if (!writeHist(all)) return;
-        if (!prefs.myName && d.perfil && d.perfil.nome) { prefs.myName = d.perfil.nome; prefs.city = prefs.city || d.perfil.cidade || ''; savePrefs(); }
+        if (!prefs.myName && d.perfil && cTxt(d.perfil.nome, 40)) { prefs.myName = cTxt(d.perfil.nome, 40); prefs.city = prefs.city || cTxt(d.perfil.cidade, 60); savePrefs(); }
         toast(add.length ? add.length + (add.length === 1 ? ' partida restaurada' : ' partidas restauradas') : 'As partidas do arquivo já estavam aqui');
+        if (!$('#welcome').hidden) hideWelcome();
         closeAllSheets(); refreshSocial(); go('voce');
       } catch (e) {
         console.error('[backup] restaurar falhou', e);
@@ -2337,7 +2444,11 @@
       return;
     }
     if (kind === 'login') {
-      box.innerHTML = '<div class="wl-actions"><button class="btn-ghost wl-prov" type="button" data-wl="auth">' + ic('i-globe') + 'Continuar com Google</button><button class="btn-ghost wl-prov" type="button" data-wl="auth">' + ic('i-user') + 'Continuar com Apple</button><button class="btn-ghost wl-prov" type="button" data-wl="auth">' + ic('i-phone') + 'Entrar com o celular</button><button class="linkish center" type="button" data-wl="back">Voltar</button></div>';
+      // Sem conta na nuvem ainda: nada de botão de Google/Apple que finge entrar. O que existe de verdade é o backup.
+      box.innerHTML = '<div class="wl-actions"><p class="wl-note">' + ic('i-info') + '<span>Por enquanto sua conta e suas partidas ficam <b>neste aparelho</b>. Entrar com Google, Apple ou celular chega com a conta na nuvem.</span></p>' +
+        '<button class="btn-primary" type="button" data-wl="restore">' + ic('i-history') + 'Restaurar backup de outro aparelho</button>' +
+        '<button class="btn-ghost" type="button" data-wl="auth">' + (prefs.myName ? 'Continuar como ' + esc(firstName(prefs.myName)) : 'Continuar neste aparelho') + '</button>' +
+        '<button class="linkish center" type="button" data-wl="back">Voltar</button></div>';
       return;
     }
     box.innerHTML = '<div class="wl-actions"><button class="btn-primary" type="button" data-wl="signup">Criar conta grátis</button><button class="btn-ghost" type="button" data-wl="login">Já tenho conta</button><button class="linkish center" type="button" data-wl="skip">Explorar sem conta</button></div>';
@@ -2362,6 +2473,7 @@
       if (k === 'skip') hideWelcome();
       else if (k === 'auth') { if (prefs.myName) hideWelcome('Bem-vindo de volta, ' + firstName(prefs.myName)); else wlStep('complete'); }
       else if (k === 'back') wlStep();
+      else if (k === 'restore') $('#restoreInput').click();
       else wlStep(k);
     });
     $('#welcome').addEventListener('submit', e => {
@@ -2420,11 +2532,21 @@
   let meShotsPct = prefs.meShotsPct !== false;
   const rangeSel = k => '<label class="mini-sel" title="Período"><select data-merange="' + k + '" aria-label="Período">' + ME_RANGES.map(([v, l]) => '<option value="' + v + '"' + (meRange[k] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' + ic('i-chev', 'ic') + '</label>';
   // perfil só com as partidas dos últimos N meses (o resto do perfil não muda)
+  // o perfil é caro de calcular (refaz cada partida): guarda o resultado até as partidas mudarem
+  const profMemo = new Map();
+  function profileOf(list, who, sport, months) {
+    const key = (list === histMemo.list || list.__own ? 'own' + histVer : 'demo') + '|' + who + '|' + (sport || '') + '|' + (months || 'all') + '|' + new Date().toDateString();
+    if (profMemo.has(key)) return profMemo.get(key);
+    let src = list;
+    if (months && months !== 'all') { const since = new Date(); since.setMonth(since.getMonth() - Number(months)); const cut = since.getTime(); src = list.filter(m => (m.endedAt || m.createdAt || 0) >= cut); }
+    const v = S.profile(src, who, sport ? { sport } : undefined);
+    if (profMemo.size > 40) profMemo.clear();
+    profMemo.set(key, v);
+    return v;
+  }
   function profileIn(list, who, months, sport) {
     if (months === 'all') return null;
-    const since = new Date(); since.setMonth(since.getMonth() - Number(months));
-    const cut = since.getTime();
-    return S.profile(list.filter(m => (m.endedAt || m.createdAt || 0) >= cut), who, sport ? { sport } : undefined);
+    return profileOf(list, who, sport, months);
   }
   const emptyRange = '<p class="hint">Sem partidas nesse período.</p>';
   let meDemo = null; // null = automático (exemplo quando ainda não há dados próprios)
@@ -2476,23 +2598,29 @@
 
   // redesenha sem pular a rolagem (mudar um filtro no meio do perfil não volta para o topo)
   function keepScroll(fn) { const sc = $('#view-voce .scroll'); const y = sc ? sc.scrollTop : 0; fn(); if (sc) sc.scrollTop = y; }
-  function renderMe() {
+  // de quem é o perfil mostrado em Você (o seu, ou o de exemplo enquanto não há partidas suas)
+  function meSubject() {
     const hist = history();
     const known = S.knownPlayers(hist);
-    const body = $('#meBody');
     const hasMe = !!known.length || !!prefs.myName; // com conta (nome) o seu perfil existe mesmo sem partidas
     const useDemo = meDemo === null ? !hasMe : meDemo;
-    let list, who, extra = null;
-    if (useDemo) { list = DM.history(); who = DM.ATHLETE.name; extra = DM.ATHLETE; }
-    else {
-      list = hist;
-      const me = known.find(k => k.key === S.fold(prefs.me || prefs.myName || '')) || (prefs.myName ? { name: prefs.myName } : known[0]);
-      who = me.name;
-    }
-    const all = S.profile(list, who);
+    if (useDemo) return { known, hasMe, useDemo, list: DM.history(), who: DM.ATHLETE.name, extra: DM.ATHLETE };
+    hist.__own = true;
+    const me = known.find(k => k.key === S.fold(prefs.me || prefs.myName || '')) || (prefs.myName ? { name: prefs.myName } : known[0]);
+    return { known, hasMe, useDemo, list: hist, who: me.name, extra: null };
+  }
+  // adianta o cálculo do perfil quando o celular está ocioso: a primeira ida a Você já abre na hora
+  function warmProfile() {
+    const run = () => { try { const m = meSubject(); profileOf(m.list, m.who); } catch (e) { console.info('[perfil] pré-cálculo falhou', e); } };
+    if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 3000 }); else setTimeout(run, 1200);
+  }
+  function renderMe() {
+    const body = $('#meBody');
+    const { known, hasMe, useDemo, list, who, extra } = meSubject();
+    const all = profileOf(list, who);
     const sportsOf = Object.keys(all.sports).sort((a, b) => all.sports[b] - all.sports[a]);
     if (meSport && !all.sports[meSport]) meSport = '';
-    const p = meSport ? S.profile(list, who, { sport: meSport }) : all;
+    const p = meSport ? profileOf(list, who, meSport) : all;
     const mixed = !meSport && sportsOf.length > 1; // números de esportes diferentes juntos: marcar o esporte em cada recorde
     const pct = p.winRate == null ? '–' : Math.round(p.winRate * 100) + '%';
     const cur = p.currentStreak;
@@ -2714,7 +2842,7 @@
         '<line class="guide" x1="' + cx + '" x2="' + cx + '" y1="' + pt + '" y2="' + (H - pb) + '"/>' + (r.keys.length ? '<circle class="kring" cx="' + cx + '" cy="' + cy + '" r="7"/>' : '') + shape +
         '<rect x="' + (cx - 6.5) + '" y="0" width="13" height="' + H + '" fill="transparent" stroke="none"/></g>';
     }).join('');
-    return '<div class="mom-scroll"><svg class="mom" viewBox="0 0 ' + W + ' ' + H + '" style="width:' + W + 'px;height:' + H + 'px">' +
+    return '<div class="mom-scroll" tabindex="0" role="region" aria-label="Gráfico ponto a ponto"><svg class="mom" viewBox="0 0 ' + W + ' ' + H + '" style="width:' + W + 'px;height:' + H + 'px">' +
       '<defs><clipPath id="' + uid + 't"><rect x="0" y="0" width="' + W + '" height="' + y(0) + '"/></clipPath><clipPath id="' + uid + 'b"><rect x="0" y="' + y(0) + '" width="' + W + '" height="' + (H - y(0)) + '"/></clipPath></defs>' +
       '<path d="' + area + '" clip-path="url(#' + uid + 't)" style="fill:' + c0 + ';fill-opacity:.16;stroke:none"/><path d="' + area + '" clip-path="url(#' + uid + 'b)" style="fill:' + c1 + ';fill-opacity:.16;stroke:none"/>' +
       '<text class="sidelbl" x="' + pl + '" y="' + (pt - 12) + '" style="fill:' + c0 + '">▲ ' + esc(m.teams[0].name) + ' na frente</text><text class="sidelbl" x="' + pl + '" y="' + (H - 6) + '" style="fill:' + c1 + '">▼ ' + esc(m.teams[1].name) + ' na frente</text>' +
@@ -3436,6 +3564,7 @@
     });
 
     document.addEventListener('click', e => {
+      if (e.target.closest('[data-feedmore]')) { moreFeed(); return; }
       const ss = e.target.closest('[data-sets]');
       if (ss) { e.stopPropagation(); openSets(ss); return; }
       const zp = e.target.closest('[data-zap]');
@@ -3650,6 +3779,7 @@
     }[params.get('abrir')];
     const hadHash = !!location.hash;
     routeFromHash();
+    warmProfile();
     if (params.get('demo') && !hadHash) go('jogar');
     if (open) { if (['lances', 'estatisticas', 'comandos'].includes(params.get('abrir'))) go('jogar'); open(); }
     renderVoice();

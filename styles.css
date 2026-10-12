@@ -2311,3 +2311,8 @@ body[data-view="jogar"] .tab-scrim, body.tv .tab-scrim { display: none; }
 .mini-sel select { appearance: none; -webkit-appearance: none; height: 28px; padding: 0 24px 0 10px; border: 0; border-radius: 9px; background: var(--fill); color: var(--fg); font: 600 12px/1 var(--font-display); box-shadow: inset 0 0 0 1px var(--hair); cursor: pointer; }
 .mini-sel .ic { position: absolute; right: 7px; pointer-events: none; font-size: 11px; color: var(--fg-2); transform: rotate(90deg); stroke-width: 2.4; }
 .ph-tools .seg-sm span { padding: 4px 9px; font-size: 12px; }
+.feed-more { display: grid; justify-items: center; padding: 4px 0 8px; }
+.feed-more .btn .down { transform: rotate(90deg); }
+.wl-note { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; margin: 0 0 2px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); color: rgba(244, 245, 244, 0.8); font-size: 13px; line-height: 1.45; }
+.wl-note .ic { font-size: 18px; color: #AFFB48; margin-top: 1px; }
+.wl-note b { color: #FFFFFF; }
