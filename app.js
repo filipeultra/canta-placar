@@ -21,7 +21,7 @@
   const DETAIL_KEYS = ['tag', 'shot', 'errType', 'player', 'playerTeam', 'assist'];
   const pick = r => { const o = {}; DETAIL_KEYS.forEach(k => { if (r[k] !== undefined && r[k] !== null) o[k] = r[k]; }); return o; };
   const DEUCE_LABEL = { ad: 'vantagem', golden: 'ponto de ouro', star: 'star point' };
-  const SRC_ICON = { voz: 'i-mic', toque: 'i-hand', teclado: 'i-keyboard' };
+  const SRC_ICON = { voz: 'i-mic', toque: 'i-hand', teclado: 'i-keyboard', painel: 'i-grid' };
 
   const KEY_MATCH = 'canta.match.v1', KEY_PREFS = 'canta.prefs.v1', KEY_HIST = 'canta.history.v1';
   const store = {
@@ -278,7 +278,7 @@
     const ev = { type: 'point', team };
     for (const k of DETAIL_KEYS.concat(['heard', 'src'])) if (m[k] !== undefined && m[k] !== null && m[k] !== '') ev[k] = m[k];
     if (m.src !== 'toque') earcon.play('ok');
-    else if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { console.info('[toque] vibracao indisponivel', e); } }
+    if ((m.src === 'toque' || m.src === 'painel') && navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { console.info('[toque] vibracao indisponivel', e); } }
     setFeedback(m.heard, 'ok', describe(ev), team);
     commit(ev);
   }
@@ -348,6 +348,100 @@
     return s;
   }
 
+
+  // ---------- Painel de comandos ----------
+  // Para quem está de fora (juiz, técnico, alguém no banco): um botão por lance, por time, sem falar nem digitar.
+  // Gera os mesmos lances da voz: erro de um time é ponto do outro, com o erro anotado para quem errou.
+  const CP_ACTIONS = {
+    games: {
+      point: [['ace', 'Ace', { tag: 'ace', shot: 'saque' }], ['winner', 'Winner', { tag: 'winner' }], ['forehand', 'Forehand', { shot: 'forehand' }], ['backhand', 'Backhand', { shot: 'backhand' }],
+        ['voleio', 'Voleio', { shot: 'voleio' }], ['smash', 'Smash', { shot: 'smash' }], ['drop', 'Drop', { shot: 'drop' }], ['lob', 'Lob', { shot: 'lob' }]],
+      error: [['rede', 'Na rede', { tag: 'error', errType: 'rede' }], ['fora', 'Pra fora', { tag: 'error', errType: 'fora' }], ['df', 'Dupla falta', { tag: 'df' }], ['erro', 'Outro erro', { tag: 'error' }]],
+    },
+    rally: {
+      point: [['ace', 'Ace', { tag: 'ace', shot: 'saque' }], ['ataque', 'Ataque', { shot: 'ataque' }], ['bloqueio', 'Bloqueio', { shot: 'bloqueio' }], ['winner', 'No chão', { tag: 'winner' }]],
+      error: [['rede', 'Na rede', { tag: 'error', errType: 'rede' }], ['fora', 'Pra fora', { tag: 'error', errType: 'fora' }], ['saque', 'Erro saque', { tag: 'error', shot: 'saque' }], ['erro', 'Outro erro', { tag: 'error' }]],
+    },
+  };
+  const cpSet = () => CP_ACTIONS[cfg.kind === 'games' ? 'games' : 'rally'];
+  const panelOn = () => !$('#cpanel').hidden;
+
+  function renderPanel() {
+    if (!panelOn()) return;
+    const A = cpSet();
+    $('#cpBody').innerHTML = [0, 1].map(t => {
+      const tm = match.teams[t], o = 1 - t;
+      const serving = !state.done && state.server === t;
+      const players = (tm.players || []).filter(Boolean);
+      const chip = (kind, [id, label]) => '<button class="cp-btn' + (kind === 'error' ? ' err' : '') + '" type="button" data-cpk="' + kind + '" data-cpt="' + t + '" data-cpa="' + id + '">' + esc(label) + '</button>';
+      return '<section class="cp-team" style="--tc:' + colorVar(tm.color) + ';--oc:' + colorVar(match.teams[o].color) + '">' +
+        '<header class="cp-team-head"><i></i><b>' + esc(tm.name) + '</b>' + (players.length ? '<small>' + esc(players.join(' · ')) + '</small>' : '') + (serving ? '<span class="cp-serve">' + ic('s-tenis') + 'saca</span>' : '') + '</header>' +
+        '<button class="cp-point" type="button" data-cpk="point" data-cpt="' + t + '" data-cpa="ponto">' + ic('i-plus') + 'Ponto ' + esc(tm.name) + '</button>' +
+        '<span class="cp-label">Ponto com</span><div class="cp-grid">' + A.point.map(x => chip('point', x)).join('') + '</div>' +
+        '<span class="cp-label">Erro do ' + esc(tm.name) + ' <em>· ponto ' + esc(match.teams[o].name) + '</em></span><div class="cp-grid">' + A.error.map(x => chip('error', x)).join('') + '</div>' +
+        '</section>';
+    }).join('');
+  }
+
+  let cpPending = null;
+  function panelAction(t, kind, id) {
+    const A = cpSet();
+    const def = id === 'ponto' ? null : (kind === 'error' ? A.error : A.point).find(x => x[0] === id);
+    const meta = Object.assign({ src: 'painel' }, def ? def[2] : {});
+    const pointTeam = kind === 'error' ? 1 - t : t;
+    const players = (match.teams[t].players || []).filter(Boolean);
+    if (state.done || !players.length) { addPoint(pointTeam, meta); return; }
+    if (players.length === 1) { addPoint(pointTeam, Object.assign(meta, { player: players[0], playerTeam: t })); return; }
+    const what = def ? def[1] : 'Ponto';
+    const q = kind === 'error' ? 'quem do ' + match.teams[t].name + ' errou?' : id === 'ace' ? 'quem sacou?' : 'quem fez o ponto?';
+    cpPending = { pointTeam, meta, team: t, players };
+    $('#cpWhoTitle').innerHTML = '<b>' + esc(what) + '</b> · ' + esc(q);
+    $('#cpWhoList').innerHTML = players.map((p, i) => '<button class="cp-who-btn" type="button" data-cpwho="' + i + '" style="--tc:' + colorVar(match.teams[t].color) + '">' + esc(p) + '</button>').join('');
+    $('#cpWho').hidden = false;
+    const first = $('#cpWhoList button'); if (first) first.focus();
+  }
+  function panelWho(v) {
+    const p = cpPending;
+    $('#cpWho').hidden = true;
+    cpPending = null;
+    if (!p || v === 'cancel') return;
+    const name0 = v === 'none' ? null : p.players[Number(v)];
+    addPoint(p.pointTeam, Object.assign(p.meta, name0 ? { player: name0, playerTeam: p.team } : {}));
+  }
+  function setPanel(on) {
+    $('#cpanel').hidden = !on;
+    $('#cpWho').hidden = true; cpPending = null;
+    document.body.classList.toggle('panel-on', on);
+    $('#btnType').setAttribute('aria-pressed', String(on));
+    if (prefs.panelOpen !== on) { prefs.panelOpen = on; savePrefs(); }
+    if (on) { showTyper(false); renderPanel(); }
+  }
+  function toggleLanceMenu(force) {
+    const m = $('#lanceMenu');
+    const show = force !== undefined ? force : m.hidden;
+    m.hidden = !show;
+    $('#btnType').setAttribute('aria-expanded', String(show));
+  }
+  function wirePanel() {
+    $('#btnType').addEventListener('click', e => { e.stopPropagation(); if (panelOn()) { setPanel(false); return; } if (!$('#typer').hidden) { showTyper(false); return; } toggleLanceMenu(); });
+    $('#lanceMenu').addEventListener('click', e => {
+      const b = e.target.closest('[data-lance]'); if (!b) return;
+      toggleLanceMenu(false);
+      if (b.dataset.lance === 'panel') setPanel(true); else { setPanel(false); showTyper(true); }
+    });
+    document.addEventListener('click', e => { if (!$('#lanceMenu').hidden && !e.target.closest('#lanceMenu, #btnType')) toggleLanceMenu(false); });
+    $('#cpanel').addEventListener('click', e => {
+      const w = e.target.closest('[data-cpwho]');
+      if (w) { panelWho(w.dataset.cpwho); return; }
+      if (e.target === $('#cpWho')) { panelWho('cancel'); return; }
+      const b = e.target.closest('[data-cpk]');
+      if (b) { panelAction(Number(b.dataset.cpt), b.dataset.cpk, b.dataset.cpa); return; }
+      const t = e.target.closest('[data-cpact]');
+      if (t) { const k = t.dataset.cpact; if (k === 'undo') undo({}); if (k === 'redo') redo({}); if (k === 'close') setPanel(false); }
+    });
+    if (prefs.panelOpen && !SCREEN) setPanel(true);
+  }
+
   // ---------- persistencia e segunda tela ----------
   let channel = null;
   try { channel = new BroadcastChannel('canta-placar'); } catch (e) { console.warn('[tela] BroadcastChannel indisponivel', e); }
@@ -382,6 +476,7 @@
     renderChips();
     renderMatchChip();
     renderDockButtons();
+    renderPanel();
     if (isOpen('#sheetLog')) renderLog();
     if (isOpen('#sheetStats')) renderStats();
     rendered = true;
@@ -514,6 +609,7 @@
     if (heard) { $('#voiceHeard').textContent = '“' + heard + '”'; lastHeardAt = Date.now(); }
     const res = $('#voiceResult');
     if (!label) return;
+    const cl = $('#cpLast'); if (cl) { cl.textContent = label; cl.className = 'cp-last ' + (kind || ''); }
     res.hidden = false;
     res.className = 'voice-result ' + (kind || '');
     res.innerHTML = (team != null && match.teams[team] ? '<i style="--tc:' + colorVar(match.teams[team].color) + '"></i>' : '') + esc(label);
@@ -954,7 +1050,7 @@
     const f = $('#typer');
     const show = on !== undefined ? on : f.hidden;
     f.hidden = !show;
-    $('#btnType').setAttribute('aria-pressed', String(show));
+    if (!panelOn()) $('#btnType').setAttribute('aria-pressed', String(show));
     if (show) $('#typeInput').focus();
   }
 
@@ -2320,7 +2416,7 @@
     $('#voice').addEventListener('click', toggleMic);
     $('#btnUndo').addEventListener('click', () => undo({}));
     $('#btnRedo').addEventListener('click', () => redo({}));
-    $('#btnType').addEventListener('click', () => showTyper());
+    wirePanel();
     $('#typer').addEventListener('submit', e => {
       e.preventDefault();
       const text = $('#typeInput').value.trim();
@@ -2524,6 +2620,7 @@
 
     document.addEventListener('keydown', e => {
       if (e.target.closest && e.target.closest('input, select, textarea')) return;
+      if (e.key === 'Escape' && !$('#cpWho').hidden) { e.preventDefault(); panelWho('cancel'); return; }
       if (e.key === 'Escape' && anySheetOpen()) { e.preventDefault(); closeAllSheets(); return; }
       if (anySheetOpen() || currentView !== 'jogar' || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key;
@@ -2532,6 +2629,7 @@
         ArrowRight: () => addPoint(1, { src: 'teclado' }), 2: () => addPoint(1, { src: 'teclado' }), PageDown: () => addPoint(1, { src: 'teclado' }),
         z: () => undo({}), Z: () => undo({}), Backspace: () => undo({}), y: () => redo({}), Y: () => redo({}),
         ' ': toggleMic, t: () => toggleTv(), T: () => toggleTv(), p: () => say(E.scoreSpeech(state, cfg, names())), P: () => say(E.scoreSpeech(state, cfg, names())),
+        c: () => setPanel(!panelOn()), C: () => setPanel(!panelOn()),
         Escape: () => { if (document.body.classList.contains('tv')) toggleTv(false); },
       }[k];
       if (act) { e.preventDefault(); act(); }

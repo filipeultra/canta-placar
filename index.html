@@ -216,9 +216,34 @@
           <svg class="on"><use href="#i-mic"/></svg><svg class="off"><use href="#i-mic-off"/></svg>
         </button>
         <button class="dock-btn" id="btnRedo" type="button"><svg><use href="#i-redo"/></svg><span>Refazer</span></button>
-        <button class="dock-btn" id="btnType" type="button" aria-pressed="false"><svg><use href="#i-keyboard"/></svg><span>Digitar</span></button>
+        <button class="dock-btn" id="btnType" type="button" aria-pressed="false" aria-haspopup="menu" aria-expanded="false"><svg><use href="#i-grid"/></svg><span>Lançar</span></button>
+      </div>
+      <div class="lance-menu" id="lanceMenu" role="menu" hidden>
+        <button type="button" role="menuitem" data-lance="panel"><span class="lm-ic"><svg><use href="#i-grid"/></svg></span><span><b>Painel de comandos</b><small>Botões para cada lance: ideal para juiz ou quem está de fora</small></span></button>
+        <button type="button" role="menuitem" data-lance="type"><span class="lm-ic"><svg><use href="#i-keyboard"/></svg></span><span><b>Digitar comando</b><small>Escreva como falaria: “ponto verde ace”</small></span></button>
       </div>
     </footer>
+
+    <!-- Painel de comandos: um botão por lance, por time; pergunta o jogador quando houver -->
+    <section class="cpanel" id="cpanel" aria-label="Painel de comandos" hidden>
+      <header class="cp-head">
+        <span class="cp-title"><svg><use href="#i-grid"/></svg><b>Painel de comandos</b></span>
+        <span class="cp-last" id="cpLast" aria-live="polite"></span>
+        <span class="cp-tools">
+          <button class="icon-btn" type="button" data-cpact="undo" title="Desfazer"><svg><use href="#i-undo"/></svg></button>
+          <button class="icon-btn" type="button" data-cpact="redo" title="Refazer"><svg><use href="#i-redo"/></svg></button>
+          <button class="icon-btn" type="button" data-cpact="close" title="Fechar painel"><svg><use href="#i-x"/></svg></button>
+        </span>
+      </header>
+      <div class="cp-body" id="cpBody"></div>
+      <div class="cp-who" id="cpWho" role="dialog" aria-modal="true" aria-labelledby="cpWhoTitle" hidden>
+        <div class="cp-who-card">
+          <p class="cp-who-q" id="cpWhoTitle"></p>
+          <div class="cp-who-list" id="cpWhoList"></div>
+          <div class="cp-who-foot"><button class="btn" type="button" data-cpwho="none">Sem jogador</button><button class="btn" type="button" data-cpwho="cancel">Cancelar</button></div>
+        </div>
+      </div>
+    </section>
   </section>
 
   <!-- PARTIDA: resumo depois de salvar (como a atividade do Strava) -->

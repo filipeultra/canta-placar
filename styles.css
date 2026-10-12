@@ -1838,3 +1838,128 @@ body[data-view="jogar"] .toast { bottom: calc(150px + env(safe-area-inset-bottom
 .feed-note .ic { vertical-align: -2px; margin-right: 4px; }
 .kpi b, .notif-card b, .ascore-sets { word-spacing: 0.32em; }
 @media (max-width: 380px) { .prow { flex-wrap: wrap; } .prow-act { flex-basis: 100%; padding-left: 52px; } .prow-act .btn { flex: 1; } }
+
+/* =========================================================
+   v9 · painel de comandos (juiz ou quem está de fora)
+   ========================================================= */
+/* menu do botão Lançar */
+.dock { position: relative; }
+.lance-menu {
+  position: absolute; right: 12px; bottom: calc(100% - 6px); z-index: 30;
+  width: min(330px, calc(100vw - 24px)); display: grid; gap: 4px; padding: 6px;
+  border: 1px solid var(--hair-strong); border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: var(--hi), var(--float);
+  animation: pop-up 0.16s ease-out;
+}
+@keyframes pop-up { from { opacity: 0; transform: translateY(6px); } }
+.lance-menu button { display: flex; align-items: center; gap: 12px; padding: 10px; border: 0; border-radius: 12px; background: none; color: inherit; text-align: left; font: inherit; }
+.lance-menu button:hover, .lance-menu button:focus-visible { background: var(--fill); }
+.lance-menu button > span:last-child { display: grid; gap: 2px; }
+.lance-menu b { font: 700 15px/1.2 var(--font-display); }
+.lance-menu small { color: var(--fg-2); font-size: 12px; line-height: 1.3; }
+.lm-ic { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--brand); color: var(--on-brand); font-size: 20px; }
+.lance-menu button:last-child .lm-ic { background: var(--fill-strong); color: var(--fg); }
+.dock-btn[aria-pressed="true"] { background: var(--fill); }
+
+/* painel */
+body.panel-on:not(.tv) .dock { display: none; }
+body.tv .cpanel { display: none; }
+.cpanel {
+  position: relative; min-height: 0; max-height: 60vh; max-height: 60dvh;
+  display: flex; flex-direction: column;
+  margin: 6px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--hair-strong); border-radius: 22px;
+  background: linear-gradient(180deg, var(--surface-hi), var(--surface)); box-shadow: var(--hi), var(--float);
+  overflow: hidden;
+}
+.cp-head { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-bottom: 1px solid var(--hair); }
+.cp-title { display: inline-flex; align-items: center; gap: 7px; flex: none; }
+.cp-title svg { font-size: 17px; color: var(--brand-ink); }
+.cp-title b { font: 700 14px/1 var(--font-display); }
+.cp-last { flex: 1; min-width: 0; font: 500 12px/1.2 var(--font-display); color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.cp-last.ok { color: var(--fg); }
+.cp-last.miss { color: var(--danger); }
+.cp-tools { display: flex; flex: none; }
+.cp-tools .icon-btn { width: 38px; height: 38px; font-size: 19px; }
+.cp-body { overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 10px; padding: 10px; }
+.cp-team {
+  display: grid; gap: 7px; padding: 10px 10px 12px; border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--tc) 28%, var(--hair));
+  background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--tc) 12%, transparent), transparent 60%), var(--surface-2);
+}
+.cp-team-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cp-team-head i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--tc); box-shadow: 0 0 10px var(--tc); }
+.cp-team-head b { font: 800 16px/1.1 var(--font-display); white-space: nowrap; }
+.cp-team-head small { min-width: 0; color: var(--fg-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-serve { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--tc) 20%, transparent); font: 600 10px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.cp-serve svg { font-size: 12px; color: var(--tc); }
+.cp-point {
+  display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px;
+  border: 0; border-radius: 14px; background: var(--tc); color: #0B0D08;
+  font: 800 17px/1 var(--font-display); letter-spacing: -0.01em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 20px -10px var(--tc);
+  touch-action: manipulation; transition: transform 0.1s, filter 0.15s;
+}
+.cp-point svg { font-size: 20px; stroke-width: 2.6; }
+.cp-point:active, .cp-btn:active, .cp-who-btn:active { transform: scale(0.97); }
+.cp-label { margin-top: 2px; font: 500 10px/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-2); }
+.cp-label em { font-style: normal; color: var(--fg-3); }
+.cp-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.cp-btn {
+  min-width: 0; height: 42px; padding: 0 4px; border: 1px solid var(--hair-strong); border-radius: 12px;
+  background: var(--surface); color: var(--fg); font: 650 13px/1.1 var(--font-display);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; touch-action: manipulation; transition: transform 0.1s, background 0.15s;
+}
+.cp-btn:hover { background: color-mix(in srgb, var(--tc) 10%, var(--surface)); }
+.cp-btn.err { border-style: dashed; color: var(--fg-2); }
+.cp-btn.err:hover { background: color-mix(in srgb, var(--oc) 10%, var(--surface)); color: var(--fg); }
+
+/* quem fez / quem errou */
+.cp-who { position: absolute; inset: 0; z-index: 5; display: grid; align-items: end; padding: 10px; background: rgba(3, 4, 3, 0.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.cp-who-card { display: grid; gap: 10px; padding: 14px; border-radius: 18px; border: 1px solid var(--hair-strong); background: var(--surface); box-shadow: var(--float); animation: pop-up 0.16s ease-out; }
+.cp-who-q { margin: 0; font-size: 15px; color: var(--fg-2); }
+.cp-who-q b { color: var(--fg); font-family: var(--font-display); }
+.cp-who-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.cp-who-btn {
+  height: 56px; padding: 0 10px; border: 1.5px solid color-mix(in srgb, var(--tc) 55%, transparent); border-radius: 14px;
+  background: color-mix(in srgb, var(--tc) 14%, var(--surface-2)); color: var(--fg); font: 800 16px/1.1 var(--font-display);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; touch-action: manipulation;
+}
+.cp-who-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cp-who-foot .btn { height: 42px; }
+
+/* placar compacto com o painel aberto (celular em pé) */
+@media (max-width: 600px) {
+  body.panel-on .stage { gap: 6px; padding-top: 2px; }
+  body.panel-on .chips { min-height: 0; }
+  body.panel-on .team { padding-block: 6px; row-gap: 4px; }
+  body.panel-on .team .game { --game-cell: clamp(78px, 25vw, 120px); height: calc(var(--game-cell) * 0.7); min-height: 52px; }
+  body.panel-on .team-name { font-size: clamp(19px, 5.4vw, 24px); }
+  body.panel-on .team-players { display: none; }
+  body.panel-on .team .sets > span { --set-cell: 26px; }
+}
+/* lado a lado: celular deitado e telas largas */
+@media (max-height: 520px) and (min-width: 601px), (min-width: 1000px) {
+  body.panel-on .view-play { grid-template-columns: minmax(0, 1fr) minmax(0, var(--cp-w, 46%)); grid-template-rows: auto minmax(0, 1fr); }
+  body.panel-on .view-play > .topbar { grid-column: 1 / -1; }
+  body.panel-on .view-play > .stage { grid-column: 1; grid-row: 2; padding-bottom: 10px; }
+  body.panel-on .view-play > .cpanel { grid-column: 2; grid-row: 2; max-height: none; margin: 0 10px calc(10px + env(safe-area-inset-bottom, 0px)) 0; }
+}
+@media (min-width: 1000px) { body.panel-on { --cp-w: 460px; } body.panel-on .cp-body { gap: 12px; } }
+.cp-btn { white-space: normal; line-height: 1.05; text-overflow: clip; }
+@media (max-width: 600px) {
+  .cpanel { max-height: 70vh; max-height: 70dvh; margin-inline: 8px; }
+  .cp-body { gap: 8px; padding: 8px; }
+  .cp-team { gap: 6px; padding: 8px 8px 10px; }
+  .cp-point { height: 46px; font-size: 16px; }
+  .cp-btn { height: 40px; font-size: 12.5px; }
+  .cp-grid { gap: 5px; }
+  body.panel-on .board { gap: 6px; }
+  body.panel-on .team { padding-block: 4px; }
+  body.panel-on .team .game { --game-cell: clamp(70px, 22vw, 104px); height: calc(var(--game-cell) * 0.62); min-height: 46px; }
+  body.panel-on .team { row-gap: 2px; }
+  body.panel-on .team .sets > span { --set-cell: 22px; }
+  body.panel-on .team-name { font-size: clamp(18px, 5vw, 22px); }
+}
