@@ -2156,3 +2156,63 @@ body.welcome-on { overflow: hidden; }
 .empty-state .btn svg, .empty-state .btn .ic { font-size: 16px; width: 1em; height: 1em; color: inherit; }
 .empty-state .actions { justify-content: center; margin-top: 4px; }
 .empty-state.first-match { padding: 26px 18px; }
+
+/* ---------- v13 · vídeo animado (replay ponto a ponto) ---------- */
+.share-mode { grid-template-columns: 1fr 1fr; }
+.share-mode span { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.share-mode svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.share-mode .pro-badge { margin-left: 2px; }
+.share-preview { position: relative; display: flex; justify-content: center; }
+#motionCanvas, #replayCanvas { display: block; max-width: 100%; width: auto; height: auto; }
+.vid-opts { display: grid; gap: 14px; min-width: 0; }
+.vid-opts > *, .vo-bgs, .vid-actions { min-width: 0; }
+.vo-block { display: grid; gap: 9px; min-width: 0; }
+.vo-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.vo-chips .pill { position: relative; padding: 8px 12px 8px 30px; background: var(--fill); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--hair); }
+.vo-chips .pill::before { content: ''; position: absolute; left: 11px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px currentColor; opacity: 0.6; }
+.vo-chips .pill.on { background: var(--brand-soft); color: var(--fg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent); }
+.vo-chips .pill.on::before { opacity: 1; background: var(--brand) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m3 6.2 2 2 4-4.4' fill='none' stroke='%23101500' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat; box-shadow: none; }
+.vo-chips .pill:disabled { opacity: 0.4; }
+#vidPlaysSeg { grid-template-columns: 1fr 1fr; }
+#vidOutSeg { grid-template-columns: 1fr 1fr; }
+#vidOutSeg input:disabled + span { opacity: 0.4; }
+.vo-bgs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.vo-bg { display: grid; justify-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: var(--fg-2); font: 600 11.5px/1.15 var(--font-display); text-align: center; }
+.vo-bg i { display: grid; place-items: center; width: 100%; aspect-ratio: 1.25; border-radius: 12px; box-shadow: 0 0 0 1px var(--hair-strong); color: rgba(255, 255, 255, 0.85); transition: box-shadow 0.15s; }
+.vo-bg i .ic { font-size: 20px; }
+.vo-bg.bg-quadra i { background-color: #08130E; background-image: linear-gradient(90deg, transparent 23%, rgba(255, 255, 255, 0.16) 23%, rgba(255, 255, 255, 0.16) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.16) 75%, rgba(255, 255, 255, 0.16) 77%, transparent 77%), linear-gradient(transparent 48%, rgba(175, 251, 72, 0.45) 48%, rgba(175, 251, 72, 0.45) 52%, transparent 52%); }
+.vo-bg.bg-escuro i { background: radial-gradient(90% 80% at 50% 0%, #26301C, #0B0D0C 70%); }
+.vo-bg.bg-midia i { background: linear-gradient(140deg, #4A5A66, #1E2A22 60%, #3B2A1C); }
+.vo-bg.bg-transparente i { background-color: #2A3320; background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.12) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.12) 75%), linear-gradient(45deg, rgba(255, 255, 255, 0.12) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.12) 75%); background-size: 12px 12px; background-position: 0 0, 6px 6px; }
+.vo-bg span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.vo-bg.on { color: var(--fg); }
+.vo-bg.on i { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand); }
+.vo-media { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; border-radius: 14px; background: var(--fill); }
+.vo-media .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; }
+.vo-op { display: flex; align-items: center; gap: 10px; flex: 1 1 180px; min-width: 0; font-size: 13px; font-weight: 600; color: var(--fg-2); }
+.vo-op input { flex: 1; min-width: 0; accent-color: var(--brand); }
+.vo-op b { min-width: 36px; text-align: right; font: 800 15px/1 var(--font-cond); color: var(--fg); font-variant-numeric: tabular-nums; }
+#vidSpeedSeg span { min-width: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+.vid-actions { gap: 10px; }
+.vid-make { position: relative; overflow: hidden; isolation: isolate; }
+.vid-make .vid-bar { position: absolute; inset: 0 auto 0 0; width: 0; z-index: -1; background: rgba(16, 21, 0, 0.18); transition: width 0.2s linear; }
+.vid-make.busy { cursor: progress; }
+.vid-make:disabled { opacity: 1; }
+.vid-ready { display: grid; gap: 8px; }
+#btnVidPost { height: 44px; justify-content: center; }
+#btnVidPost svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+#btnVidPost.on { color: var(--brand-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent); }
+/* replay na timeline: o gráfico vira um botão com "Replay" */
+.act-replay { position: relative; display: block; width: calc(100% + 32px); margin: -4px -16px 0; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.act .act-replay .spark { margin: 0; width: 100%; }
+.rp-chip { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px 6px 9px; border-radius: 999px; background: #101500; color: #AFFB48; font: 800 12px/1 var(--font-display); letter-spacing: 0.02em; box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.5); transition: transform 0.15s; }
+.rp-chip .ic { font-size: 12px; fill: currentColor; stroke: none; }
+.act-replay:hover .rp-chip { transform: translateY(-50%) scale(1.04); }
+.ph-btns { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.ph-btns .ic { stroke-width: 1.9; }
+.replay-stage canvas { border-radius: 14px; max-height: 56vh; max-height: 56dvh; }
+.rp-restart { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #AFFB48; color: #101500; opacity: 0; pointer-events: none; transform: scale(0.9); transition: opacity 0.2s, transform 0.2s; box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6); }
+.rp-restart.show { opacity: 1; pointer-events: auto; transform: none; }
+.rp-restart svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+#replayActions:empty { display: none; }
+@media (max-width: 380px) { .vo-bgs { gap: 6px; } .vo-bg span { font-size: 10px; } .vo-chips .pill { padding: 7px 10px 7px 27px; font-size: 12.5px; } .vo-chips .pill::before { left: 9px; } }

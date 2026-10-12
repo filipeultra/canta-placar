@@ -308,7 +308,8 @@
         ? { server: s.server, set: s.sets.length + 1, games: s.games.slice(), points: s.points.slice(), tb: s.inTiebreak, mtb: s.isMatchTb, sit: situations(s, cc) } : null;
       if (ev && ev.type === 'config') { cc = applyConfig(s, cc, ev); out = s.last; }
       else out = applyEvent(s, cc, ev);
-      rows.push({ ev, out: out ? Object.assign({}, out) : null, score: scoreLine(s, cc), pre, diff: s.timeline.length ? s.timeline[s.timeline.length - 1] : 0 });
+      const after = pre ? { sets: s.sets.map(x => (x.matchTb && x.tb ? x.tb.slice() : x.games.slice())), games: s.games.slice(), pl: pointLabels(s, cc), tb: s.inTiebreak, done: s.done } : null;
+      rows.push({ ev, out: out ? Object.assign({}, out) : null, score: scoreLine(s, cc), pre, after, diff: s.timeline.length ? s.timeline[s.timeline.length - 1] : 0 });
     }
     return { state: s, rows, cfg: cc };
   }

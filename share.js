@@ -468,5 +468,5 @@
     return new Promise((resolve, reject) => canvas.toBlob(b => (b ? resolve(b) : reject(new Error('o navegador não gerou a imagem'))), 'image/png'));
   }
 
-  root.CantaShare = { TEMPLATES, ACH_TEMPLATES, TRANSPARENT, SIZES, render, toBlob };
+  root.CantaShare = { TEMPLATES, ACH_TEMPLATES, TRANSPARENT, SIZES, render, toBlob, draw: { wordmark, bolt, darkBg, label, fit, rrect, rgba, mix, font, cond, track, LOGO_RATIO } };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

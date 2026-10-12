@@ -661,6 +661,8 @@
   const isOpen = sel => { const d = $(sel); return !!d && !d.hidden; };
   const anySheetOpen = () => $$('.sheet').some(d => !d.hidden);
   function openSheet(sel) {
+    if (sel !== '#sheetShare' && typeof stopVidPreview === 'function') stopVidPreview();
+    if (sel !== '#sheetReplay' && typeof stopReplay === 'function') stopReplay();
     $$('.sheet').forEach(d => { if ('#' + d.id !== sel) d.hidden = true; });
     const d = $(sel);
     d.hidden = false;
@@ -671,6 +673,8 @@
   }
   function closeSheet(sel) {
     if (sel === '#sheetPrefs' && micTest) { micTest.stop(); micTest = null; $('#btnMicTest').textContent = 'Testar'; }
+    if (sel === '#sheetShare') stopVidPreview();
+    if (sel === '#sheetReplay') stopReplay();
     const d = $(sel);
     if (d) d.hidden = true;
     if (!anySheetOpen()) { $('#scrim').hidden = true; document.body.classList.remove('modal-open'); }
@@ -1206,7 +1210,9 @@
       ['Placar', placarText(st)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
       ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
     ], true) + '</div>';
-    h += '<div class="panel">' + ph('i-activity', 'Momento', '<button class="btn btn-sm" type="button" data-action="moment" data-mid="' + (live && !embed ? 'live' : esc(m.id)) + '">' + ic('i-expand') + 'Ponto a ponto' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button>') + momentumSvgFor(st, m.teams) + '</div>';
+    const mid = live && !embed ? 'live' : esc(m.id);
+    h += '<div class="panel">' + ph('i-activity', 'Momento', '<span class="ph-btns">' + (canReplay(m) ? '<button class="btn btn-sm" type="button" data-replay="' + mid + '"' + (embed || live ? '' : ' data-own="1"') + '>' + ic('i-replay') + 'Replay</button>' : '') +
+      '<button class="btn btn-sm" type="button" data-action="moment" data-mid="' + mid + '">' + ic('i-expand') + 'Ponto a ponto' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button></span>') + momentumSvgFor(st, m.teams) + '</div>';
     const leg = '<div class="legend"><span><i style="--tc:' + colorVar(m.teams[0].color) + '"></i>' + esc(m.teams[0].name) + '</span><span>' + esc(m.teams[1].name) + '<i style="--tc:' + colorVar(m.teams[1].color) + '"></i></span></div>';
     let comp = bkRow('Pontos ganhos', T[0].pts, T[1].pts, m.teams);
     if (st.cfg.kind === 'games') comp += bkRow('Pontos no saque', T[0].serveWon, T[1].serveWon, m.teams);
@@ -1368,6 +1374,8 @@
       result: { sets: st.state.sets.length ? st.state.sets.map(x => (x.matchTb && x.tb ? x.tb : x.games)) : null, final: st.manual ? st.manual.final : null, winner: st.winner },
       durationMs: st.durationMs, stats: m.manual ? null : { pts: [st.teams[0].pts, st.teams[1].pts], aces: [st.teams[0].aces, st.teams[1].aces] },
       timeline: m.manual ? null : st.timeline, tagged: p.tagged || [], fromActivity: p.fromActivity || null, draft: p.status === 'rascunho',
+      // replay animado publicado no post (nas partidas fictícias de outras pessoas, parte delas tem)
+      video: m.manual ? null : p.video || (m.demo && !mine && r % 3 !== 2 ? { speed: 'rapido' } : null),
     };
     actCache.set(key, a);
     return a;
@@ -1438,7 +1446,7 @@
       (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       actResultHTML(a) +
       kpiHTML(kp.slice(0, 3)) +
-      (a.timeline && a.timeline.length > 1 ? sparkSvg(a.timeline) : '') +
+      (a.timeline && a.timeline.length > 1 ? (a.video && a.matchId && canReplay(findMatch(a.matchId)) ? replayTileHTML(a.matchId, a.timeline, a.ownerId === 'me') : sparkSvg(a.timeline)) : '') +
       (tagMe ? '<div class="act-invite">' + ic('i-tag') + '<span>' + esc(firstName(owner.name)) + ' marcou você nesta partida</span><button class="btn btn-sm" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">Aceitar</button></div>' : '') +
       '<footer class="act-foot">' + zapBtnHTML(a) + (a.ownerId === 'me' && a.matchId ? '<button class="icon-btn" type="button" data-share="' + esc(a.matchId) + '" title="Compartilhar">' + ic('i-share') + '</button>' : '') + '</footer>' +
       '</article>';
@@ -2390,12 +2398,16 @@
   const PRO_FEATURES = {
     momento: 'Momento ponto a ponto',
     exportar: 'Exportar planilha (CSV) e dados (JSON)',
+    video: 'Vídeo animado da partida (MP4 e GIF)',
   };
-  function openPro(feature) {
+  let proBack = null; // depois de ativar, volta para onde estava (ex.: gerar o vídeo)
+  function openPro(feature, back) {
+    proBack = back || null;
     $('#proBody').innerHTML =
       '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
       '<ul class="pro-list">' +
       '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Cada ponto no gráfico e na lista, game a game: quem fez, ace, winner, erro, golpe e o placar naquele instante. Filtre por jogador ou tipo de lance.</span></li>' +
+      '<li><svg><use href="#i-film"/></svg><span><b>Vídeo animado da partida</b>O replay ponto a ponto vira vídeo MP4 ou GIF para o story: gráfico, placar e lances evoluindo, com fundo de quadra, foto ou vídeo seu, ou transparente.</span></li>' +
       '<li><svg><use href="#i-target"/></svg><span><b>Pontos decisivos</b>Break points, set points e match points convertidos e salvos por cada time, viradas na liderança e maior vantagem.</span></li>' +
       '<li><svg><use href="#i-download"/></svg><span><b>Exportar planilha e dados</b>Todos os lances em CSV para Excel e Google Planilhas, e em JSON para análise.</span></li>' +
       '<li><svg><use href="#i-trophy"/></svg><span><b>Histórico completo</b>Hoje o aparelho guarda as últimas ' + HIST_MAX + ' partidas. No Pro, todas, com recordes e confrontos de tudo (quando houver conta na nuvem).</span></li>' +
@@ -2407,6 +2419,7 @@
   function setPro(on) {
     prefs.pro = !!on; savePrefs();
     closeSheet('#sheetPro');
+    if (on && proBack) { const b = proBack; proBack = null; b(); }
     if (currentView === 'partida') renderMatchView(currentMatchId);
     if (currentView === 'voce') renderMe();
     setFeedback('', 'ok', on ? 'ULTRA PLAY Pro ativado (demonstração)' : 'ULTRA PLAY Pro desligado');
@@ -2704,11 +2717,14 @@
     $('#shareTpls').innerHTML = list.map(t => '<button class="tpl' + (t.id === share.tpl ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (t.id === share.tpl) + '" data-tpl="' + t.id + '"><canvas aria-hidden="true"></canvas><span>' + esc(t.name) + '</span></button>').join('');
     drawShare(true);
     openSheet('#sheetShare');
+    setShareMode(share.ach ? 'imagem' : vid.mode);
   }
-  function openShare(id) {
+  function openShare(id, mode) {
     const m = findMatch(id);
     if (!m) { setFeedback('', 'miss', 'Partida não encontrada para compartilhar'); return; }
     share.id = id; share.ach = null;
+    vid.dataId = null; vid.result = null;
+    if (mode) vid.mode = mode;
     $('#shareTitle').textContent = 'Compartilhar partida';
     openShareWith();
   }
@@ -2780,6 +2796,267 @@
       console.error('[compartilhar] falhou', e);
       $('#shareHint').textContent = 'Não deu para ' + (kind === 'copy' ? 'copiar' : kind === 'share' ? 'compartilhar' : 'salvar') + ': ' + (e && e.message ? e.message : e);
     }
+  }
+
+  // ---------- Vídeo animado: replay ponto a ponto (gráfico, placar e lances evoluindo) ----------
+  // A prévia roda em loop e é grátis; gerar o arquivo (MP4/WebM ou GIF) é do Pro. O visual escolhido fica nas
+  // preferências; a foto ou o vídeo de fundo só valem enquanto a folha está aberta (não vão para o armazenamento).
+  const MO = window.CantaMotion;
+  const VID_LOOK = { bg: 'quadra', opacity: 0.1, chart: true, score: true, plays: true, playsMode: 'destaques', names: true, stats: true, speed: 'normal', out: 'video' };
+  const vid = Object.assign({ mode: 'imagem', media: null, mediaName: '', player: null, busy: false, result: null, data: null, dataId: null }, VID_LOOK, prefs.video || {});
+  const VID_BGS = [['quadra', 'Quadra', 'i-grid'], ['escuro', 'Escuro', 'i-moon'], ['midia', 'Foto ou vídeo', 'i-image'], ['transparente', 'Transparente', 'i-layers']];
+  const canReplay = m => !!(m && !m.manual && Array.isArray(m.events) && m.events.filter(e => e && e.type === 'point').length >= 2);
+  const lookOf = v => ({ bg: v.bg, opacity: v.opacity, chart: v.chart, score: v.score, plays: v.plays, playsMode: v.playsMode, names: v.names, stats: v.stats, speed: v.speed, out: v.out });
+  function motionOpts(look, fmt, media) {
+    const l = Object.assign({}, VID_LOOK, look || {});
+    const bg = l.bg === 'midia' && !media ? 'quadra' : l.bg;
+    return { fmt: fmt || 'story', bg, media: bg === 'midia' ? media : null, opacity: l.opacity, chart: l.chart, score: l.score, plays: l.plays ? l.playsMode : 'nenhum', names: l.names, stats: l.stats, speed: l.speed };
+  }
+  function motionData(m) {
+    const c = E.makeConfig(m.cfgInput);
+    const rows = E.replayDetailed(c, m.events.filter(e => e && typeof e === 'object'), { context: true }).rows
+      .filter(r => r.ev.type === 'point' && r.pre && r.after && (!r.out || r.out.type !== 'ignored'));
+    const st = S.matchStats(m), T = st.teams;
+    const tn = t => m.teams[t].name;
+    const setEnds = [];
+    const pts = rows.map((r, i) => {
+      const ev = r.ev;
+      if (r.out && (r.out.type === 'set' || r.out.type === 'match')) setEnds.push(i);
+      const sit = r.pre.sit.filter(s => KEY_NAME[s.type] && (s.type !== 'break' || c.kind === 'games'));
+      const top = sit.find(s => s.type === 'match') || sit.find(s => s.type === 'set') || sit.find(s => s.type === 'break');
+      const key = top ? KEY_NAME[top.type] + (top.team === ev.team ? ' convertido' : ' salvo') : '';
+      const shot = ev.shot && ev.tag !== 'ace' ? String(G.SHOT_LABEL[ev.shot] || ev.shot) : '';
+      const err = ev.tag === 'error' || ev.tag === 'df';
+      const label = ev.tag === 'ace' ? 'ACE' : ev.tag === 'df' ? 'DUPLA FALTA'
+        : ev.tag === 'error' ? 'ERRO' + (ev.errType ? ' ' + ERR_LABEL[ev.errType].toUpperCase() : '')
+        : ev.tag === 'winner' ? 'WINNER' + (shot ? ' · ' + shot.toUpperCase() : '') : shot ? shot.toUpperCase() : 'PONTO';
+      // quem errou é do outro time; sem jogador anotado, fica só o time
+      const errTeam = 1 - ev.team;
+      let sub = '', subTeam = ev.team;
+      if (ev.player) {
+        if (err && ev.playerTeam !== ev.team) { sub = ev.player + ' errou'; subTeam = errTeam; } else sub = ev.player + (ev.assist ? ' · assist. ' + ev.assist : '');
+      }
+      const tsub = err ? 'Erro ' + tn(errTeam) : 'Ponto ' + tn(ev.team);
+      return { team: ev.team, diff: r.diff, after: r.after, tag: ev.tag || '', label, sub, subTeam, tsub, tsubTeam: err ? errTeam : ev.team, key, hl: !!(ev.tag || key || (shot && ev.player)) };
+    });
+    const live = !st.state.done && m === match;
+    return {
+      sport: c.sport, sportLabel: sportLabel(c.sport), dateText: fmtWhen(m.endedAt || m.createdAt), kind: c.kind,
+      typeLabel: m.post && m.post.type && m.post.type !== 'amistoso' ? TYPE_LABEL[m.post.type] || '' : '',
+      teams: m.teams.map(t => ({ name: t.name, hex: HEX[t.color] || HEX.verde, players: t.players })),
+      pts, setEnds,
+      final: {
+        scoreText: placarText(st) || (T[0].pts + '-' + T[1].pts), winner: st.winner, live,
+        stats: [{ label: 'Pontos', value: T[0].pts + '-' + T[1].pts }, { label: 'Duração', value: fmtDur(st.durationMs) }, T[0].aces + T[1].aces ? { label: 'Aces', value: T[0].aces + '-' + T[1].aces } : { label: 'Maior sequência', value: T[0].maxStreak + '-' + T[1].maxStreak }],
+      },
+    };
+  }
+  function vidDataFor(id) {
+    if (vid.dataId !== id || !vid.data) { const m = findMatch(id); vid.data = m ? motionData(m) : null; vid.dataId = id; }
+    return vid.data;
+  }
+  function stopVidPreview() { if (vid.player) { vid.player.stop(); vid.player = null; } }
+  function saveLook() { prefs.video = lookOf(vid); if (prefs.video.bg === 'midia') prefs.video.bg = 'quadra'; savePrefs(); }
+  const vidName = () => {
+    const m = findMatch(share.id);
+    return 'ultra-replay-' + (m ? G.fold(m.teams[0].name).replace(/ /g, '-') + '-x-' + G.fold(m.teams[1].name).replace(/ /g, '-') : 'partida');
+  };
+
+  function setShareMode(mode) {
+    const m = share.ach ? null : findMatch(share.id);
+    const ok = canReplay(m);
+    vid.mode = mode === 'video' && ok ? 'video' : 'imagem';
+    setRadio('shareMode', vid.mode);
+    $('#shareModeRow').hidden = !ok; // conquista e partida lançada à mão não têm ponto a ponto
+    $('#vidProBadge').hidden = isPro();
+    const v = vid.mode === 'video';
+    $('#shareCanvas').hidden = v; $('#motionCanvas').hidden = !v;
+    $('#shareTpls').hidden = v; $('#stkBlock').hidden = v; $('#imgActions').hidden = v;
+    $('#vidOpts').hidden = !v; $('#vidActions').hidden = !v; $('#vidSpeedSeg').hidden = !v;
+    if (v) { $('#photoPick').hidden = true; renderVidOpts(); restartVidPreview(); } else { stopVidPreview(); drawShare(true); }
+  }
+  function renderVidOpts() {
+    $$('#vidParts [data-vpart]').forEach(b => { const on = !!vid[b.dataset.vpart]; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    const namesBtn = $('#vidParts [data-vpart="names"]');
+    namesBtn.disabled = !vid.plays;
+    $('#vidPlaysSeg').hidden = !vid.plays;
+    setRadio('vidPlays', vid.playsMode); setRadio('vidSpeed', vid.speed);
+    $('#vidBgs').innerHTML = VID_BGS.map(([v, l, icn]) => '<button class="vo-bg bg-' + v + (vid.bg === v ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (vid.bg === v) + '" data-vbg="' + v + '"><i>' + ic(icn) + '</i><span>' + l + '</span></button>').join('');
+    $('#vidMediaRow').hidden = vid.bg !== 'midia';
+    $('#vidMediaLbl').textContent = vid.media ? 'Trocar foto ou vídeo' : 'Escolher foto ou vídeo';
+    const pct = Math.round(vid.opacity * 100);
+    $('#vidOpacity').value = String(pct); $('#vidOpacityV').textContent = pct + '%';
+    // fundo transparente só existe no GIF (vídeo MP4/WebM não guarda transparência nos celulares)
+    if (vid.bg === 'transparente') vid.out = 'gif';
+    $('#vidOutSeg input[value="video"]').disabled = vid.bg === 'transparente' || !MO.videoType();
+    if (!MO.videoType()) vid.out = 'gif';
+    setRadio('vidOut', vid.out);
+    const vt = MO.videoType();
+    $('#vidOutVideoLbl').textContent = vt && vt.indexOf('mp4') >= 0 ? 'Vídeo MP4' : vt ? 'Vídeo WebM' : 'Vídeo (indisponível)';
+    renderVidActions();
+  }
+  function renderVidActions() {
+    const m = findMatch(share.id);
+    const r = vid.result;
+    $('#vidReady').hidden = !r || vid.busy;
+    $('#btnVidMake').hidden = !!r && !vid.busy;
+    $('#btnVidMake').disabled = vid.busy;
+    $('#btnVidMake').classList.toggle('busy', vid.busy);
+    if (!vid.busy) { $('#vidMakeLbl').textContent = (vid.out === 'gif' ? 'Gerar GIF' : 'Gerar vídeo') + (isPro() ? '' : ' · Pro'); $('#vidBar').style.width = '0'; }
+    const canShareFiles = !!(navigator.canShare && navigator.share);
+    $('#btnVidShare').hidden = !canShareFiles;
+    $('#vidSaveLbl').textContent = r && r.ext === 'gif' ? 'Salvar GIF' : 'Salvar vídeo';
+    // publicar: o replay aparece no seu post da timeline (com o visual escolhido)
+    const mine = m && !m.demo && history().some(x => x.id === m.id);
+    $('#btnVidPost').hidden = !mine;
+    const posted = mine && m.post && m.post.video;
+    $('#btnVidPost').classList.toggle('on', !!posted);
+    $('#vidPostLbl').textContent = mine && isDraft(m) ? 'Concluir e publicar com replay' : posted ? 'Replay publicado · toque para tirar' : 'Publicar replay na timeline';
+    const vt = MO.videoType();
+    $('#shareHint').textContent = vid.busy ? (vid.out === 'gif' ? 'Montando o GIF quadro a quadro…' : 'Gravando em tempo real. Mantenha esta tela aberta.')
+      : r ? (r.ext === 'gif' ? 'GIF pronto' + (vid.bg === 'transparente' ? ' com fundo transparente: cole por cima de outro vídeo ou foto' : '') + '.' : 'Vídeo ' + r.ext.toUpperCase() + ' pronto' + (r.ext === 'webm' ? ' (este navegador não grava MP4; o WhatsApp e o Instagram podem não aceitar WebM, prefira o GIF)' : '') + '.') + ' Vídeo e GIF não vão para a área de transferência; o Copiar leva o quadro final em PNG.'
+      : vid.bg === 'transparente' ? 'Fundo transparente sai em GIF, para colar por cima de outro vídeo ou foto.'
+      : !vt ? 'Este navegador não grava vídeo; dá para gerar o GIF.' : 'A prévia está em loop. Escolha o que entra e gere o arquivo.';
+  }
+  function restartVidPreview() {
+    stopVidPreview();
+    vid.result = null;
+    const d = vidDataFor(share.id);
+    if (!d) return;
+    const o = motionOpts(lookOf(vid), share.fmt, vid.media);
+    $('#sharePreview').classList.toggle('transparent', o.bg === 'transparente');
+    $('#sharePreview').classList.toggle('square', share.fmt === 'quadrado');
+    vid.player = MO.play($('#motionCanvas'), d, o, { scale: 0.4 });
+    renderVidActions();
+  }
+  function changeLook(fn) { if (vid.busy) return; fn(); saveLook(); renderVidOpts(); restartVidPreview(); }
+
+  async function makeVideo() {
+    if (vid.busy) return;
+    if (!isPro()) { const id = share.id; openPro('video', () => openShare(id, 'video')); return; }
+    const d = vidDataFor(share.id);
+    if (!d) return;
+    const o = motionOpts(lookOf(vid), share.fmt, vid.media);
+    stopVidPreview();
+    vid.busy = true; vid.result = null; renderVidActions();
+    const bar = $('#vidBar'), lbl = $('#vidMakeLbl');
+    const prog = k => { bar.style.width = Math.round(k * 100) + '%'; lbl.textContent = (vid.out === 'gif' ? 'Montando GIF… ' : 'Gravando… ') + Math.round(k * 100) + '%'; };
+    if (o.media && o.media.tagName === 'VIDEO' && vid.out !== 'gif') { try { o.media.currentTime = 0; await o.media.play(); } catch (e) { console.warn('[vídeo] fundo não tocou', e); } }
+    try {
+      // vídeo: grava a própria prévia em tamanho cheio (1080 de largura), em tempo real
+      vid.result = vid.out === 'gif' ? await MO.gif(d, o, prog) : await MO.record($('#motionCanvas'), d, o, prog);
+      toast(vid.result.ext === 'gif' ? 'GIF pronto' : 'Vídeo pronto');
+    } catch (e) {
+      console.error('[vídeo] falhou', e);
+      $('#shareHint').textContent = 'Não deu para gerar: ' + (e && e.message ? e.message : e);
+      vid.busy = false; renderVidActions();
+      return;
+    }
+    vid.busy = false;
+    const keep = vid.result;
+    restartVidPreview(); vid.result = keep; renderVidActions();
+  }
+  function vidFile() {
+    const r = vid.result;
+    return new File([r.blob], vidName() + '.' + r.ext, { type: r.type });
+  }
+  async function vidShare(kind) {
+    if (!vid.result) return;
+    const file = vidFile();
+    try {
+      if (kind === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Replay no ULTRA PLAY' }); return; }
+      if (kind === 'share') $('#shareHint').textContent = 'Este aparelho não compartilha ' + file.name.split('.').pop().toUpperCase() + ' direto; o arquivo foi salvo.';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(file); a.download = file.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+      if (kind !== 'share') $('#shareHint').textContent = 'Salvo: ' + file.name;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      console.error('[vídeo] compartilhar falhou', e);
+      $('#shareHint').textContent = 'Não deu para ' + (kind === 'share' ? 'compartilhar' : 'salvar') + ': ' + (e && e.message ? e.message : e);
+    }
+  }
+  // A área de transferência não aceita vídeo nem GIF; o Copiar leva o quadro final (PNG, transparente se o fundo for).
+  async function vidCopy() {
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('este navegador não copia imagens; use Salvar');
+      const d = vidDataFor(share.id), o = motionOpts(lookOf(vid), share.fmt, vid.media);
+      const [W, H] = MO.SIZES[o.fmt];
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      MO.drawFrame(c.getContext('2d'), W, H, d, o, MO.duration(o));
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': SH.toBlob(c) })]);
+      $('#shareHint').textContent = 'Quadro final copiado em PNG' + (o.bg === 'transparente' ? ' com fundo transparente' : '') + '. Cole no story ou na conversa.';
+    } catch (e) {
+      console.error('[vídeo] copiar falhou', e);
+      $('#shareHint').textContent = 'Não deu para copiar: ' + (e && e.message ? e.message : e);
+    }
+  }
+  function vidPost() {
+    const m = findMatch(share.id);
+    if (!m) return;
+    if (isDraft(m)) { setMatchPost(m.id, { video: lookOf(vid) }); closeSheet('#sheetShare'); openSave(m.id); return; }
+    const on = !(m.post && m.post.video);
+    setMatchPost(m.id, { video: on ? lookOf(vid) : null });
+    toast(on ? 'Replay publicado no seu post' : 'Replay tirado do post');
+    renderVidActions();
+    if (currentView === 'inicio') renderFeed();
+    if (currentView === 'partida') renderMatchView(currentMatchId);
+  }
+  function setMatchPost(id, patch) {
+    const hist = readHist();
+    const m = hist.find(x => x.id === id);
+    if (!m) return;
+    m.post = Object.assign({}, m.post || {}, patch);
+    if (m.post.video && m.post.video.bg === 'midia') m.post.video.bg = 'quadra'; // a foto/vídeo de fundo não fica guardada
+    if (!m.post.video) delete m.post.video;
+    writeHist(hist);
+  }
+  function pickVidMedia(f) {
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const done = el => { if (vid.media && vid.media.tagName === 'VIDEO') vid.media.pause(); vid.media = el; vid.mediaName = f.name; changeLook(() => { vid.bg = 'midia'; }); };
+    if (/^video\//.test(f.type)) {
+      const v = document.createElement('video');
+      v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
+      v.onloadeddata = () => { v.play().catch(e => console.warn('[vídeo] fundo sem autoplay', e)); done(v); };
+      v.onerror = () => { $('#shareHint').textContent = 'Não consegui abrir esse vídeo. Tente MP4 ou MOV.'; };
+      v.src = url;
+    } else {
+      const img = new Image();
+      img.onload = () => done(img);
+      img.onerror = () => { $('#shareHint').textContent = 'Não consegui abrir essa foto. Tente outra (JPG ou PNG).'; };
+      img.src = url;
+    }
+  }
+
+  // Replay na timeline, no resumo e na atividade: assiste em loop; se a partida é sua, leva para o compartilhar em Vídeo.
+  let replayPlayer = null;
+  function stopReplay() { if (replayPlayer) { replayPlayer.stop(); replayPlayer = null; } }
+  // own: aberto de uma partida sua (resumo ou post seu), então pode virar vídeo para compartilhar
+  function openReplay(id, own) {
+    const m = findMatch(id);
+    if (!canReplay(m)) { setFeedback('', 'miss', 'Esta partida não tem ponto a ponto para o replay'); return; }
+    const a = findAct(id);
+    const look = (m.post && m.post.video) || (a && a.video) || lookOf(vid);
+    const run = () => {
+      stopReplay();
+      const o = motionOpts(Object.assign({}, look, look.bg === 'transparente' ? { bg: 'quadra' } : {}), 'quadrado', null);
+      replayPlayer = MO.play($('#replayCanvas'), motionData(m), o, { scale: 0.5, once: true, onEnd: () => { $('#replayRestart').classList.add('show'); } });
+      $('#replayRestart').classList.remove('show');
+    };
+    $('#replayTitle').textContent = 'Replay · ' + m.teams[0].name + ' × ' + m.teams[1].name;
+    const mine = own || (!m.demo && history().some(x => x.id === m.id));
+    $('#replayHint').textContent = mine ? 'Gere o vídeo ou o GIF para postar nas redes.' : 'Ponto a ponto da partida, em ' + (SPEED_TXT[look.speed] || '10 segundos') + '.';
+    $('#replayActions').innerHTML = mine ? '<button class="btn-primary" type="button" data-replay-share="' + esc(m.id) + '">' + ic('i-film') + 'Compartilhar vídeo' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button>' : '';
+    $('#replayRestart').onclick = run;
+    openSheet('#sheetReplay');
+    run();
+  }
+  const SPEED_TXT = { rapido: '6 segundos', normal: '10 segundos', longo: '15 segundos' };
+  if (params.has('debug')) window.__vidTest = { motionData, motionOpts, findMatch }; // só para testes automatizados
+  function replayTileHTML(id, tl, own) {
+    return '<button class="act-replay" type="button" data-replay="' + esc(id) + '"' + (own ? ' data-own="1"' : '') + ' title="Ver o replay ponto a ponto">' + sparkSvg(tl) + '<span class="rp-chip">' + ic('i-play') + 'Replay</span></button>';
   }
 
   function deleteMatch(id, btn) {
@@ -2870,7 +3147,26 @@
       share.tpl = b.dataset.tpl; drawShare();
       if (share.tpl === 'foto' && !share.img) $('#photoInput').click(); // o modelo Foto sem foto não serve: já abre a galeria
     });
-    $$('input[name="shareFmt"]').forEach(el => el.addEventListener('change', () => { share.fmt = getRadio('shareFmt'); drawShare(true); }));
+    $$('input[name="shareFmt"]').forEach(el => el.addEventListener('change', () => { share.fmt = getRadio('shareFmt'); if (vid.mode === 'video') restartVidPreview(); else drawShare(true); }));
+    $$('input[name="shareMode"]').forEach(el => el.addEventListener('change', () => setShareMode(getRadio('shareMode'))));
+    $('#vidParts').addEventListener('click', e => { const b = e.target.closest('[data-vpart]'); if (b && !b.disabled) changeLook(() => { vid[b.dataset.vpart] = !vid[b.dataset.vpart]; }); });
+    $$('input[name="vidPlays"]').forEach(el => el.addEventListener('change', () => changeLook(() => { vid.playsMode = getRadio('vidPlays'); })));
+    $$('input[name="vidSpeed"]').forEach(el => el.addEventListener('change', () => changeLook(() => { vid.speed = getRadio('vidSpeed'); })));
+    $$('input[name="vidOut"]').forEach(el => el.addEventListener('change', () => changeLook(() => { vid.out = getRadio('vidOut'); })));
+    $('#vidBgs').addEventListener('click', e => {
+      const b = e.target.closest('[data-vbg]'); if (!b) return;
+      const was = vid.bg;
+      changeLook(() => { vid.bg = b.dataset.vbg; if (was === 'transparente' && vid.bg !== 'transparente' && MO.videoType()) vid.out = 'video'; });
+      if (vid.bg === 'midia' && !vid.media) $('#vidMediaInput').click(); // sem foto/vídeo o fundo não serve: já abre a galeria
+    });
+    $('#vidMediaInput').addEventListener('change', e => { pickVidMedia(e.target.files && e.target.files[0]); e.target.value = ''; });
+    $('#vidOpacity').addEventListener('input', e => { vid.opacity = Number(e.target.value) / 100; $('#vidOpacityV').textContent = e.target.value + '%'; saveLook(); vid.result = null; renderVidActions(); });
+    $('#vidOpacity').addEventListener('change', () => restartVidPreview());
+    $('#btnVidMake').addEventListener('click', makeVideo);
+    $('#btnVidShare').addEventListener('click', () => vidShare('share'));
+    $('#btnVidSave').addEventListener('click', () => vidShare('save'));
+    $('#btnVidCopy').addEventListener('click', vidCopy);
+    $('#btnVidPost').addEventListener('click', vidPost);
     $('#photoInput').addEventListener('change', e => {
       const f = e.target.files && e.target.files[0];
       if (!f) return;
@@ -2954,6 +3250,10 @@
       if (ex) exportMatch(ex.dataset.export, ex.dataset.mid ? findMatch(ex.dataset.mid) : null);
       const gv = e.target.closest('[data-go]');
       if (gv) { closeAllSheets(); go(gv.dataset.go); return; }
+      const rp = e.target.closest('[data-replay]');
+      if (rp) { e.stopPropagation(); openReplay(rp.dataset.replay, rp.dataset.own === '1'); return; }
+      const rs = e.target.closest('[data-replay-share]');
+      if (rs) { closeSheet('#sheetReplay'); openShare(rs.dataset.replayShare, 'video'); return; }
       const sh = e.target.closest('[data-share]');
       if (sh) { e.stopPropagation(); openShare(sh.dataset.share); return; }
       const ac = e.target.closest('[data-ach]');

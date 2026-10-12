@@ -52,6 +52,9 @@
     <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 8.5"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3.5 8.5 4.5-8.5 4.5L3.5 8z"/><path d="m3.5 12 8.5 4.5 8.5-4.5"/><path d="m3.5 16 8.5 4.5 8.5-4.5"/></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="14" rx="2.5"/><path d="m16 10 5-3v10l-5-3"/></symbol>
+    <symbol id="i-replay" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/><path d="m10 9 5 3-5 3z"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
@@ -590,7 +593,11 @@
       <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
     </header>
     <div class="sheet-body share-body">
-      <div class="share-preview" id="sharePreview"><canvas id="shareCanvas" aria-label="Imagem da partida"></canvas></div>
+      <div class="seg seg-wide share-mode" role="radiogroup" aria-label="Tipo" id="shareModeRow">
+        <label><input type="radio" name="shareMode" value="imagem" checked><span><svg><use href="#i-image"/></svg>Imagem</span></label>
+        <label><input type="radio" name="shareMode" value="video"><span><svg><use href="#i-film"/></svg>Vídeo<i class="pro-badge" id="vidProBadge">PRO</i></span></label>
+      </div>
+      <div class="share-preview" id="sharePreview"><canvas id="shareCanvas" aria-label="Imagem da partida"></canvas><canvas id="motionCanvas" aria-label="Prévia do vídeo da partida" hidden></canvas></div>
       <div class="share-tpls" id="shareTpls" role="radiogroup" aria-label="Modelo"></div>
       <div class="share-row">
         <div class="seg" role="radiogroup" aria-label="Formato">
@@ -598,20 +605,82 @@
           <label><input type="radio" name="shareFmt" value="quadrado"><span>Quadrado</span></label>
         </div>
         <label class="btn" id="photoPick" hidden><svg><use href="#i-image"/></svg>Trocar foto<input type="file" id="photoInput" accept="image/*" hidden></label>
+        <div class="seg" role="radiogroup" aria-label="Ritmo do vídeo" id="vidSpeedSeg" hidden>
+          <label><input type="radio" name="vidSpeed" value="rapido"><span>6s</span></label>
+          <label><input type="radio" name="vidSpeed" value="normal" checked><span>10s</span></label>
+          <label><input type="radio" name="vidSpeed" value="longo"><span>15s</span></label>
+        </div>
       </div>
-      <div class="stk-block">
+      <div class="stk-block" id="stkBlock">
         <span class="stk-title">Mascote</span>
         <div class="stk-row" id="stickerPick"></div>
         <div class="stk-text" id="stickerTextRow" hidden><input type="text" id="stickerText" maxlength="40" placeholder="Fala do mascote (deixe vazio para sem fala)"></div>
       </div>
-      <div class="share-actions">
+      <div class="vid-opts" id="vidOpts" hidden>
+        <div class="vo-block">
+          <span class="stk-title">No vídeo</span>
+          <div class="vo-chips" id="vidParts" role="group" aria-label="O que aparece no vídeo">
+            <button class="pill" type="button" data-vpart="chart" aria-pressed="true">Gráfico</button>
+            <button class="pill" type="button" data-vpart="score" aria-pressed="true">Placar</button>
+            <button class="pill" type="button" data-vpart="plays" aria-pressed="true">Lances</button>
+            <button class="pill" type="button" data-vpart="names" aria-pressed="true">Quem fez</button>
+            <button class="pill" type="button" data-vpart="stats" aria-pressed="true">Números no fim</button>
+          </div>
+          <div class="seg seg-wide" role="radiogroup" aria-label="Lances no vídeo" id="vidPlaysSeg">
+            <label><input type="radio" name="vidPlays" value="destaques" checked><span>Só destaques</span></label>
+            <label><input type="radio" name="vidPlays" value="todos"><span>Ponto a ponto</span></label>
+          </div>
+        </div>
+        <div class="vo-block">
+          <span class="stk-title">Fundo</span>
+          <div class="vo-bgs" id="vidBgs" role="radiogroup" aria-label="Fundo do vídeo"></div>
+          <div class="vo-media" id="vidMediaRow" hidden>
+            <label class="btn btn-sm"><svg><use href="#i-image"/></svg><span id="vidMediaLbl">Escolher foto ou vídeo</span><input type="file" id="vidMediaInput" accept="image/*,video/*" hidden></label>
+            <label class="vo-op"><span>Opacidade</span><input type="range" id="vidOpacity" min="0" max="60" step="5" value="10" aria-label="Opacidade do fundo"><b id="vidOpacityV">10%</b></label>
+          </div>
+        </div>
+        <div class="vo-block">
+          <span class="stk-title">Arquivo</span>
+          <div class="seg seg-wide" role="radiogroup" aria-label="Arquivo" id="vidOutSeg">
+            <label><input type="radio" name="vidOut" value="video" checked><span id="vidOutVideoLbl">Vídeo MP4</span></label>
+            <label><input type="radio" name="vidOut" value="gif"><span>GIF</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="share-actions" id="imgActions">
         <button class="btn-primary" type="button" id="btnShareNow"><svg><use href="#i-share"/></svg>Compartilhar</button>
         <div class="share-sub">
           <button class="btn" type="button" id="btnSaveImg"><svg><use href="#i-download"/></svg>Salvar imagem</button>
           <button class="btn" type="button" id="btnCopyImg"><svg><use href="#i-copy"/></svg>Copiar</button>
         </div>
       </div>
+      <div class="share-actions vid-actions" id="vidActions" hidden>
+        <button class="btn-primary vid-make" type="button" id="btnVidMake"><span class="vid-bar" id="vidBar"></span><svg><use href="#i-film"/></svg><span id="vidMakeLbl">Gerar vídeo</span></button>
+        <div class="vid-ready" id="vidReady" hidden>
+          <button class="btn-primary" type="button" id="btnVidShare"><svg><use href="#i-share"/></svg>Compartilhar</button>
+          <div class="share-sub">
+            <button class="btn" type="button" id="btnVidSave"><svg><use href="#i-download"/></svg><span id="vidSaveLbl">Salvar vídeo</span></button>
+            <button class="btn" type="button" id="btnVidCopy"><svg><use href="#i-copy"/></svg>Copiar PNG</button>
+          </div>
+        </div>
+        <button class="btn" type="button" id="btnVidPost"><svg><use href="#i-replay"/></svg><span id="vidPostLbl">Publicar replay na timeline</span></button>
+      </div>
       <p class="hint center" id="shareHint"></p>
+    </div>
+  </div>
+</section>
+
+<!-- Replay animado da partida -->
+<section class="sheet sheet-share sheet-replay" id="sheetReplay" role="dialog" aria-modal="true" aria-labelledby="replayTitle" hidden>
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="replayTitle" tabindex="-1">Replay</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body share-body" id="replayBody">
+      <div class="share-preview replay-stage"><canvas id="replayCanvas" aria-label="Replay ponto a ponto"></canvas><button class="rp-restart" type="button" id="replayRestart" title="Ver de novo"><svg><use href="#i-replay"/></svg></button></div>
+      <p class="hint center" id="replayHint"></p>
+      <div class="share-actions" id="replayActions"></div>
     </div>
   </div>
 </section>
@@ -725,6 +794,8 @@
 <script src="stats.js"></script>
 <script src="demo.js"></script>
 <script src="share.js"></script>
+<script src="vendor/gifenc.js"></script>
+<script src="motion.js"></script>
 <script src="social.js"></script>
 <script src="voice.js"></script>
 <script src="app.js"></script>

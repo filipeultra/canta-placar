@@ -45,6 +45,8 @@ matches          id, code (P-XXXXXX, único, gerado no servidor), owner_id → u
                  status ('rascunho'|'publicada'), place_id, city,
                  result jsonb  { sets: [[a,b]...] | null, final: [a,b] | null, winner: 0|1|null },
                  summary jsonb { pts:[a,b], aces:[a,b], timeline:[...] } (só ao vivo),
+                 replay jsonb  { bg, opacity, chart, score, plays, playsMode, names, stats, speed } | null
+                               (visual do replay publicado no post; no aparelho: post.video),
                  created_at, updated_at, deleted_at
 match_events     match_id, seq, event jsonb                                     (lances ponto a ponto, só ao vivo)
 match_players    match_id, team (0|1), slot, user_id → users | null, guest_name | null,
@@ -125,3 +127,4 @@ Jogadores marcados que aceitaram sempre veem a partida, mesmo que seja só para 
 - A única interação nas partidas é o **zap** (o ícone de raio da marca), sem comentários por enquanto.
 - Conquistas usam só as partidas da própria pessoa: as dela, as marcações que ela aceitou e os convidados que ela reivindicou.
 - Partidas lançadas à mão sempre mostram o selo **manual**.
+- **Replay animado (vídeo da partida):** é desenhado no aparelho a partir dos lances (`match_events`), então o servidor não guarda vídeo, só o visual escolhido (`matches.replay`). Assistir é livre; gerar o arquivo (MP4/WebM ou GIF) é do Pro. A foto ou o vídeo de fundo não sobem: ficam só no aparelho, no momento de gerar. Se um dia o post precisar de vídeo pronto (para abrir fora do app), gerar no servidor com o mesmo `motion.js` num navegador headless e guardar no armazenamento de arquivos.
