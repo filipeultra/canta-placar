@@ -520,6 +520,7 @@
         <div class="list">
           <div class="row"><span class="row-ic"><svg><use href="#i-user"/></svg></span><span>Seu ID<small>Passe para alguém te achar ou te marcar</small></span><button class="idchip" type="button" id="pUid" data-copy=""></button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-download"/></svg></span><span>Exportar meus dados<small>Partidas, lances, perfil e rede, num arquivo</small></span><button class="btn" type="button" id="btnExportAll">Exportar</button></div>
+          <div class="row"><span class="row-ic"><svg><use href="#i-history"/></svg></span><span>Restaurar backup<small>Traz de volta as partidas de um arquivo exportado (de outro aparelho ou do navegador)</small></span><button class="btn" type="button" id="btnRestore">Restaurar</button><input type="file" id="restoreInput" accept="application/json,.json" hidden></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-back"/></svg></span><span>Sair da conta<small>Volta para a tela de entrada; seus dados ficam no aparelho</small></span><button class="btn" type="button" id="btnLogout">Sair</button></div>
           <div class="row"><span class="row-ic danger-ic"><svg><use href="#i-trash"/></svg></span><span>Excluir conta e dados<small>Apaga partidas, perfil e rede deste aparelho, de vez</small></span><button class="btn danger" type="button" id="btnDeleteAll">Excluir</button></div>
         </div>
@@ -669,6 +670,7 @@
         <button class="btn" type="button" id="btnVidPost"><svg><use href="#i-replay"/></svg><span id="vidPostLbl">Publicar replay na timeline</span></button>
       </div>
       <p class="hint center" id="shareHint"></p>
+      <div class="share-link" id="shareLinkRow" hidden></div>
     </div>
   </div>
 </section>

@@ -1119,6 +1119,7 @@
     if (h.startsWith('atividade-')) return go('atividade', h.slice(10));
     if (h.startsWith('perfil-')) return go('perfil', h.slice(7));
     if (h === 'entrar' || h.startsWith('entrar-')) return go('entrar', h.slice(7) || null);
+    if (h.startsWith('ver-')) return openStatLink(h.slice(4));
     if (['inicio', 'jogar', 'voce', 'notificacoes'].includes(h)) return go(h);
     go('inicio');
   }
@@ -1591,6 +1592,8 @@
       const all = { exportadoEm: new Date().toISOString(), perfil: { nome: myName(), id: myUid(), cidade: prefs.city || '', privacidade: myPrivacy() }, partidas: readHist(), partidaAoVivo: match, rede: store.get(KEY_SOCIAL, {}), ajustes: prefs };
       download('ultra-play-meus-dados.json', JSON.stringify(all, null, 2), 'application/json');
     });
+    $('#btnRestore').addEventListener('click', () => $('#restoreInput').click());
+    $('#restoreInput').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) restoreBackup(f); e.target.value = ''; });
     $('#btnLogout').addEventListener('click', () => { prefs.onboarded = false; savePrefs(); closeAllSheets(); showWelcome(); });
     $('#btnDeleteAll').addEventListener('click', e => {
       const b = e.currentTarget;
@@ -1987,7 +1990,6 @@
   // ---------- Entrar numa partida pelo código ou link ----------
   // Quem jogou sem conta pede ao dono para ser um dos convidados; aceito, as estatísticas daquele jogador
   // passam a ser dele (vale para partidas antigas também).
-  const inviteLink = id => location.origin + location.pathname + '#entrar-' + SO.matchCode(id);
   function guestsOf(a) {
     const out = [];
     a.teams.forEach((t, ti) => t.players.forEach(p => { if (!p.userId && p.name) out.push({ name: p.name, team: ti }); }));
@@ -2080,20 +2082,23 @@
     refreshSocial();
   }
   // Na sua partida: quem jogou sem conta, pedidos e convite (código e link)
+  function statLinkRowHTML(m) {
+    return '<div class="invite-code"><span>Link das estatísticas</span><button class="btn btn-sm" type="button" data-statlink="' + esc(m.id) + '">' + ic('i-copy') + 'Copiar link</button>' + (navigator.share ? '<button class="btn btn-sm btn-brand" type="button" data-statlink="' + esc(m.id) + '" data-how="share">' + ic('i-share') + 'Enviar</button>' : '') + '</div>';
+  }
   function inviteHTML(m, a) {
     const guests = guestsOf(a);
     const reqs = SO.incomingClaims([a]);
     const links = (m.post && m.post.links) || {};
     const linked = Object.entries(links);
-    if (!guests.length && !linked.length && !reqs.length) return '<div class="panel invite"><div class="invite-code"><span>Código da partida</span><button class="idchip" type="button" data-copy="' + esc(SO.matchCode(m.id)) + '">' + esc(SO.matchCode(m.id)) + ic('i-copy') + '</button></div></div>';
-    return '<div class="panel invite">' + ph('i-user-plus', 'Convidar quem jogou') +
-      '<p class="hint">Quem jogou sem conta entra pelo link ou pelo código, escolhe qual jogador era e você confirma. As estatísticas dele vão junto.</p>' +
+    if (!guests.length && !linked.length && !reqs.length) return '<div class="panel invite">' + statLinkRowHTML(m) + '</div>';
+    return '<div class="panel invite">' + ph('i-user-plus', 'Enviar para quem jogou') +
+      '<p class="hint">Mande o link: quem jogou abre as estatísticas completas no celular, sem instalar nada, e pode salvar nas partidas dele escolhendo qual jogador era.</p>' +
       '<div class="plist">' + guests.map(g => {
         const r = reqs.find(x => x.guest === g.name && x.status === 'pendente');
         return '<div class="prow"><span class="av free">' + esc(initials(g.name)) + '</span><span class="prow-txt"><b>' + esc(g.name) + '</b><small>' + (r ? esc(SO.user(r.userId).name) + ' disse que é este jogador' : 'sem conta no app') + '</small></span>' +
           (r ? '<span class="prow-act"><button class="btn btn-sm" type="button" data-claimresp="recusado" data-claimid="' + esc(r.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-claimresp="aceito" data-claimid="' + esc(r.id) + '">Aceitar</button></span>' : '') + '</div>';
       }).join('') + linked.map(([g, uid]) => '<div class="prow">' + avatarHTML(uid) + '<span class="prow-txt"><b data-user="' + esc(uid) + '">' + esc(SO.user(uid).name) + '</b><small class="st-aceito">era “' + esc(g) + '” · confirmado</small></span></div>').join('') + '</div>' +
-      '<div class="invite-code"><span>Código</span><button class="idchip" type="button" data-copy="' + esc(SO.matchCode(m.id)) + '">' + esc(SO.matchCode(m.id)) + ic('i-copy') + '</button><button class="btn btn-sm" type="button" data-copy="' + esc(inviteLink(m.id)) + '">' + ic('i-copy') + 'Copiar link</button>' + (navigator.share ? '<button class="btn btn-sm btn-brand" type="button" data-sharelink="' + esc(m.id) + '">' + ic('i-share') + 'Enviar</button>' : '') + '</div></div>';
+      '<div class="invite-code"><span>Código</span><button class="idchip" type="button" data-copy="' + esc(SO.matchCode(m.id)) + '">' + esc(SO.matchCode(m.id)) + ic('i-copy') + '</button><button class="btn btn-sm" type="button" data-statlink="' + esc(m.id) + '">' + ic('i-copy') + 'Copiar link</button>' + (navigator.share ? '<button class="btn btn-sm btn-brand" type="button" data-statlink="' + esc(m.id) + '" data-how="share">' + ic('i-share') + 'Enviar</button>' : '') + '</div></div>';
   }
   async function copyText(t) {
     try { await navigator.clipboard.writeText(t); toast('Copiado: ' + (t.length > 32 ? 'link da partida' : t)); }
@@ -2103,6 +2108,155 @@
       ta.remove();
     }
   }
+  // ---------- Link das estatísticas (sem servidor): a partida vai dentro do link, comprimida ----------
+  // Quem recebe abre no navegador e vê o resumo completo (placar, gráficos, jogadores, replay); se quiser,
+  // salva nas partidas dele escolhendo qual jogador era, e os números passam a contar para ele.
+  const LINK_KEYS = ['type', 'team', 't', 'tag', 'shot', 'player', 'playerTeam', 'errType', 'assist', 'src', 'changes'];
+  const KEY_LINKS = 'canta.links.v1';
+  const b64url = bytes => { let s = ''; bytes.forEach(x => { s += String.fromCharCode(x); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  const unb64url = str => { const s = atob(str.replace(/-/g, '+').replace(/_/g, '/')); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
+  async function zip(bytes, on) {
+    const st = new Blob([bytes]).stream().pipeThrough(on ? new CompressionStream('deflate-raw') : new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(st).arrayBuffer());
+  }
+  async function packMatch(m) {
+    const t0 = m.events.length && typeof m.events[0].t === 'number' ? m.events[0].t : (m.createdAt || 0);
+    const e = m.events.map(ev => {
+      const o = {};
+      for (const k of LINK_KEYS) if (ev[k] != null && ev[k] !== '') o[k] = ev[k];
+      if (typeof o.t === 'number') o.t = Math.round((o.t - t0) / 100); // décimos de segundo desde o 1º lance
+      return o;
+    });
+    const p = m.post || {};
+    const data = { v: 1, c: m.cfgInput, tm: m.teams.map(t => ({ n: t.name, c: t.color, p: t.players })), e, t0, a: m.createdAt, z: m.endedAt, by: prefs.myName || '',
+      p: { type: p.type, title: p.title, caption: p.caption, place: p.place }, man: m.manual || null };
+    const raw = new TextEncoder().encode(JSON.stringify(data));
+    if (window.CompressionStream) { try { return 'z' + b64url(await zip(raw, true)); } catch (err) { console.warn('[link] compressão falhou, vai sem', err); } }
+    return 'j' + b64url(raw);
+  }
+  async function unpackMatch(code) {
+    const raw = code[0] === 'z' ? await zip(unb64url(code.slice(1)), false) : unb64url(code.slice(1));
+    const d = JSON.parse(new TextDecoder().decode(raw));
+    if (!d || d.v !== 1) throw new Error('link de outra versão');
+    let h = 0; for (const ch of code) h = (h * 33 + ch.charCodeAt(0)) >>> 0; // mesmo link, mesma partida
+    const m = {
+      id: 'link-' + h.toString(36), createdAt: d.a, endedAt: d.z, cfgInput: d.c, finished: true, redo: [],
+      teams: d.tm.map(t => ({ name: t.n, color: t.c, players: t.p || [] })),
+      events: d.e.map(ev => Object.assign({}, ev, typeof ev.t === 'number' ? { t: d.t0 + ev.t * 100 } : {})),
+      post: Object.assign({ status: 'publicada' }, d.p || {}), manual: d.man || undefined, sharedBy: d.by || '', fromLink: true,
+    };
+    if (!validMatch(m)) throw new Error('partida inválida no link');
+    return m;
+  }
+  // partidas abertas por link ficam guardadas à parte (as últimas 10), para recarregar a página sem perder
+  const readLinks = () => { const v = store.get(KEY_LINKS, []); return Array.isArray(v) ? v.filter(x => x && validMatch(x)) : []; };
+  function keepLink(m) { store.set(KEY_LINKS, [m].concat(readLinks().filter(x => x.id !== m.id)).slice(0, 10)); }
+  const linkCache = {};
+  const statLinkFor = async id => {
+    if (linkCache[id]) return linkCache[id];
+    const m = findMatch(id);
+    if (!m) throw new Error('partida não encontrada');
+    linkCache[id] = location.origin + location.pathname + '#ver-' + await packMatch(m);
+    return linkCache[id];
+  };
+  async function sendStatLink(id, how) {
+    try {
+      const url = await statLinkFor(id);
+      const m = findMatch(id);
+      const text = 'Estatísticas da nossa partida de ' + sportLabel(E.makeConfig(m.cfgInput).sport) + ' no ULTRA PLAY: ' + m.teams[0].name + ' × ' + m.teams[1].name;
+      if (how === 'share' && navigator.share) { await navigator.share({ title: 'Partida no ULTRA PLAY', text, url }); return; }
+      await copyText(url);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      console.error('[link] falhou', e);
+      toast('Não deu para gerar o link: ' + (e && e.message ? e.message : e));
+    }
+  }
+  async function openStatLink(code) {
+    try {
+      const m = await unpackMatch(code);
+      keepLink(m);
+      // quem abre um link quer ver a partida: as boas-vindas ficam para depois (ao salvar, pede o nome)
+      if (!$('#welcome').hidden) { $('#welcome').hidden = true; document.body.classList.remove('welcome-on'); clearInterval(wlTimer); }
+      go('partida', m.id);
+    } catch (e) {
+      console.error('[link] não abriu', e);
+      go('inicio');
+      toast('Este link de partida está incompleto ou é de outra versão do app.');
+    }
+  }
+  // Cabeçalho da partida recebida por link: de quem veio e salvar nas minhas partidas escolhendo quem eu era.
+  function linkHeaderHTML(m) {
+    const saved = history().find(x => x.post && x.post.linkId === m.id);
+    const players = m.teams.flatMap((t, ti) => (t.players || []).map(n => [n, ti]));
+    return '<div class="panel link-head">' +
+      '<div class="link-from">' + ic('i-share') + '<span><b>' + (m.sharedBy ? esc(m.sharedBy) + ' enviou esta partida' : 'Partida enviada para você') + '</b><small>Estatísticas completas, direto do link. Nada foi instalado.</small></span></div>' +
+      (saved ? '<button class="btn btn-brand" type="button" data-open="' + esc(saved.id) + '">' + ic('i-check') + 'Já está nas suas partidas</button>'
+        : '<form class="link-save" id="linkSave" data-mid="' + esc(m.id) + '"><span class="cp-label">Salvar nas minhas partidas</span>' +
+          (players.length ? '<div class="link-who" role="radiogroup" aria-label="Quem é você nesta partida">' + players.map(([n, ti], i) => '<label class="cpick"><input type="radio" name="linkWho" value="' + esc(n) + '"' + (S.fold(n) === S.fold(prefs.myName || '') ? ' checked' : '') + '><span><i class="tdot" style="--tc:' + colorVar(m.teams[ti].color) + '"></i>' + esc(n) + '</span></label>').join('') + '<label class="cpick"><input type="radio" name="linkWho" value=""' + (players.some(([n]) => S.fold(n) === S.fold(prefs.myName || '')) ? '' : ' checked') + '><span>Só assisti</span></label></div>' : '') +
+          (prefs.myName ? '' : '<input type="text" id="linkName" maxlength="40" placeholder="Seu nome" autocomplete="name">') +
+          '<button class="btn-primary" type="submit">' + ic('i-download') + 'Salvar no meu app</button><small class="hint">Fica guardada neste aparelho, com gráficos, replay e conquistas.</small></form>') +
+      '</div>';
+  }
+  function saveLinkMatch(form) {
+    const m = findMatch(form.dataset.mid);
+    if (!m) return;
+    const who = (form.querySelector('input[name="linkWho"]:checked') || {}).value || '';
+    const nameEl = form.querySelector('#linkName');
+    if (nameEl) {
+      const n = nameEl.value.trim();
+      if (!n) { nameEl.focus(); toast('Diga seu nome para salvar'); return; }
+      prefs.myName = n; if (!prefs.privacy) prefs.privacy = { level: 'aberto' }; prefs.onboarded = true; savePrefs(); myUid();
+    }
+    const me = myName();
+    // quem eu era vira eu: nos times e em cada lance, para os números contarem para mim (como na reivindicação)
+    const ren = n => (who && n === who ? me : n);
+    const copy = JSON.parse(JSON.stringify(m));
+    copy.id = uid(); delete copy.fromLink; delete copy.sharedBy;
+    copy.teams.forEach(t => { t.players = (t.players || []).map(ren); });
+    copy.events.forEach(ev => { if (ev.player) ev.player = ren(ev.player); if (ev.assist) ev.assist = ren(ev.assist); });
+    copy.post = Object.assign({}, copy.post, { status: 'publicada', linkId: m.id, fromLinkBy: m.sharedBy || '', claimed: who || undefined, visibility: 'seguidores' });
+    if (!writeHist([copy].concat(readHist()))) return;
+    syncMe(); refreshSocial();
+    toast(who ? 'Salva. Seus números de “' + who + '” agora são seus' : 'Partida salva nas suas partidas');
+    go('partida', copy.id);
+  }
+  function wireLinks() {
+    document.addEventListener('submit', e => { if (e.target.id === 'linkSave') { e.preventDefault(); saveLinkMatch(e.target); } });
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-statlink]');
+      if (b) { e.stopPropagation(); sendStatLink(b.dataset.statlink, b.dataset.how || 'copy'); }
+    });
+  }
+  // Pede ao navegador para não apagar os dados do app quando faltar espaço (Chrome concede para sites usados; o iPhone instalado na tela inicial também).
+  function askPersist() {
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(err => console.info('[armazenamento] persistência indisponível', err)); }
+    catch (e) { console.info('[armazenamento] persistência indisponível', e); }
+  }
+  // Restaurar o arquivo de "Exportar meus dados": junta as partidas (sem duplicar) e a rede.
+  function restoreBackup(file) {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const d = JSON.parse(r.result);
+        const incoming = (Array.isArray(d.partidas) ? d.partidas : []).filter(m => validMatch(m));
+        if (!incoming.length) throw new Error('nenhuma partida no arquivo');
+        const cur = readHist(), ids = new Set(cur.map(m => m.id));
+        const add = incoming.filter(m => !ids.has(m.id));
+        const all = cur.concat(add).sort((a, b) => (b.endedAt || b.createdAt || 0) - (a.endedAt || a.createdAt || 0));
+        if (!writeHist(all)) return;
+        if (!prefs.myName && d.perfil && d.perfil.nome) { prefs.myName = d.perfil.nome; prefs.city = prefs.city || d.perfil.cidade || ''; savePrefs(); }
+        toast(add.length ? add.length + (add.length === 1 ? ' partida restaurada' : ' partidas restauradas') : 'As partidas do arquivo já estavam aqui');
+        closeAllSheets(); refreshSocial(); go('voce');
+      } catch (e) {
+        console.error('[backup] restaurar falhou', e);
+        toast('Não consegui ler esse arquivo: ' + (e && e.message ? e.message : e));
+      }
+    };
+    r.onerror = () => toast('Não consegui abrir o arquivo');
+    r.readAsText(file);
+  }
+
   function wireClaims() {
     document.addEventListener('submit', e => { if (e.target.id === 'entrarForm') { e.preventDefault(); const c = $('#entrarCode').value.trim(); entrarPick = null; go('entrar', c ? SO.normCode(c).replace(/^P(?=[A-Z0-9]{6}$)/, 'P-') : null); } });
     document.addEventListener('change', e => { if (e.target.name === 'claimWho') { entrarPick = e.target.value; renderEntrar(currentMatchId); } });
@@ -2112,8 +2266,6 @@
       const cc = e.target.closest('[data-claimcancel]'); if (cc) { SO.cancelClaim(cc.dataset.claimcancel); toast('Pedido cancelado'); renderEntrar(currentMatchId); return; }
       const cr = e.target.closest('[data-claimresp]'); if (cr) { respondClaimReq(cr.dataset.claimid, cr.dataset.claimresp); return; }
       const cp = e.target.closest('[data-copy]'); if (cp) { copyText(cp.dataset.copy); return; }
-      const sl = e.target.closest('[data-sharelink]');
-      if (sl) { const id = sl.dataset.sharelink; navigator.share({ title: 'Nossa partida no ULTRA PLAY', text: 'Entra no ULTRA PLAY e pega as suas estatísticas da nossa partida (código ' + SO.matchCode(id) + ')', url: inviteLink(id) }).catch(err => console.info('[convite] compartilhar cancelado', err)); }
     });
   }
 
@@ -2203,18 +2355,20 @@
       hideWelcome('Conta criada. Bem-vindo, ' + firstName(n) + '!');
     });
     const h = location.hash || '';
-    if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar')) showWelcome();
+    if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar') && !h.startsWith('#ver-') && !h.startsWith('#partida-link-')) showWelcome();
   }
 
   // ---------- Partida salva ----------
   function findMatch(id) {
     if (id === 'live') return match;
+    if (String(id).startsWith('link-')) return readLinks().find(m => m.id === id) || null;
     return history().find(m => m.id === id) || (String(id).startsWith('demo-') && window.CantaDemo ? window.CantaDemo.history().find(m => m.id === id) : null)
       || (String(id).startsWith('conv-') && window.CantaDemo && window.CantaDemo.guestMatches ? window.CantaDemo.guestMatches().find(m => m.id === id) : null) || null;
   }
   function renderMatchView(id) {
     const m = findMatch(id);
     if (!m) { $('#matchBody').innerHTML = '<div class="empty-state"><b>Partida não encontrada</b><span>Ela pode ter sido excluída neste aparelho.</span></div>'; return; }
+    if (m.fromLink) { $('#matchBody').innerHTML = linkHeaderHTML(m) + sumHTML(m, S.matchStats(m), false, true); return; }
     $('#matchBody').innerHTML = myPostHeaderHTML(m) + sumHTML(m, S.matchStats(m), false);
   }
 
@@ -2724,6 +2878,10 @@
     renderStickerPicker();
     $('#shareTpls').innerHTML = list.map(t => '<button class="tpl' + (t.id === share.tpl ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (t.id === share.tpl) + '" data-tpl="' + t.id + '"><canvas aria-hidden="true"></canvas><span>' + esc(t.name) + '</span></button>').join('');
     drawShare(true);
+    // além da imagem e do vídeo: o link que abre as estatísticas completas no celular de quem recebe
+    const sm = share.ach ? null : findMatch(share.id);
+    $('#shareLinkRow').hidden = !sm || share.id === 'live';
+    if (sm) $('#shareLinkRow').innerHTML = statLinkRowHTML(sm) + '<small>Quem receber vê placar, gráficos, jogadores e replay, sem instalar nada.</small>';
     openSheet('#sheetShare');
     setShareMode(share.ach ? 'imagem' : vid.mode);
   }
@@ -3303,6 +3461,8 @@
     });
 
     wireSocial();
+    wireLinks();
+    askPersist();
     wireClaims();
     wirePrivacy();
     wireWelcome();

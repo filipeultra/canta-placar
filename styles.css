@@ -2272,3 +2272,17 @@ body[data-view="jogar"] .tab-scrim, body.tv .tab-scrim { display: none; }
 /* logo da barra fixa um pouco menor (a marca continua grande na tela de entrada) */
 .hdr .brand-logo { height: 22px; }
 @media (min-width: 900px) { .hdr .brand-logo { height: 24px; } }
+/* link das estatísticas: na tela Compartilhar e na partida recebida por link */
+.share-link { display: grid; gap: 6px; padding: 12px 14px; border-radius: 16px; background: var(--fill); }
+.share-link .invite-code { margin: 0; padding: 0; border: 0; }
+.share-link small { color: var(--fg-2); font-size: 12px; line-height: 1.35; }
+.link-head { display: grid; gap: 14px; }
+.link-from { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: center; }
+.link-from > .ic { width: 40px; height: 40px; padding: 10px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); }
+.link-from b { display: block; font: 700 16px/1.25 var(--font-display); }
+.link-from small { color: var(--fg-2); font-size: 12.5px; }
+.link-save { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--hair); }
+.link-who { display: flex; flex-wrap: wrap; gap: 7px; }
+.link-who .tdot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--tc); vertical-align: 1px; }
+.link-save input[type="text"] { height: 44px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--fill); color: var(--fg); font: 500 15px var(--font-display); box-shadow: inset 0 0 0 1px var(--hair); }
+.link-save .hint { margin: 0; text-align: center; }
