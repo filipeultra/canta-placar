@@ -160,7 +160,7 @@
     ctx.restore();
   }
 
-  const eyebrow = d => (d.winner != null ? 'Vitória · ' : 'Partida · ') + d.sportLabel;
+  const eyebrow = d => (d.winner != null ? 'Vitória · ' : 'Partida · ') + d.sportLabel + (d.typeLabel ? ' · ' + d.typeLabel : '');
   const winnerLine = d => (d.winner != null ? d.teams[d.winner].name + ' venceu ' + d.teams[1 - d.winner].name : d.teams[0].name + ' × ' + d.teams[1].name);
 
   // Times: barra da cor, nome e jogadores; selo "Venceu" no vencedor.

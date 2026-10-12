@@ -51,7 +51,7 @@
   const HIST_MAX = 100;
   const writeHist = hist => store.set(KEY_HIST, hist.slice(0, HIST_MAX));
 
-  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true };
+  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true, myName: '', city: '', feedKind: 'seguindo', lastSport: '' };
   const prefs = Object.assign({}, DEFAULT_PREFS, store.get(KEY_PREFS, {}));
   const savePrefs = () => store.set(KEY_PREFS, prefs);
 
@@ -980,28 +980,43 @@
   function dayPart(t) { const h = new Date(t || Date.now()).getHours(); return h < 12 ? 'manhã' : h < 18 ? 'tarde' : 'noite'; }
 
   let currentView = 'inicio', currentMatchId = null;
-  function go(view, id) {
+  const navStack = []; // telas anteriores, para o botão voltar (a rota usa replaceState, sem histórico do navegador)
+  const ID_VIEWS = ['partida', 'atividade', 'perfil'];
+  function go(view, id, back) {
     if (SCREEN) view = 'jogar';
-    if (view === 'partida' && !id) view = 'inicio';
+    if (ID_VIEWS.includes(view) && !id) view = 'inicio';
+    if (!back && (view !== currentView || (id || null) !== currentMatchId) && currentView !== 'jogar') { navStack.push([currentView, currentMatchId]); if (navStack.length > 30) navStack.shift(); }
     currentView = view;
     currentMatchId = id || null;
     if (view !== 'jogar') $('#banner').classList.remove('show'); // aviso de game/set e so do placar
     document.body.dataset.view = view;
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
-    const tab = view === 'partida' ? 'inicio' : view;
+    const tab = ['partida', 'atividade', 'perfil', 'notificacoes'].includes(view) ? 'inicio' : view;
     $$('.tabbar .tab').forEach(b => b.classList.toggle('on', b.dataset.go === tab));
     if (view === 'inicio') renderHome();
     if (view === 'partida') renderMatchView(id);
+    if (view === 'atividade') renderAct(id);
+    if (view === 'perfil') renderPerfil(id);
+    if (view === 'notificacoes') renderNotifs();
     if (view === 'voce') renderMe();
     if (view === 'jogar') { render(); renderVoice(); }
+    const sc = $('#view-' + view + ' .scroll'); if (sc && !back) sc.scrollTop = 0;
     const hash = '#' + view + (id ? '-' + id : '');
     if (location.hash !== hash) history_replace(hash);
+  }
+  function goBack() {
+    let p = navStack.pop();
+    while (p && p[0] === currentView && p[1] === currentMatchId) p = navStack.pop();
+    if (!p || p[0] === 'jogar') p = ['inicio', null];
+    go(p[0], p[1], true);
   }
   function history_replace(hash) { try { window.history.replaceState(null, '', hash); } catch (e) { console.info('[rota] replaceState indisponivel', e); } }
   function routeFromHash() {
     const h = (location.hash || '').slice(1);
     if (h.startsWith('partida-')) return go('partida', h.slice(8));
-    if (['inicio', 'jogar', 'voce'].includes(h)) return go(h);
+    if (h.startsWith('atividade-')) return go('atividade', h.slice(10));
+    if (h.startsWith('perfil-')) return go('perfil', h.slice(7));
+    if (['inicio', 'jogar', 'voce', 'notificacoes'].includes(h)) return go(h);
     go('inicio');
   }
 
@@ -1069,27 +1084,30 @@
   }
 
   function placarText(st) {
+    if (st.manual) return st.state.sets.length ? st.state.sets.map(x => E.setText(x)).join(' ') : st.manual.final ? st.manual.final.join('-') : '';
     const sets = st.state.sets.map(x => E.setText(x));
     if (!st.state.done) sets.push(st.cfg.kind === 'games' && !st.state.isMatchTb ? st.state.games.join('-') : st.state.points.join('-'));
     return sets.join(' ');
   }
 
   // Corpo do resumo (usado no resumo salvo e nas estatisticas ao vivo)
-  function sumHTML(m, st, live) {
+  // embed: estatística de outra pessoa dentro da tela de atividade (sem placar repetido, sem compartilhar/excluir)
+  function sumHTML(m, st, live, embed) {
+    if (st.manual) return manualSumHTML(m, st);
     const T = st.teams;
     let h = '<div class="sum">';
-    h += '<div class="panel"><div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) +
+    if (!embed) h += '<div class="panel"><div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) +
       '</b><span>' + esc(fmtWhen(m.endedAt || m.createdAt)) + ' · ' + esc(formatSummary(st.cfg)) + '</span></span></div>' +
       '<h2 class="card-title">' + titleFor(m, st) + ' ' + (live ? '<span class="badge">Ao vivo</span>' : st.winner == null ? '<span class="badge muted">Encerrada</span>' : '') + '</h2>' +
       resultHTML(m, st) +
       (live ? '' : '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button>') + '</div>';
-    const won = live ? [] : achievementsIn(m);
+    const won = live || embed ? [] : achievementsIn(m);
     if (won.length) h += '<div class="panel ach-won">' + ph('i-medal', won.length === 1 ? 'Conquista nesta partida' : 'Conquistas nesta partida') + '<div class="ach">' + won.map(achItemHTML).join('') + '</div></div>';
     h += '<div class="panel">' + kpiHTML([
       ['Placar', placarText(st)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
       ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
     ], true) + '</div>';
-    h += '<div class="panel">' + ph('i-activity', 'Momento', '<button class="btn btn-sm" type="button" data-action="moment" data-mid="' + (live ? 'live' : esc(m.id)) + '">' + ic('i-expand') + 'Ponto a ponto' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button>') + momentumSvgFor(st, m.teams) + '</div>';
+    h += '<div class="panel">' + ph('i-activity', 'Momento', '<button class="btn btn-sm" type="button" data-action="moment" data-mid="' + (live && !embed ? 'live' : esc(m.id)) + '">' + ic('i-expand') + 'Ponto a ponto' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button>') + momentumSvgFor(st, m.teams) + '</div>';
     const leg = '<div class="legend"><span><i style="--tc:' + colorVar(m.teams[0].color) + '"></i>' + esc(m.teams[0].name) + '</span><span>' + esc(m.teams[1].name) + '<i style="--tc:' + colorVar(m.teams[1].color) + '"></i></span></div>';
     let comp = bkRow('Pontos ganhos', T[0].pts, T[1].pts, m.teams);
     if (st.cfg.kind === 'games') comp += bkRow('Pontos no saque', T[0].serveWon, T[1].serveWon, m.teams);
@@ -1112,9 +1130,9 @@
       h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
     }
     const pb = isPro() ? '' : ' <span class="pro-badge">PRO</span>';
-    h += '<div class="actions"><button class="btn" type="button" data-export="csv"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Planilha (CSV)' + pb + '</button>' +
-      '<button class="btn" type="button" data-export="json"' + (live ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Dados (JSON)' + pb + '</button></div>';
-    if (!live && !m.demo) h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
+    h += '<div class="actions"><button class="btn" type="button" data-export="csv"' + (live && !embed ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Planilha (CSV)' + pb + '</button>' +
+      '<button class="btn" type="button" data-export="json"' + (live && !embed ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Dados (JSON)' + pb + '</button></div>';
+    if (!live && !embed && !m.demo) h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
     if (m.demo) h += '<p class="hint center">Partida do perfil de exemplo (fictícia).</p>';
     return h + '</div>';
   }
@@ -1127,25 +1145,8 @@
         '<div class="live-score">' + [0, 1].map(t => '<span>' + esc(name(t)) + '<b>' + esc(placarText({ state, cfg }).split(' ').map(x => x.split('-')[t] || x).join(' ')) + '</b></span>').join('') + '</div>' +
         '<button class="btn-light" type="button" data-go="jogar"><svg><use href="#i-play"/></svg>Continuar</button></div>';
     } else $('#liveCard').innerHTML = '';
-    $('#sportQuick').innerHTML = Object.keys(E.SPORTS).map(sp =>
-      '<button class="quick-tile" type="button" data-sport="' + sp + '"><svg><use href="#s-' + sp + '"/></svg>' + esc(E.SPORTS[sp].label) + '</button>').join('');
-    const hist = history().sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
-    $('#feedCount').textContent = hist.length ? hist.length + (hist.length === 1 ? ' partida' : ' partidas') : '';
-    if (!hist.length) {
-      $('#feed').innerHTML = '<div class="empty-state"><svg><use href="#i-flag"/></svg><b>Sua primeira partida aparece aqui</b><span>Escolha o esporte acima, jogue falando os pontos e toque em Finalizar. Cada partida vira um card com placar, estatísticas e imagem para compartilhar.</span></div>';
-      return;
-    }
-    $('#feed').innerHTML = hist.slice(0, 40).map(m => {
-      const st = S.matchStats(m);
-      const players = m.teams.map(t => (t.players || []).join(' e ')).filter(Boolean).join(' × ');
-      return '<article class="card" data-open="' + esc(m.id) + '">' +
-        '<div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) + ' à ' + dayPart(m.endedAt) + '</b><span>' + esc(fmtWhen(m.endedAt)) + (players ? ' · ' + esc(players) : '') + '</span></span></div>' +
-        '<h3 class="card-title">' + titleFor(m, st) + (st.winner == null ? ' <span class="badge muted">Encerrada</span>' : '') + '</h3>' +
-        kpiHTML([['Placar', placarText(st)], ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts], ['Duração', fmtDur(st.durationMs)]]) +
-        sparkSvg(st.timeline) +
-        '<div class="card-actions"><button type="button" data-share="' + esc(m.id) + '"><svg><use href="#i-share"/></svg>Compartilhar</button><button type="button" data-open="' + esc(m.id) + '"><svg><use href="#i-chart"/></svg>Estatísticas</button></div>' +
-        '</article>';
-    }).join('');
+    renderDrafts();
+    renderFeed();
   }
 
   // Conquistas que o jogador do perfil ganhou nesta partida (a partida precisa ter o nome dele).
@@ -1155,7 +1156,7 @@
     else {
       list = history();
       const known = S.knownPlayers(list);
-      const me = known.find(k => k.key === S.fold(prefs.me || '')) || known[0];
+      const me = known.find(k => k.key === S.fold(prefs.me || prefs.myName || '')) || known[0];
       if (!me) return [];
       who = me.name;
     }
@@ -1184,6 +1185,600 @@
     openSheet('#sheetAch');
   }
 
+  // =========================================================
+  // Rede social: timeline (Seguindo / Geral), zaps, perfis, marcações e notificações.
+  // Os dados dos outros são fictícios (social.js); as suas partidas vêm do histórico do aparelho.
+  // =========================================================
+  const KEY_SOCIAL = 'canta.social.v1';
+  const SO = window.CantaSocial.create({
+    load: () => store.get(KEY_SOCIAL, null),
+    save: v => store.set(KEY_SOCIAL, v),
+    // a Rafa (perfil de exemplo) publica as partidas do demo.js, com estatística completa
+    extraActivities: () => (window.CantaDemo ? window.CantaDemo.history().map(m => toActivity(m, 'rafa')) : []),
+  });
+  const TYPE_LABEL = Object.fromEntries(SO.TYPES.map(t => [t.id, t.label]));
+  const VIS_ICON = { todos: 'i-globe', seguidores: 'i-users', 'so-eu': 'i-lock' };
+
+  // Seu nome na rede: o dos Ajustes; sem ele, o jogador mais frequente do histórico.
+  function myName() {
+    if (prefs.myName) return prefs.myName;
+    const k = S.knownPlayers(history());
+    const me = k.find(x => x.key === S.fold(prefs.me || '')) || k[0];
+    return me ? me.name : 'Você';
+  }
+  function syncMe() { SO.setMe({ name: myName(), city: prefs.city || SO.CITY }); }
+
+  const firstName = n => String(n || '').trim().split(/\s+/)[0];
+  const userColor = id => { const u = SO.user(id); return u && u.color ? u.color : '#AFFB48'; };
+  function avatarHTML(id, size, extra) {
+    const u = SO.user(id);
+    const name = u ? u.name : '?';
+    return '<span class="av' + (size ? ' av-' + size : '') + '" style="--av:' + userColor(id) + '"' + (id && id !== 'me' && size !== 'xs' ? ' data-user="' + esc(id) + '"' : '') + (extra || '') + '>' + esc(initials(name)) + '</span>';
+  }
+  // nome de jogador na rede: "Você" para você, nome do usuário ou o texto livre
+  const pName = (p, short) => (p.userId === 'me' ? 'Você' : short ? firstName(SO.nameOf(p)) : SO.nameOf(p));
+  function teamLabel(t, short) {
+    const ps = (t.players || []).filter(p => SO.nameOf(p) || p.userId === 'me');
+    if (!ps.length) return t.name || 'Adversários';
+    return ps.map(p => pName(p, short)).join(' e ');
+  }
+
+  // Partida do histórico → atividade da timeline (mesmo formato das atividades fictícias).
+  const actCache = new Map();
+  function toActivity(m, ownerId) {
+    const p = m.post || {};
+    const key = m.id + '|' + ownerId + '|' + (m.endedAt || 0) + '|' + m.events.length + '|' + JSON.stringify(p) + '|' + JSON.stringify(m.manual || null) + '|' + myName();
+    if (actCache.has(key)) return actCache.get(key);
+    const st = S.matchStats(m);
+    const mine = ownerId === 'me';
+    const meKey = S.fold(myName());
+    const users = SO.users();
+    const asPlayer = n => {
+      const f = S.fold(n);
+      if (mine && f === meKey) return { userId: 'me' };
+      const u = users.find(x => S.fold(x.name) === f);
+      return u ? { userId: u.id } : { name: n };
+    };
+    const owner = SO.user(ownerId);
+    const r = m.demo ? (parseInt(String(m.id).replace(/\D/g, ''), 10) || 0) : 0;
+    const a = {
+      id: m.id, ownerId, matchId: m.id, playedAt: m.endedAt || m.createdAt, sport: st.cfg.sport, source: m.manual ? 'manual' : 'live',
+      type: p.type || (m.demo ? ['amistoso', 'treino', 'amistoso', 'resenha', 'amistoso', 'campeonato'][r % 6] : 'amistoso'),
+      title: p.title || '', caption: p.caption || (m.demo && r % 4 === 1 ? ['Jogão hoje!', 'Saque calibrado', 'Que virada', 'Dupla afinada'][r % 4] : ''),
+      visibility: p.visibility || 'todos', place: p.place || (owner && owner.place) || '',
+      city: mine ? SO.me().city : (owner && owner.city) || SO.CITY,
+      teams: m.teams.map(t => ({ name: t.name, color: t.color, players: (t.players || []).map(asPlayer) })),
+      result: { sets: st.state.sets.length ? st.state.sets.map(x => (x.matchTb && x.tb ? x.tb : x.games)) : null, final: st.manual ? st.manual.final : null, winner: st.winner },
+      durationMs: st.durationMs, stats: m.manual ? null : { pts: [st.teams[0].pts, st.teams[1].pts], aces: [st.teams[0].aces, st.teams[1].aces] },
+      timeline: m.manual ? null : st.timeline, tagged: p.tagged || [], fromActivity: p.fromActivity || null, draft: p.status === 'rascunho',
+    };
+    actCache.set(key, a);
+    return a;
+  }
+  const isDraft = m => !!(m.post && m.post.status === 'rascunho');
+  const myActivities = () => history().filter(m => !isDraft(m)).map(m => toActivity(m, 'me'));
+  const findAct = id => SO.activity(id) || myActivities().find(a => a.id === id) || null;
+
+  const actScore = a => {
+    const r = a.result || {};
+    if (r.sets && r.sets.length) return r.sets.map(s => s[0] + '-' + s[1]).join(' ');
+    if (r.final) return r.final[0] + '-' + r.final[1];
+    return r.winner == null ? '–' : '';
+  };
+  function actTitle(a) {
+    if (a.title) return a.title;
+    const r = a.result || {};
+    const meTeam = a.teams.findIndex(t => t.players.some(p => p.userId === a.ownerId));
+    const sp = SPORT_SHORT[a.sport] || sportLabel(a.sport);
+    const h = new Date(a.playedAt).getHours();
+    const when = h < 5 ? 'de madrugada' : h < 12 ? 'de manhã' : h < 18 ? 'à tarde' : 'à noite';
+    if (r.winner != null && meTeam >= 0) return (r.winner === meTeam ? 'Vitória' : 'Derrota') + ' no ' + sp.toLowerCase() + ' ' + when;
+    return sportLabel(a.sport) + ' ' + when;
+  }
+  const typeBadge = a => (a.type ? '<span class="tbadge t-' + esc(a.type) + '">' + esc(TYPE_LABEL[a.type] || a.type) + '</span>' : '');
+
+  // Placar da atividade: uma linha por time, com jogadores e sets.
+  function actResultHTML(a) {
+    const r = a.result || {};
+    const cols = r.sets && r.sets.length ? r.sets : r.final ? [r.final] : [];
+    return '<div class="ascore">' + [0, 1].map(t => {
+      const tm = a.teams[t] || { players: [] };
+      const win = r.winner === t, lose = r.winner != null && !win;
+      return '<div class="ascore-row' + (win ? ' win' : '') + (lose ? ' lose' : '') + '"><i style="--tc:' + colorVar(tm.color || (t ? 'laranja' : 'verde')) + '"></i>' +
+        '<span class="ascore-who">' + tm.players.map(p => p.userId && p.userId !== 'me' ? '<span data-user="' + esc(p.userId) + '">' + esc(pName(p)) + '</span>' : '<span' + (p.userId === 'me' ? ' class="me"' : '') + '>' + esc(pName(p)) + '</span>').join('<em> e </em>') + (tm.players.length ? '' : esc(tm.name || 'Adversários')) + '</span>' +
+        '<span class="ascore-sets">' + cols.map(s => '<b class="' + (s[t] > s[1 - t] ? 'w' : '') + '">' + s[t] + '</b>').join('') + '</span>' +
+        '<span class="ascore-win">' + (win ? ic('i-award') : '') + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  function zapBtnHTML(a) {
+    const z = SO.zaps(a);
+    const mine = a.ownerId === 'me';
+    const on = !mine && SO.hasZapped(a);
+    const faces = z.slice(0, 3).map(x => avatarHTML(x.userId, 'xs')).join('');
+    const who = z.length ? esc(firstName(z[0].userId === 'me' ? 'Você' : SO.user(z[0].userId).name)) + (z.length > 1 ? ' e mais ' + (z.length - 1) : '') : (mine ? 'Ainda sem zaps' : 'Seja o primeiro a dar zap');
+    return '<div class="zapbar">' +
+      (mine ? '<span class="zap mine" title="Zaps na sua partida">' + ic('i-bolt', 'ic zap-ic') + '<b>' + z.length + '</b></span>'
+        : '<button class="zap' + (on ? ' on' : '') + '" type="button" data-zap="' + esc(a.id) + '" aria-pressed="' + on + '" title="Dar zap">' + ic('i-bolt', 'ic zap-ic') + '<b>' + z.length + '</b></button>') +
+      '<button class="zap-who" type="button" data-zaps="' + esc(a.id) + '"' + (z.length ? '' : ' disabled') + '><span class="faces">' + faces + '</span><span>' + who + '</span></button></div>';
+  }
+
+  function actCardHTML(a) {
+    const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
+    const kp = [];
+    const sc = actScore(a);
+    if (sc) kp.push(['Placar', sc]);
+    if (a.durationMs) kp.push(['Duração', fmtDur(a.durationMs)]);
+    if (a.stats) kp.push(['Pontos', a.stats.pts[0] + '-' + a.stats.pts[1]]);
+    else kp.push(['Esporte', SPORT_SHORT[a.sport] || sportLabel(a.sport)]);
+    const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
+    return '<article class="act" data-act="' + esc(a.id) + '">' +
+      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' +
+      '<span>' + ic('s-' + a.sport) + esc(fmtWhen(a.playedAt)) + (a.place ? ' · ' + esc(a.place) : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span>' + typeBadge(a) + '</header>' +
+      '<h3 class="act-title">' + esc(actTitle(a)) + '</h3>' +
+      (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
+      actResultHTML(a) +
+      kpiHTML(kp.slice(0, 3)) +
+      (a.timeline && a.timeline.length > 1 ? sparkSvg(a.timeline) : '') +
+      (tagMe ? '<div class="act-invite">' + ic('i-tag') + '<span>' + esc(firstName(owner.name)) + ' marcou você nesta partida</span><button class="btn btn-sm" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">Aceitar</button></div>' : '') +
+      '<footer class="act-foot">' + zapBtnHTML(a) + (a.ownerId === 'me' && a.matchId ? '<button class="icon-btn" type="button" data-share="' + esc(a.matchId) + '" title="Compartilhar">' + ic('i-share') + '</button>' : '') + '</footer>' +
+      '</article>';
+  }
+
+  function suggestHTML() {
+    const list = SO.suggestions().slice(0, 8);
+    if (!list.length) return '';
+    return '<section class="suggest"><div class="sec-head"><h2>Jogam perto de você</h2><span class="sec-meta">' + esc(SO.me().city.split(',')[0]) + '</span></div><div class="suggest-row">' +
+      list.map(u => '<div class="sug">' + avatarHTML(u.id, 'lg') + '<b data-user="' + esc(u.id) + '">' + esc(u.name) + '</b><small>' + esc(u.place) + '</small><button class="btn btn-sm follow" type="button" data-follow="' + esc(u.id) + '">' + ic('i-user-plus') + 'Seguir</button></div>').join('') +
+      '</div></section>';
+  }
+
+  // ---------- Início: timeline ----------
+  function renderFeed() {
+    syncMe();
+    const kind = prefs.feedKind === 'geral' ? 'geral' : 'seguindo';
+    setRadio('feedKind', kind);
+    const list = SO.feed(kind, myActivities()).slice(0, 40);
+    let h = kind === 'geral' ? '<p class="feed-note">' + ic('i-pin') + 'Partidas públicas de quem joga em <b>' + esc(SO.me().city) + '</b></p>' : '';
+    if (!list.length) h += '<div class="empty-state">' + ic('i-users') + '<b>Nada por aqui ainda</b><span>Siga pessoas que jogam perto de você para ver as partidas delas.</span></div>';
+    list.forEach((a, i) => { h += actCardHTML(a); if (i === 2) h += suggestHTML(); });
+    if (list.length && list.length <= 2) h += suggestHTML();
+    $('#feed').innerHTML = h;
+    renderBell();
+  }
+  function renderBell() {
+    const n = SO.unread(myActivities());
+    const b = $('#bellN');
+    if (!b) return;
+    b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n);
+  }
+  function renderDrafts() {
+    const drafts = history().filter(isDraft).sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
+    $('#draftCard').innerHTML = drafts.length ? '<div class="draft">' + ic('i-flag') + '<span><b>' + (drafts.length === 1 ? 'Partida para concluir' : drafts.length + ' partidas para concluir') + '</b><small>' + esc(sportLabel(E.makeConfig(drafts[0].cfgInput).sport)) + ' · ' + esc(fmtWhen(drafts[0].endedAt)) + ' · só você vê até concluir</small></span><button class="btn btn-sm" type="button" data-save="' + esc(drafts[0].id) + '">Concluir</button></div>' : '';
+  }
+
+  // ---------- Atividade de outra pessoa ----------
+  function tagListHTML(a) {
+    const tags = (a.tagged || []).filter(t => SO.user(t.userId));
+    if (!tags.length) return '';
+    const st = { aceito: 'confirmou', pendente: 'convite enviado', recusado: 'recusou' };
+    const label = (s, id) => (id === 'me' && s === 'pendente' ? 'aguardando sua resposta' : st[s] || s);
+    return '<div class="panel">' + ph('i-tag', 'Pessoas marcadas') + '<div class="plist">' + tags.map(t => {
+      const s = SO.tagStatus(a, t.userId);
+      const u = SO.user(t.userId);
+      return '<div class="prow">' + avatarHTML(t.userId) + '<span class="prow-txt"><b' + (t.userId !== 'me' ? ' data-user="' + esc(t.userId) + '"' : '') + '>' + esc(t.userId === 'me' ? 'Você' : u.name) + '</b><small class="st-' + esc(s) + '">' + esc(label(s, t.userId)) + '</small></span>' +
+        (t.userId === 'me' && s === 'pendente' && a.ownerId !== 'me' ? '<span class="prow-act"><button class="btn btn-sm" type="button" data-tagresp="recusado" data-tagact="' + esc(a.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">Aceitar</button></span>' : '') + '</div>';
+    }).join('') + '</div></div>';
+  }
+  function actHeadHTML(a) {
+    const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
+    return '<div class="panel act-detail">' +
+      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner.name) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span>' + typeBadge(a) + '</header>' +
+      '<h2 class="act-title">' + esc(actTitle(a)) + '</h2>' + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
+      '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label || 'Todos') + '</span>' + (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') + '</div>' +
+      actResultHTML(a) + '<footer class="act-foot">' + zapBtnHTML(a) + '</footer></div>';
+  }
+  function renderAct(id) {
+    const a = findAct(id);
+    if (!a || !SO.canSee(a)) { $('#actBody').innerHTML = '<div class="empty-state"><b>Partida indisponível</b><span>Ela pode ser só para seguidores ou ter sido removida.</span></div>'; return; }
+    let h = actHeadHTML(a) + tagListHTML(a);
+    const m = a.matchId ? findMatch(a.matchId) : null;
+    if (m && m.events && m.events.length) h += sumHTML(m, S.matchStats(m), false, true); // estatística completa, sem repetir o placar
+    else {
+      const kp = [['Placar', actScore(a) || '–'], ['Duração', a.durationMs ? fmtDur(a.durationMs) : '–'], ['Tipo', TYPE_LABEL[a.type] || '–']];
+      h += '<div class="panel">' + kpiHTML(kp, true) + '<p class="hint">Partida lançada depois, sem marcação ponto a ponto.</p></div>';
+    }
+    $('#actBody').innerHTML = h;
+  }
+
+  // ---------- Perfil de outra pessoa ----------
+  function renderPerfil(id) {
+    const u = SO.user(id);
+    if (!u) { $('#perfilBody').innerHTML = '<div class="empty-state"><b>Perfil não encontrado</b></div>'; return; }
+    $('#perfilTitle').textContent = firstName(u.name);
+    const acts = SO.byUser(id);
+    const wins = acts.filter(a => a.result && a.result.winner != null && a.teams[a.result.winner].players.some(p => p.userId === id)).length;
+    const fol = SO.isFollowing(id);
+    let h = '<div class="panel me-card"><div class="me-head">' + avatarHTML(id, 'xl') + '<div class="me-id"><div class="me-name"><h2>' + esc(u.name) + '</h2></div>' +
+      '<div class="me-meta"><span>' + ic('i-pin') + esc(u.city) + '</span><span>' + ic('i-grid') + esc(u.sports.map(s => SPORT_SHORT[s] || sportLabel(s)).join(' · ')) + '</span></div></div></div>' +
+      (u.bio ? '<p class="me-bio">' + esc(u.bio) + '</p>' : '') +
+      '<div class="me-counts"><div><b>' + acts.length + '</b><span>Partidas</span></div><div><b>' + (u.followers + (fol ? 1 : 0)) + '</b><span>Seguidores</span></div><div><b>' + u.following + '</b><span>Seguindo</span></div></div>' +
+      '<div class="perfil-actions"><button class="btn ' + (fol ? '' : 'btn-brand') + ' follow" type="button" data-follow="' + esc(id) + '">' + (fol ? ic('i-check') + 'Seguindo' : ic('i-user-plus') + 'Seguir') + '</button>' +
+      (SO.followsMe(id) ? '<span class="sec-meta">segue você</span>' : '') + '</div></div>';
+    if (acts.length) h += '<div class="streaks"><div class="streak">' + ic('i-flag') + '<b>' + acts.length + '</b><span>partidas</span></div><div class="streak">' + ic('i-trophy') + '<b>' + wins + '</b><span>vitórias</span></div><div class="streak">' + ic('i-pin') + '<b>' + esc(String(new Set(acts.map(a => a.place)).size)) + '</b><span>' + (new Set(acts.map(a => a.place)).size === 1 ? 'quadra' : 'quadras') + '</span></div></div>';
+    if (id === 'rafa') h += '<button class="cont-link" type="button" data-action="demo-profile">Ver estatísticas completas da Rafa</button>';
+    h += '<section class="block"><div class="sec-head"><h2>Partidas</h2><span class="sec-meta">' + acts.length + '</span></div><div class="feed">' + (acts.length ? acts.slice(0, 20).map(actCardHTML).join('') : '<div class="empty-state"><b>Sem partidas visíveis</b><span>Algumas partidas podem ser só para seguidores.</span></div>') + '</div></section>';
+    $('#perfilBody').innerHTML = h;
+  }
+
+  // ---------- Notificações ----------
+  function renderNotifs() {
+    syncMe();
+    const list = SO.notifications(myActivities());
+    const seenBefore = (store.get(KEY_SOCIAL, {}) || {}).readUntil || 0;
+    const row = (n, inner, actions) => '<div class="notif' + (n.t > seenBefore ? ' new' : '') + '">' + avatarHTML(n.actor) + '<div class="notif-txt">' + inner + '<small>' + esc(fmtWhen(n.t)) + '</small>' + (actions || '') + '</div></div>';
+    const who = id => '<b data-user="' + esc(id) + '">' + esc(SO.user(id) ? SO.user(id).name : '?') + '</b>';
+    const h = list.map(n => {
+      const a = n.activity;
+      if (n.kind === 'tag') {
+        const act = n.status === 'pendente'
+          ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-tagresp="recusado" data-tagact="' + esc(a.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">' + ic('i-check') + 'Aceitar</button></div>'
+          : '<div class="notif-st st-' + esc(n.status) + '">' + (n.status === 'aceito' ? ic('i-check') + 'Aceita · está no seu perfil' : 'Recusada') + '</div>';
+        return row(n, '<p>' + who(n.actor) + ' marcou você numa partida de ' + esc(sportLabel(a.sport)) + ' · ' + esc(TYPE_LABEL[a.type] || '') + '</p>' +
+          '<button class="notif-card" type="button" data-act="' + esc(a.id) + '"><span>' + esc(teamLabel(a.teams[0], true)) + ' <em>×</em> ' + esc(teamLabel(a.teams[1], true)) + '</span><b>' + esc(actScore(a) || (a.result.winner == null ? '' : '')) + '</b></button>', act);
+      }
+      if (n.kind === 'zap') return row(n, '<p>' + who(n.actor) + (n.others ? ' e mais ' + n.others : '') + ' ' + (n.others ? 'deram' : 'deu') + ' zap na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>');
+      if (n.kind === 'accepted') return row(n, '<p>' + who(n.actor) + ' confirmou a marcação na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>');
+      if (n.kind === 'follow') return row(n, '<p>' + who(n.actor) + ' começou a seguir você</p>', SO.isFollowing(n.actor) ? '' : '<div class="notif-act"><button class="btn btn-sm btn-brand follow" type="button" data-follow="' + esc(n.actor) + '">' + ic('i-user-plus') + 'Seguir de volta</button></div>');
+      return '';
+    }).join('');
+    $('#notifBody').innerHTML = h || '<div class="empty-state">' + ic('i-bell') + '<b>Sem notificações</b><span>Quando alguém marcar você, der zap ou seguir, aparece aqui.</span></div>';
+    SO.markRead();
+    renderBell();
+  }
+
+  // Aceitar uma marcação: a partida passa a contar no seu perfil (vira uma partida lançada no seu histórico).
+  function respondTag(id, resp) {
+    const a = SO.activity(id);
+    if (!a) return;
+    SO.respondTag(id, resp);
+    if (resp === 'aceito' && !readHist().some(m => m.post && m.post.fromActivity === id)) {
+      const meN = myName();
+      const teams = a.teams.map((t, i) => ({ name: teamLabel(t, true).replace('Você', firstName(meN)), color: t.color || (i ? 'laranja' : 'verde'), players: t.players.map(p => (p.userId === 'me' ? meN : SO.nameOf(p))).filter(Boolean) }));
+      const m = { id: 'acc-' + id, createdAt: a.playedAt - (a.durationMs || 0), endedAt: a.playedAt, cfgInput: { sport: a.sport }, teams, events: [], redo: [], finished: true,
+        manual: { sets: a.result.sets, final: a.result.final, winner: a.result.winner, durationMs: a.durationMs || undefined },
+        post: { status: 'publicada', type: a.type, title: a.title, caption: '', visibility: 'todos', place: a.place, fromActivity: id, ownerId: a.ownerId } };
+      const hist = readHist(); hist.push(m); hist.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0));
+      writeHist(hist);
+    }
+    toast(resp === 'aceito' ? 'Partida aceita: já está no seu perfil' : 'Marcação recusada');
+    refreshSocial();
+  }
+  function refreshSocial() {
+    if (currentView === 'inicio') renderHome();
+    if (currentView === 'notificacoes') renderNotifs();
+    if (currentView === 'atividade') renderAct(currentMatchId);
+    if (currentView === 'perfil') renderPerfil(currentMatchId);
+    if (currentView === 'voce') renderMe();
+    if (currentView === 'partida') renderMatchView(currentMatchId);
+    renderBell();
+  }
+
+  function onZap(btn) {
+    const id = btn.dataset.zap;
+    const on = SO.toggleZap(id);
+    const a = findAct(id);
+    if (a) $$('.zapbar').forEach(z => { const b = z.querySelector('[data-zap="' + CSS.escape(id) + '"]'); if (b) z.outerHTML = zapBtnHTML(a); });
+    if (on) $$('[data-zap="' + CSS.escape(id) + '"]').forEach(b => { b.classList.add('pop'); });
+  }
+  function onFollow(id) {
+    const on = SO.toggleFollow(id);
+    toast(on ? 'Seguindo ' + firstName(SO.user(id).name) : 'Você deixou de seguir ' + firstName(SO.user(id).name));
+    refreshSocial();
+    if (isOpen('#sheetPeople')) $$('#peopleBody [data-follow="' + CSS.escape(id) + '"]').forEach(b => { b.outerHTML = followBtnHTML(id); });
+  }
+  const followBtnHTML = id => '<button class="btn btn-sm follow' + (SO.isFollowing(id) ? '' : ' btn-brand') + '" type="button" data-follow="' + esc(id) + '">' + (SO.isFollowing(id) ? 'Seguindo' : 'Seguir') + '</button>';
+  function openPeople(title, ids) {
+    $('#peopleTitle').textContent = title;
+    $('#peopleBody').innerHTML = ids.length ? '<div class="plist">' + ids.map(id => {
+      const u = SO.user(id);
+      if (!u) return '';
+      return '<div class="prow">' + avatarHTML(id) + '<span class="prow-txt"><b' + (id !== 'me' ? ' data-user="' + esc(id) + '"' : '') + '>' + esc(id === 'me' ? 'Você' : u.name) + '</b><small>' + esc(u.city || '') + '</small></span>' + (id !== 'me' ? followBtnHTML(id) : '') + '</div>';
+    }).join('') + '</div>' : '<p class="hint center">Ninguém ainda.</p>';
+    openSheet('#sheetPeople');
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg; t.hidden = false;
+    requestAnimationFrame(() => t.classList.add('show'));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.classList.remove('show'); setTimeout(() => { t.hidden = true; }, 250); }, 2600);
+  }
+
+  // ---------- seletor de pessoas (parceiro, adversários, marcações) ----------
+  // Cada seletor guarda { max, free, items: [{ userId } | { name }] }. free = aceita nome de quem não está no app.
+  const pickers = {};
+  function pickerHTML(key, label, max, free, items, placeholder) {
+    pickers[key] = { max, free, items: (items || []).slice(0, max) };
+    return '<div class="picker" data-picker="' + key + '"><span class="picker-label">' + esc(label) + '</span><div class="picker-box">' + pickerInner(key, placeholder) + '</div></div>';
+  }
+  function pickerInner(key, placeholder) {
+    const p = pickers[key];
+    const chips = p.items.map((it, i) => '<span class="pchip' + (it.userId ? ' user' : '') + '">' + (it.userId ? avatarHTML(it.userId, 'xs') : '') + esc(it.userId ? (it.userId === 'me' ? 'Você' : SO.user(it.userId).name) : it.name) + (it.fixed ? '' : '<button type="button" data-pick-del="' + key + ':' + i + '" aria-label="Remover">' + ic('i-x') + '</button>') + '</span>').join('');
+    return chips + (p.items.length < p.max ? '<input class="picker-in" type="text" data-pick-in="' + key + '" autocomplete="off" placeholder="' + esc(placeholder || (p.free ? 'Nome ou @pessoa' : 'Buscar pessoa')) + '"><div class="picker-sug" data-pick-sug="' + key + '" hidden></div>' : '');
+  }
+  function pickerRefresh(key) {
+    const box = $('[data-picker="' + key + '"] .picker-box');
+    if (!box) return;
+    const ph0 = box.querySelector('.picker-in');
+    box.innerHTML = pickerInner(key, ph0 ? ph0.placeholder : '');
+    const inp = box.querySelector('.picker-in'); if (inp) inp.focus();
+  }
+  function pickerSuggest(key, q) {
+    const p = pickers[key];
+    const box = $('[data-pick-sug="' + key + '"]');
+    if (!box) return;
+    const taken = new Set(Object.values(pickers).flatMap(x => x.items.map(i => i.userId)).filter(Boolean));
+    const f = S.fold(q);
+    const users = SO.users().filter(u => !taken.has(u.id) && (!f || S.fold(u.name).includes(f)))
+      .sort((a, b) => (SO.isFollowing(b.id) - SO.isFollowing(a.id)) || a.name.localeCompare(b.name)).slice(0, 6);
+    let h = users.map(u => '<button type="button" data-pick-add="' + key + '" data-uid="' + esc(u.id) + '">' + avatarHTML(u.id, 'xs') + '<span>' + esc(u.name) + '<small>' + esc(u.place) + (SO.isFollowing(u.id) ? ' · você segue' : '') + '</small></span></button>').join('');
+    if (p.free && q.trim()) h += '<button type="button" data-pick-add="' + key + '" data-name="' + esc(q.trim()) + '"><span class="av av-xs free">+</span><span>Adicionar “' + esc(q.trim()) + '”<small>sem conta no app</small></span></button>';
+    box.innerHTML = h; box.hidden = !h;
+  }
+  function wirePickers(root) {
+    root.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.pickIn; if (k) pickerSuggest(k, e.target.value); });
+    root.addEventListener('focusin', e => { const k = e.target.dataset && e.target.dataset.pickIn; if (k) pickerSuggest(k, e.target.value); });
+    root.addEventListener('keydown', e => {
+      const k = e.target.dataset && e.target.dataset.pickIn;
+      if (!k || e.key !== 'Enter') return;
+      e.preventDefault();
+      const first = $('[data-pick-sug="' + k + '"] button');
+      if (first) first.click();
+    });
+    root.addEventListener('click', e => {
+      const add = e.target.closest('[data-pick-add]');
+      if (add) {
+        const k = add.dataset.pickAdd, p = pickers[k];
+        if (p.items.length < p.max) p.items.push(add.dataset.uid ? { userId: add.dataset.uid } : { name: add.dataset.name });
+        pickerRefresh(k); onPickerChange(k); return;
+      }
+      const del = e.target.closest('[data-pick-del]');
+      if (del) { const [k, i] = del.dataset.pickDel.split(':'); pickers[k].items.splice(Number(i), 1); pickerRefresh(k); onPickerChange(k); return; }
+      if (!e.target.closest('.picker')) $$('.picker-sug', root).forEach(b => { b.hidden = true; });
+    });
+  }
+  function onPickerChange(k) { if (k === 'partner' || k === 'opp') renderLaunchTitle(); }
+
+  // ---------- campos comuns da publicação (Salvar partida e Lançar) ----------
+  function postFieldsHTML(p, opts) {
+    const o = opts || {};
+    return '<section class="group"><h3>Tipo de jogo</h3><div class="chips-pick" role="radiogroup" aria-label="Tipo de jogo">' +
+      SO.TYPES.map(t => '<label class="cpick"><input type="radio" name="' + o.prefix + 'Type" value="' + t.id + '"' + ((p.type || 'amistoso') === t.id ? ' checked' : '') + '><span>' + esc(t.label) + '</span></label>').join('') + '</div></section>' +
+      '<section class="group"><h3>Título e legenda</h3><div class="list fields">' +
+      '<label class="field"><span>Título</span><input type="text" id="' + o.prefix + 'Title" maxlength="60" value="' + esc(p.title || '') + '" placeholder="' + esc(o.titlePh || 'Ex.: Final do Open de Verão') + '"></label>' +
+      '<label class="field"><span>Legenda curta</span><textarea id="' + o.prefix + 'Caption" maxlength="140" rows="2" placeholder="Como foi o jogo?">' + esc(p.caption || '') + '</textarea><small class="count" data-count="' + o.prefix + 'Caption">' + (p.caption || '').length + '/140</small></label>' +
+      '<label class="field"><span>Local</span><input type="text" id="' + o.prefix + 'Place" maxlength="60" list="placeList" value="' + esc(p.place || '') + '" placeholder="Arena, clube ou quadra"></label>' +
+      '</div><datalist id="placeList">' + SO.PLACES.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist></section>' +
+      (o.tags ? '<section class="group"><h3>Marcar pessoas</h3>' + pickerHTML(o.prefix + 'Tags', 'Quem jogou com você ou contra você', 8, false, o.tags, 'Buscar pessoa para marcar') + '<p class="hint">Quem for marcado recebe uma notificação para confirmar. Ao aceitar, a partida entra no perfil dela também.</p></section>' : '') +
+      '<section class="group"><h3>Quem pode ver</h3><div class="seg seg-wide" role="radiogroup" aria-label="Quem pode ver">' +
+      SO.VISIBILITY.map(v => '<label><input type="radio" name="' + o.prefix + 'Vis" value="' + v.id + '"' + ((p.visibility || 'todos') === v.id ? ' checked' : '') + '><span>' + ic(VIS_ICON[v.id]) + esc(v.label) + '</span></label>').join('') + '</div>' +
+      '<p class="hint" id="' + o.prefix + 'VisHint">' + esc((SO.VISIBILITY.find(v => v.id === (p.visibility || 'todos')) || {}).hint || '') + '</p></section>';
+  }
+  function readPost(prefix, base) {
+    const val = id => ($('#' + prefix + id) ? $('#' + prefix + id).value.trim() : '');
+    const old = (base && base.tagged) || [];
+    const tags = (pickers[prefix + 'Tags'] ? pickers[prefix + 'Tags'].items : []).filter(i => i.userId && i.userId !== 'me');
+    return Object.assign({}, base || {}, {
+      type: getRadio(prefix + 'Type') || 'amistoso', title: val('Title'), caption: val('Caption').slice(0, 140), place: val('Place'),
+      visibility: getRadio(prefix + 'Vis') || 'todos',
+      tagged: tags.map(t => old.find(x => x.userId === t.userId) || { userId: t.userId, status: 'pendente', at: Date.now() }),
+    });
+  }
+  function wirePostFields(root, prefix) {
+    root.addEventListener('input', e => {
+      if (e.target.id === prefix + 'Caption') { const c = root.querySelector('[data-count="' + prefix + 'Caption"]'); if (c) c.textContent = e.target.value.length + '/140'; }
+    });
+    root.addEventListener('change', e => {
+      if (e.target.name === prefix + 'Vis') $('#' + prefix + 'VisHint').textContent = (SO.VISIBILITY.find(v => v.id === e.target.value) || {}).hint || '';
+    });
+  }
+
+  // ---------- Salvar partida (depois de jogar) / editar publicação ----------
+  let saveCtx = null;
+  function openSave(id, opts) {
+    const m = readHist().find(x => x.id === id);
+    if (!m) return;
+    syncMe();
+    const st = S.matchStats(m);
+    const p = m.post || {};
+    saveCtx = { id, afterFinish: !!(opts && opts.afterFinish), draft: isDraft(m) };
+    const a = toActivity(Object.assign({}, m, { post: Object.assign({}, p, { status: 'publicada' }) }), 'me');
+    // sugere marcar quem está no app entre os jogadores da partida
+    const tags = (p.tagged || []).map(t => ({ userId: t.userId }));
+    if (!p.tagged) a.teams.forEach(t => t.players.forEach(pl => { if (pl.userId && pl.userId !== 'me' && !tags.some(x => x.userId === pl.userId)) tags.push({ userId: pl.userId }); }));
+    $('#saveTitle').textContent = saveCtx.draft ? 'Salvar partida' : 'Editar partida';
+    $('#saveBody').innerHTML =
+      '<div class="save-sum"><div class="save-sum-top">' + ic('s-' + st.cfg.sport) + '<b>' + esc(sportLabel(st.cfg.sport)) + '</b><span>' + esc(fmtWhen(m.endedAt)) + '</span></div>' + actResultHTML(a) +
+      kpiHTML([['Placar', actScore(a) || '–'], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], m.manual ? ['Tipo', 'Lançada'] : ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts]]) + '</div>' +
+      postFieldsHTML(p, { prefix: 'sv', tags, titlePh: actTitle(a) }) +
+      '<button class="btn-primary" type="submit">' + ic('i-check') + (saveCtx.draft ? 'Concluir e publicar' : 'Salvar alterações') + '</button>' +
+      (saveCtx.draft ? '<p class="hint center">Ao concluir, a partida aparece na timeline e no seu perfil, conforme “Quem pode ver”.</p><button class="danger-link" type="button" id="saveDiscard">Descartar partida</button>' : '');
+    openSheet('#sheetSave');
+  }
+  function submitSave() {
+    const hist = readHist();
+    const m = hist.find(x => x.id === saveCtx.id);
+    if (!m) return;
+    m.post = Object.assign(readPost('sv', m.post), { status: 'publicada' });
+    if (!writeHist(hist)) return;
+    closeSheet('#sheetSave');
+    toast(saveCtx.draft ? 'Partida publicada' : 'Alterações salvas');
+    const after = saveCtx.afterFinish;
+    go('partida', m.id);
+    if (after) setTimeout(() => openShare(m.id), 450);
+  }
+  function discardDraft(btn) {
+    if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para descartar de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Descartar partida'; } }, 4000); return; }
+    if (!writeHist(readHist().filter(m => m.id !== saveCtx.id))) return;
+    closeSheet('#sheetSave');
+    toast('Partida descartada');
+    go('inicio');
+  }
+
+  // ---------- Lançar partida já jogada ----------
+  const DUR_OPTS = [0, 30, 45, 60, 75, 90, 120, 150, 180];
+  function openLaunch() {
+    syncMe();
+    const d = new Date(Date.now() - 3600000);
+    const pad = n => String(n).padStart(2, '0');
+    const day = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const time = pad(d.getHours()) + ':' + pad(Math.floor(d.getMinutes() / 15) * 15);
+    const sp = prefs.lastSport && E.SPORTS[prefs.lastSport] ? prefs.lastSport : 'beach';
+    $('#launchBody').innerHTML =
+      '<section class="group"><h3>Esporte</h3><div class="chips-pick sports-pick" role="radiogroup" aria-label="Esporte">' + Object.keys(E.SPORTS).map(k => '<label class="cpick"><input type="radio" name="lnSport" value="' + k + '"' + (k === sp ? ' checked' : '') + '><span>' + ic('s-' + k) + esc(SPORT_SHORT[k] || E.SPORTS[k].label) + '</span></label>').join('') + '</div></section>' +
+      '<section class="group"><h3>Quando</h3><div class="list fields two"><label class="field"><span>Dia</span><input type="date" id="lnDate" value="' + day + '" max="' + new Date().toISOString().slice(0, 10) + '"></label><label class="field"><span>Hora</span><input type="time" id="lnTime" value="' + time + '"></label>' +
+      '<label class="field"><span>Duração</span><select id="lnDur">' + DUR_OPTS.map(v => '<option value="' + v + '">' + (v ? fmtDur(v * 60000) : 'Não informar') + '</option>').join('') + '</select></label></div></section>' +
+      '<section class="group"><h3>Quem jogou</h3>' +
+      (prefs.myName ? '' : '<div class="list fields"><label class="field"><span>Seu nome</span><input type="text" id="lnMe" maxlength="40" value="' + esc(myName() === 'Você' ? '' : myName()) + '" placeholder="Como você aparece nas partidas"></label></div>') +
+      '<div class="teams-pick"><div class="tp tp-us"><span class="tp-tag">' + ic('i-users') + 'Seu lado</span>' + pickerHTML('partner', 'Você e', 1, true, [], 'Parceiro (opcional)') + '</div>' +
+      '<div class="tp-vs">×</div><div class="tp tp-them"><span class="tp-tag">' + ic('i-swords') + 'Adversários</span>' + pickerHTML('opp', '', 2, true, [], 'Nome ou pessoa do app') + '</div></div>' +
+      '<p class="hint">Quem tem conta no app recebe convite para confirmar a partida. Dá para lançar só com nomes, ou até sem adversário.</p></section>' +
+      '<section class="group"><h3>Resultado</h3><div class="seg seg-wide" role="radiogroup" aria-label="Resultado"><label><input type="radio" name="lnWin" value="0"><span>Vitória</span></label><label><input type="radio" name="lnWin" value="1"><span>Derrota</span></label><label><input type="radio" name="lnWin" value="" checked><span>Não informar</span></label></div>' +
+      '<div class="seg seg-wide seg-sm" role="radiogroup" aria-label="Placar"><label><input type="radio" name="lnMode" value="sets" checked><span>Placar por set</span></label><label><input type="radio" name="lnMode" value="final"><span>Só o final</span></label><label><input type="radio" name="lnMode" value="none"><span>Sem placar</span></label></div>' +
+      '<div id="lnScore"></div><p class="hint" id="lnScoreHint"></p></section>' +
+      postFieldsHTML({ visibility: 'todos' }, { prefix: 'ln', tags: null }) +
+      '<p class="form-error" id="lnError" role="alert" hidden></p>' +
+      '<button class="btn-primary" type="submit">' + ic('i-check') + 'Lançar partida</button>';
+    renderLaunchScore(); renderLaunchTitle();
+    closeSheet('#sheetChoose');
+    openSheet('#sheetLaunch');
+  }
+  let lnSets = [['', ''], ['', '']];
+  function renderLaunchScore(keep) {
+    const mode = getRadio('lnMode');
+    if (!keep) lnSets = [['', ''], ['', '']];
+    const box = $('#lnScore');
+    const us = 'Vocês', them = 'Eles';
+    if (mode === 'none') { box.innerHTML = ''; $('#lnScoreHint').textContent = 'Fica só Vitória ou Derrota, sem números.'; return; }
+    if (mode === 'final') {
+      box.innerHTML = '<div class="setrow"><span>Final</span><input type="number" inputmode="numeric" min="0" max="99" data-ln="f0" placeholder="' + us + '"><em>×</em><input type="number" inputmode="numeric" min="0" max="99" data-ln="f1" placeholder="' + them + '"></div>';
+      $('#lnScoreHint').textContent = 'Sets ganhos (ex.: 2 × 1) ou os pontos de um jogo único (ex.: 21 × 18).';
+      return;
+    }
+    box.innerHTML = lnSets.map((s, i) => '<div class="setrow"><span>Set ' + (i + 1) + '</span><input type="number" inputmode="numeric" min="0" max="99" data-ln="s' + i + '0" value="' + esc(s[0]) + '" placeholder="' + us + '"><em>×</em><input type="number" inputmode="numeric" min="0" max="99" data-ln="s' + i + '1" value="' + esc(s[1]) + '" placeholder="' + them + '">' +
+      (lnSets.length > 1 ? '<button class="icon-btn" type="button" data-lnrm="' + i + '" title="Tirar set">' + ic('i-x') + '</button>' : '') + '</div>').join('') +
+      (lnSets.length < 5 ? '<button class="btn btn-sm add-set" type="button" id="lnAddSet">' + ic('i-plus') + 'Adicionar set</button>' : '');
+    $('#lnScoreHint').textContent = 'Preencha só os sets que lembrar. Set em branco é ignorado.';
+  }
+  function renderLaunchTitle() {
+    const ph = $('#lnTitle');
+    if (!ph) return;
+    const sp = getRadio('lnSport') || 'beach';
+    ph.placeholder = sportLabel(sp) + ' com ' + (pickers.partner && pickers.partner.items[0] ? (pickers.partner.items[0].userId ? firstName(SO.user(pickers.partner.items[0].userId).name) : pickers.partner.items[0].name) : 'a galera');
+  }
+  function launchAutoWinner() {
+    const mode = getRadio('lnMode');
+    const num = k => { const el = $('[data-ln="' + k + '"]'); const v = el ? el.value.trim() : ''; return v === '' ? null : Number(v); };
+    let w = null;
+    if (mode === 'final') { const a = num('f0'), b = num('f1'); if (a != null && b != null && a !== b) w = a > b ? 0 : 1; }
+    if (mode === 'sets') { let x = 0, y = 0; lnSets.forEach((s, i) => { const a = num('s' + i + '0'), b = num('s' + i + '1'); if (a != null && b != null && a !== b) { if (a > b) x++; else y++; } }); if (x !== y) w = x > y ? 0 : 1; }
+    if (w != null) setRadio('lnWin', String(w));
+  }
+  function submitLaunch() {
+    const err = $('#lnError');
+    const sp = getRadio('lnSport');
+    const date = $('#lnDate').value, time = $('#lnTime').value || '12:00';
+    const when = date ? new Date(date + 'T' + time).getTime() : Date.now();
+    if (!Number.isFinite(when) || when > Date.now() + 5 * 60000) { err.textContent = 'Confira o dia e a hora: a partida precisa já ter acontecido.'; err.hidden = false; return; }
+    if ($('#lnMe')) { const n = $('#lnMe').value.trim(); if (!n) { err.textContent = 'Diga seu nome: é assim que a partida entra no seu perfil.'; err.hidden = false; $('#lnMe').focus(); return; } prefs.myName = n; savePrefs(); syncMe(); }
+    const num = k => { const el = $('[data-ln="' + k + '"]'); const v = el ? el.value.trim() : ''; return v === '' ? null : Math.max(0, Math.min(99, Math.round(Number(v)))); };
+    const mode = getRadio('lnMode');
+    const sets = mode === 'sets' ? lnSets.map((s, i) => [num('s' + i + '0'), num('s' + i + '1')]).filter(s => s[0] != null && s[1] != null) : [];
+    const final = mode === 'final' && num('f0') != null && num('f1') != null ? [num('f0'), num('f1')] : null;
+    const wv = getRadio('lnWin');
+    const winner = wv === '0' ? 0 : wv === '1' ? 1 : null;
+    const durMin = Number($('#lnDur').value) || 0;
+    const nm = it => (it.userId ? SO.user(it.userId).name : it.name);
+    const partner = pickers.partner.items, opp = pickers.opp.items;
+    const meN = myName();
+    const teams = [
+      { name: [firstName(meN)].concat(partner.map(it => firstName(nm(it)))).join(' e '), color: 'verde', players: [meN].concat(partner.map(nm)) },
+      { name: opp.length ? opp.map(it => firstName(nm(it))).join(' e ') : 'Adversários', color: 'laranja', players: opp.map(nm) },
+    ];
+    const post = readPost('ln', null);
+    post.tagged = partner.concat(opp).filter(it => it.userId).map(it => ({ userId: it.userId, status: 'pendente', at: Date.now() }));
+    post.status = 'publicada';
+    const m = { id: 'man-' + Date.now().toString(36), createdAt: when - durMin * 60000, endedAt: when, cfgInput: Object.assign({ sport: sp }, E.SPORTS[sp].defaults), teams, events: [], redo: [], finished: true,
+      manual: { sets: sets.length ? sets : null, final, winner, durationMs: durMin ? durMin * 60000 : undefined }, post };
+    const hist = readHist(); hist.push(m); hist.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0));
+    if (!writeHist(hist)) return;
+    prefs.lastSport = sp; savePrefs();
+    closeSheet('#sheetLaunch');
+    toast(post.tagged.length ? 'Partida lançada · convite enviado para ' + post.tagged.length + (post.tagged.length === 1 ? ' pessoa' : ' pessoas') : 'Partida lançada');
+    go('partida', m.id);
+  }
+
+  // ---------- Botão +: escolher como registrar ----------
+  function openChoose() {
+    $('#sportQuick').innerHTML = Object.keys(E.SPORTS).map(sp =>
+      '<button class="quick-tile" type="button" data-sport="' + sp + '"><svg><use href="#s-' + sp + '"/></svg>' + esc(SPORT_SHORT[sp] || E.SPORTS[sp].label) + '</button>').join('');
+    openSheet('#sheetChoose');
+  }
+
+  // Cabeçalho social no resumo das suas partidas (publicação, marcações, zaps, editar).
+  function myPostHeaderHTML(m) {
+    if (m.demo) return '';
+    if (isDraft(m)) return '<div class="draft">' + ic('i-flag') + '<span><b>Rascunho</b><small>Só você vê. Conclua para publicar na timeline.</small></span><button class="btn btn-sm btn-brand" type="button" data-save="' + esc(m.id) + '">Concluir</button></div>';
+    const a = toActivity(m, 'me');
+    const from = m.post && m.post.fromActivity ? SO.activity(m.post.fromActivity) : null;
+    return '<div class="panel act-detail">' +
+      '<header class="act-head">' + avatarHTML('me') + '<span class="act-who"><b>' + esc(myName()) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span>' + typeBadge(a) + '</header>' +
+      (a.title ? '<h2 class="act-title">' + esc(a.title) + '</h2>' : '') + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
+      '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label) + '</span>' +
+      (from ? '<span>' + ic('i-tag') + 'Marcada por ' + esc(firstName(SO.user(from.ownerId).name)) + '</span>' : '') + '</div>' +
+      '<footer class="act-foot">' + zapBtnHTML(a) + (from ? '<button class="btn btn-sm" type="button" data-act="' + esc(from.id) + '">Ver original</button>' : '<button class="btn btn-sm" type="button" data-save="' + esc(m.id) + '">' + ic('i-edit') + 'Editar</button>') + '</footer></div>' +
+      tagListHTML(a);
+  }
+
+  // Resumo de partida lançada à mão (sem lances, então sem gráficos de ponto a ponto).
+  function manualSumHTML(m, st) {
+    const a = toActivity(m, 'me');
+    let h = '<div class="sum"><div class="panel">' + actResultHTML(a) + '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button></div>';
+    h += '<div class="panel">' + kpiHTML([['Placar', actScore(a) || '–'], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], ['Sets', st.state.sets.length ? String(st.state.sets.length) : '–']], true) +
+      '<p class="hint">' + ic('i-pencil-line') + ' Lançada depois do jogo. Para ter momento, golpes e comparativo, marque a próxima ao vivo.</p></div>';
+    h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
+    return h + '</div>';
+  }
+
+  function wireSocial() {
+    $$('input[name="feedKind"]').forEach(el => el.addEventListener('change', () => { prefs.feedKind = getRadio('feedKind'); savePrefs(); renderFeed(); $('#view-inicio .scroll').scrollTop = 0; }));
+    wirePickers($('#sheetLaunch')); wirePickers($('#sheetSave'));
+    wirePostFields($('#sheetLaunch'), 'ln'); wirePostFields($('#sheetSave'), 'sv');
+    $('#formSave').addEventListener('submit', e => { e.preventDefault(); submitSave(); });
+    $('#formLaunch').addEventListener('submit', e => { e.preventDefault(); submitLaunch(); });
+    $('#sheetSave').addEventListener('click', e => { const b = e.target.closest('#saveDiscard'); if (b) discardDraft(b); });
+    $('#sheetLaunch').addEventListener('change', e => {
+      if (e.target.name === 'lnMode') renderLaunchScore();
+      if (e.target.name === 'lnSport') renderLaunchTitle();
+    });
+    $('#sheetLaunch').addEventListener('input', e => {
+      const k = e.target.dataset && e.target.dataset.ln;
+      if (k && k[0] === 's') { lnSets[Number(k[1])][Number(k[2])] = e.target.value; }
+      if (k) launchAutoWinner();
+    });
+    $('#sheetLaunch').addEventListener('click', e => {
+      if (e.target.closest('#lnAddSet')) { lnSets.push(['', '']); renderLaunchScore(true); return; }
+      const rm = e.target.closest('[data-lnrm]');
+      if (rm) { lnSets.splice(Number(rm.dataset.lnrm), 1); renderLaunchScore(true); launchAutoWinner(); }
+    });
+    $('#pName').addEventListener('change', e => { prefs.myName = e.target.value.trim(); savePrefs(); syncMe(); refreshSocial(); });
+    $('#pCity').addEventListener('change', e => { prefs.city = e.target.value.trim(); savePrefs(); syncMe(); refreshSocial(); });
+    $('#btnSocialReset').addEventListener('click', () => { SO.reset(); toast('Rede de demonstração recomeçada'); refreshSocial(); });
+  }
+
   // ---------- Partida salva ----------
   function findMatch(id) {
     if (id === 'live') return match;
@@ -1192,7 +1787,7 @@
   function renderMatchView(id) {
     const m = findMatch(id);
     if (!m) { $('#matchBody').innerHTML = '<div class="empty-state"><b>Partida não encontrada</b><span>Ela pode ter sido excluída neste aparelho.</span></div>'; return; }
-    $('#matchBody').innerHTML = sumHTML(m, S.matchStats(m), false);
+    $('#matchBody').innerHTML = myPostHeaderHTML(m) + sumHTML(m, S.matchStats(m), false);
   }
 
   // ---------- Você (perfil) ----------
@@ -1273,7 +1868,7 @@
     if (useDemo) { list = DM.history(); who = DM.ATHLETE.name; extra = DM.ATHLETE; }
     else {
       list = hist;
-      const me = known.find(k => k.key === S.fold(prefs.me || '')) || known[0];
+      const me = known.find(k => k.key === S.fold(prefs.me || prefs.myName || '')) || known[0];
       who = me.name;
     }
     const all = S.profile(list, who);
@@ -1298,7 +1893,7 @@
       (extra ? '<p class="me-bio">' + esc(extra.bio) + '</p>' : '') +
       '<div class="me-counts">' + (extra
         ? [['Seguidores', extra.followers], ['Seguindo', extra.following], ['Partidas', all.matches]]
-        : [['Partidas', all.matches], ['Vitórias', all.wins], ['Esportes', sportsOf.length]]).map(([l, v]) => '<div><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+        : [['Partidas', all.matches], ['Seguidores', SO.followers().length, 'followers'], ['Seguindo', SO.following().length, 'following']]).map(([l, v, k]) => (k ? '<button type="button" data-people="' + k + '">' : '<div>') + '<b>' + v + '</b><span>' + l + '</span>' + (k ? '</button>' : '</div>')).join('') + '</div>' +
       (!useDemo && known.length > 1 ? '<div class="me-pick"><span class="sec-meta">Ver como:</span>' + known.slice(0, 12).map(k => '<button class="pill' + (k.name === who ? ' on' : '') + '" type="button" data-me="' + esc(k.name) + '">' + esc(k.name) + '</button>').join('') + '</div>' : '') + '</div>';
 
     // filtro por esporte
@@ -1506,7 +2101,8 @@
   function finalize(opts) {
     const o = opts || {};
     if (!match.events.length) return false;
-    const saved = Object.assign({}, match, { endedAt: Date.now(), finished: true, redo: [] });
+    // fica como rascunho até o Concluir da tela Salvar partida (assim nada se perde se a pessoa fechar)
+    const saved = Object.assign({}, match, { endedAt: Date.now(), finished: true, redo: [], post: { status: 'rascunho' } });
     const hist = readHist().filter(m => m.id !== saved.id);
     hist.unshift(saved);
     if (!writeHist(hist)) return false; // cota cheia: a partida continua ao vivo, nada se perde
@@ -1516,8 +2112,8 @@
     save(); recompute();
     if (o.quiet) return true;
     say('Partida salva.');
-    go('partida', saved.id);
-    setTimeout(() => openShare(saved.id), 450);
+    go('inicio');
+    openSave(saved.id, { afterFinish: true });
     return true;
   }
 
@@ -1532,15 +2128,17 @@
       name: st.mvp.name, teamName: m.teams[st.mvp.team].name, won: st.winner == null ? null : st.winner === st.mvp.team,
       stats: [{ label: 'Pontos', value: String(st.mvp.pts) }, { label: 'Aces', value: String(st.mvp.aces) }, { label: 'Assistências', value: String(st.mvp.assists) }, { label: 'Erros', value: String(st.mvp.errors + st.mvp.df) }],
     } : null;
+    const manualStats = st.manual ? [{ label: 'Placar', value: placarText(st) || '–' }, { label: 'Duração', value: st.durationMs ? fmtDur(st.durationMs) : '–' }, { label: 'Tipo', value: (m.post && TYPE_LABEL[m.post.type]) || 'Amistoso' }] : null;
     return {
       sportLabel: sportLabel(st.cfg.sport), dateText: fmtWhen(m.endedAt || m.createdAt),
       teams: m.teams.map(t => ({ name: t.name, hex: HEX[t.color] || HEX.verde, players: t.players })),
-      winner: st.winner, setCols: cols, scoreText: placarText(st),
-      stats: [
+      winner: st.winner, setCols: cols, scoreText: placarText(st) || (st.winner === 0 ? 'Vitória' : st.winner === 1 ? 'Derrota' : 'Jogo'),
+      stats: manualStats || [
         { label: 'Pontos', value: T[0].pts + '-' + T[1].pts }, { label: 'Duração', value: fmtDur(st.durationMs) }, { label: 'Aces', value: T[0].aces + '-' + T[1].aces },
         { label: 'Winners', value: T[0].winners + '-' + T[1].winners }, { label: 'Erros', value: (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df) }, { label: 'Maior sequência', value: T[0].maxStreak + '-' + T[1].maxStreak },
       ],
       timeline: st.timeline, mvp,
+      typeLabel: m.post && m.post.type && m.post.type !== 'amistoso' ? TYPE_LABEL[m.post.type] : '',
       playersLine: m.teams.map(t => (t.players || []).join(' e ') || t.name).join('  ×  '),
     };
   }
@@ -1806,6 +2404,22 @@
     });
 
     document.addEventListener('click', e => {
+      const zp = e.target.closest('[data-zap]');
+      if (zp) { onZap(zp); return; }
+      const zs = e.target.closest('[data-zaps]');
+      if (zs) { const za = findAct(zs.dataset.zaps); if (za) openPeople('Zaps', SO.zaps(za).map(z => z.userId)); return; }
+      const tr = e.target.closest('[data-tagresp]');
+      if (tr) { respondTag(tr.dataset.tagact, tr.dataset.tagresp); return; }
+      const fo = e.target.closest('[data-follow]');
+      if (fo) { onFollow(fo.dataset.follow); return; }
+      const pe = e.target.closest('[data-people]');
+      if (pe) { openPeople(pe.dataset.people === 'followers' ? 'Seguidores' : 'Seguindo', (pe.dataset.people === 'followers' ? SO.followers() : SO.following()).map(u => u.id)); return; }
+      const us = e.target.closest('[data-user]');
+      if (us && !e.target.closest('.picker')) { closeAllSheets(); go('perfil', us.dataset.user); return; }
+      const sv = e.target.closest('[data-save]');
+      if (sv) { openSave(sv.dataset.save); return; }
+      const ac0 = e.target.closest('[data-act]');
+      if (ac0 && !e.target.closest('a, input, textarea, select, button:not([data-act])')) { closeAllSheets(); const so = SO.activity(ac0.dataset.act); if (so) go('atividade', so.id); else go('partida', ac0.dataset.act); return; }
       const ex = e.target.closest('[data-export]');
       if (ex) exportMatch(ex.dataset.export, ex.dataset.mid ? findMatch(ex.dataset.mid) : null);
       const gv = e.target.closest('[data-go]');
@@ -1827,6 +2441,10 @@
         const a = act.dataset.action;
         if (a === 'prefs') openPrefs();
         if (a === 'new') openNew();
+        if (a === 'choose') openChoose();
+        if (a === 'launch') openLaunch();
+        if (a === 'back') goBack();
+        if (a === 'demo-profile') { meDemo = true; go('voce'); }
         if (a === 'continue') openContinue();
         if (a === 'home') go('inicio');
         if (a === 'share') openShare(currentMatchId);
@@ -1845,6 +2463,8 @@
         startMatch(ci, teams);
       }
     });
+
+    wireSocial();
 
     // Nova partida
     buildSwatches();
@@ -1928,6 +2548,8 @@
   }
 
   function openPrefs() {
+    $('#pName').value = prefs.myName || (myName() === 'Você' ? '' : myName());
+    $('#pCity').value = prefs.city || '';
     $('#pTts').checked = prefs.tts;
     $('#pBeep').checked = prefs.beep;
     $('#pWake').checked = prefs.wake;

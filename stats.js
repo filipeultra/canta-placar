@@ -72,6 +72,23 @@
     const ts = evs.filter(e => e.type === 'point' && Number.isFinite(e.t)).map(e => e.t).sort((a, b) => a - b);
     let durationMs = 0;
     for (let i = 1; i < ts.length; i++) durationMs += Math.min(ts[i] - ts[i - 1], GAP_MAX);
+    // Partida lançada à mão (sem lances): sets opcionais, ou só o placar final, ou só quem venceu.
+    let manual = null;
+    if (m.manual && typeof m.manual === 'object') {
+      manual = m.manual;
+      const sets = (Array.isArray(manual.sets) ? manual.sets : [])
+        .filter(x => Array.isArray(x) && x.length === 2 && x.every(v => Number.isFinite(v) && v >= 0))
+        .map(x => ({ games: [x[0], x[1]], tb: null, matchTb: false }));
+      s.sets = sets;
+      s.setsWon = [0, 1].map(t => sets.filter(x => x.games[t] > x.games[1 - t]).length);
+      let w = manual.winner === 0 || manual.winner === 1 ? manual.winner : null;
+      if (w === null && sets.length && s.setsWon[0] !== s.setsWon[1]) w = s.setsWon[0] > s.setsWon[1] ? 0 : 1;
+      const fin = Array.isArray(manual.final) && manual.final.length === 2 && manual.final.every(Number.isFinite) ? manual.final : null;
+      if (w === null && fin && fin[0] !== fin[1]) w = fin[0] > fin[1] ? 0 : 1;
+      s.done = true; s.winner = w; s.games = [0, 0]; s.points = [0, 0];
+      durationMs = Number.isFinite(manual.durationMs) ? manual.durationMs : 0;
+      manual = Object.assign({}, manual, { final: fin });
+    }
     const list = Array.from(players.values());
     // destaque: quem mais contribuiu (pontos + aces + assistencias - erros)
     const score = p => p.pts + p.aces + p.assists - p.errors - p.df;
@@ -82,6 +99,7 @@
       durationMs,
       byVoice: evs.filter(e => e.src === 'voz').length,
       winner: s.done ? s.winner : null,
+      manual,
       leader: s.stats.points[0] === s.stats.points[1] ? null : s.stats.points[0] > s.stats.points[1] ? 0 : 1,
       setsText: s.sets.map(x => E.setText(x)),
     };
