@@ -1,6 +1,6 @@
 # ULTRA PLAY · ideias para depois
 
-Ideias combinadas com o Filipe para as próximas fases. Ainda não estão no app; dependem da conta na nuvem (ver `SOCIAL.md`).
+Ideias combinadas com o Filipe para as próximas fases. Ainda não estão no app; dependem da conta na nuvem (ver `SOCIAL.md`). Marketing, vendas, área para professores, kit pró com pulseira e câmeras com replay sincronizado estão em `MARKETING.md`.
 
 ## 1. Arenas e organizadores de eventos
 
