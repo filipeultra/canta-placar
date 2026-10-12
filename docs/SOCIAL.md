@@ -8,7 +8,8 @@ Este documento descreve como a parte social funciona hoje no protótipo e o que 
 - **O que você faz fica no `localStorage`**, na chave `canta.social.v1`: quem você segue, os zaps que deu, as respostas às marcações e até quando leu as notificações.
 - **As suas partidas continuam no histórico do aparelho** (`canta.history.v1`). Cada partida ganhou o campo `post` (a publicação) e, quando foi lançada à mão, o campo `manual`.
 - **O app só conversa com a rede pelas funções de `social.js`** (`feed`, `toggleZap`, `toggleFollow`, `respondTag`, `notifications`…). Para ligar o backend, essas funções passam a chamar a API, e as telas não mudam.
-- **Simulações:** zaps fictícios chegam aos poucos nas suas partidas, alguns minutos depois do fim. Pessoas fictícias que você marca "aceitam" um minuto depois. Em Ajustes > Seu perfil > Rede de demonstração > **Recomeçar**, tudo volta ao começo.
+- **IDs:** cada pessoa tem um ID curto (`UP-XXXXXX`, no perfil, com botão de copiar) e cada partida tem um código (`P-XXXXXX`). Os dois usam letras e números sem 0/O/1/I, para não confundir ao digitar. O ID também serve para buscar a pessoa ao marcar.
+- **Simulações:** zaps fictícios chegam aos poucos nas suas partidas, alguns minutos depois do fim. Pessoas fictícias que você marca "aceitam" um minuto depois. Os donos fictícios aceitam seu pedido de entrada um minuto depois. Se alguém do app tem o mesmo primeiro nome de um convidado da sua partida, ele "pede" para ser aquele jogador. Para testar, use os códigos da tela Entrar numa partida: partidas do Biel, da Nina e do Caio com convidados sem conta. Em Ajustes > Seu perfil > Rede de demonstração > **Recomeçar**, tudo volta ao começo.
 
 ## Telas
 
@@ -22,17 +23,20 @@ Este documento descreve como a parte social funciona hoje no protótipo e o que 
 | Notificações | Marcações para **aceitar ou recusar**, zaps nas suas partidas, marcações confirmadas e novos seguidores. Ao aceitar, a partida entra no seu histórico e passa a contar no seu perfil e nas suas conquistas. |
 | Atividade | A partida de outra pessoa: dados, pessoas marcadas (com o status de cada uma), zaps e, quando foi marcada ao vivo, a estatística completa. |
 | Perfil de outra pessoa | Cidade, esportes, bio, contadores, botão **Seguir** e as partidas que você pode ver. |
+| Entrar numa partida | Pelo **código** (`P-XXXXXX`) ou pelo **link** da partida. Quem jogou sem conta escolhe qual convidado era, cria a conta (nome e cidade) e pede ao dono. Quando ele aceita, as estatísticas daquele jogador passam a ser da pessoa, inclusive de partidas antigas. Também se chega pelo botão + > Entrar numa partida. |
+| Convidar quem jogou | Na tela da sua partida: os convidados sem conta, os pedidos para **aceitar ou recusar**, o código e os botões **Copiar link** e **Enviar**. |
+| Selo **manual** | Partidas lançadas depois do jogo levam um selo discreto (lápis + "manual") no card, no perfil e na imagem de compartilhar, para ninguém confundir com placar marcado ao vivo. |
 
 ## Modelo de dados
 
 Sugestão para Postgres (por exemplo Supabase, que já traz login, regras por linha, tempo real e armazenamento de fotos).
 
 ```text
-users            id, name, handle (único), city, lat, lng, home_place_id, bio, avatar_url,
+users            id, public_id (UP-XXXXXX, único), name, handle (único), city, lat, lng, home_place_id, bio, avatar_url,
                  sports text[], created_at, deleted_at
 follows          follower_id → users, followee_id → users, created_at          PK (follower_id, followee_id)
 places           id, name, city, lat, lng, created_by                           (arenas, clubes, quadras)
-matches          id, owner_id → users, sport, source ('live'|'manual'), cfg jsonb,
+matches          id, code (P-XXXXXX, único, gerado no servidor), owner_id → users, sport, source ('live'|'manual'), cfg jsonb,
                  played_at, duration_ms, type, title, caption (≤140), visibility ('todos'|'seguidores'|'so-eu'),
                  status ('rascunho'|'publicada'), place_id, city,
                  result jsonb  { sets: [[a,b]...] | null, final: [a,b] | null, winner: 0|1|null },
@@ -41,6 +45,9 @@ matches          id, owner_id → users, sport, source ('live'|'manual'), cfg js
 match_events     match_id, seq, event jsonb                                     (lances ponto a ponto, só ao vivo)
 match_players    match_id, team (0|1), slot, user_id → users | null, guest_name | null,
                  tag_status ('pendente'|'aceito'|'recusado'|null), responded_at
+match_claims     id, match_id, user_id (quem pede), guest_name (qual convidado diz ser),
+                 status ('pendente'|'aceito'|'recusado'), created_at, responded_at
+                 UNIQUE (match_id, guest_name) WHERE status = 'aceito'
 zaps             match_id, user_id, created_at                                  PK (match_id, user_id)
 notifications    id, user_id (quem recebe), kind ('tag'|'zap'|'accepted'|'follow'), actor_id,
                  match_id | null, created_at, read_at
@@ -49,7 +56,8 @@ notifications    id, user_id (quem recebe), kind ('tag'|'zap'|'accepted'|'follow
 Pontos importantes:
 
 - **A partida é uma só, mesmo com várias pessoas.** Quem marcou é o dono. Os outros jogadores ficam em `match_players`. Ao aceitar, a pessoa passa a ver a partida no perfil dela, sem copiar a linha. No protótipo a partida aceita vira uma cópia no aparelho (`post.fromActivity`), porque não há servidor. A timeline já mostra uma só.
-- **Convidado sem conta:** `guest_name` preenchido e `user_id` vazio. Quando essa pessoa criar conta, um link de convite pode ligar o nome à conta.
+- **Convidado sem conta:** `guest_name` preenchido e `user_id` vazio. A pessoa entra pelo código ou link, diz qual convidado era e cria um `match_claims`. Quando o dono aceita, o servidor grava `match_players.user_id` naquele lugar. As estatísticas são calculadas dos lances (`match_events.player` = nome do convidado) e passam a contar para a conta. Não precisa copiar nada, e vale para quantas partidas antigas ela tiver.
+- **Proteções do pedido:** só um pedido aceito por convidado; o dono pode desfazer (devolve o lugar a convidado); a pessoa não pode pedir um lugar numa partida em que já está; limite de pedidos por dia.
 - **Zap:** uma linha por pessoa e partida. A contagem fica num campo calculado ou numa view. Não dá para dar zap na própria partida, e só existe zap (sem comentários), como você pediu.
 - **Notificações:** são gravadas na hora da ação (marcação, zap, aceite, novo seguidor), para o celular poder receber push. Zaps na mesma partida são agrupados na leitura ("Lu e mais 3 deram zap").
 
@@ -76,6 +84,9 @@ Jogadores marcados que aceitaram sempre veem a partida, mesmo que seja só para 
 | `toggleZap(id)` | `PUT` / `DELETE /matches/:id/zap` |
 | `respondTag(id, resp)` | `POST /matches/:id/tag-response { resp }` |
 | `notifications()` / `markRead()` | `GET /notifications`, `POST /notifications/read` |
+| `findByCode(code)` | `GET /matches/by-code/:code` (só os dados públicos da partida e os nomes dos convidados) |
+| `requestClaim(id, guest)` / `cancelClaim(id)` | `POST /matches/:id/claims { guest_name }`, `DELETE /claims/:id` |
+| `incomingClaims()` / `respondClaim()` | `GET /me/claims/incoming`, `POST /claims/:id { status }` |
 | `suggestions()` | `GET /users/suggestions` (mesma cidade, mais ativos, quem você ainda não segue) |
 | salvar ou lançar partida | `POST /matches`, `PATCH /matches/:id` (com os lances, em lote, nas partidas ao vivo) |
 
@@ -84,15 +95,17 @@ Jogadores marcados que aceitaram sempre veem a partida, mesmo que seja só para 
 1. **Contas e login:** telefone (SMS ou WhatsApp), Google e Apple. Foto de perfil e @usuário único.
 2. **Sincronização sem internet:** o placar funciona offline, e isso é um diferencial. As partidas precisam entrar numa fila e subir quando houver conexão, sem duplicar (id gerado no aparelho, como já é hoje).
 3. **Confirmação do resultado:** na marcação, o adversário pode **aceitar** ou **contestar** o placar. Partidas não confirmadas podem ficar fora de conquistas e recordes, para ninguém inventar resultado.
-4. **Convite por link:** marcar alguém que não tem conta gera um link para WhatsApp. Quem entra pelo link já cai com a partida para aceitar. É o melhor caminho de crescimento.
-5. **Notificações push:** Web Push (PWA) agora e, depois, push nativo se o app for para as lojas.
-6. **Segurança e convivência:** bloquear pessoa, denunciar partida ou legenda, remover marcação de si mesmo, limite de zaps e de seguir por minuto (anti-robô) e um filtro simples de palavrões na legenda.
-7. **Privacidade e LGPD:** perfil privado (só seguidores aprovados), escolher se o local aparece, exportar os próprios dados, excluir a conta e os dados de verdade, e termos de uso. Atenção especial a menores de idade.
-8. **Performance:** timeline paginada (20 por vez) e a contagem de zaps e de seguidores guardada (não calculada a cada leitura).
-9. **Painel interno:** ver denúncias, banir contas e cadastrar arenas, que podem virar parceiras depois.
+4. **Convite por link (já desenhado):** o link `…/#entrar-P-XXXXXX` vira link universal do app (abre o app se instalado, a página se não). Quem entra por ele cai direto na escolha do jogador.
+5. **Convite por link para marcação:** marcar alguém que não tem conta gera um link para WhatsApp. Quem entra pelo link já cai com a partida para aceitar. É o melhor caminho de crescimento.
+6. **Notificações push:** Web Push (PWA) agora e, depois, push nativo se o app for para as lojas.
+7. **Segurança e convivência:** bloquear pessoa, denunciar partida ou legenda, remover marcação de si mesmo, limite de zaps e de seguir por minuto (anti-robô) e um filtro simples de palavrões na legenda.
+8. **Privacidade e LGPD:** perfil privado (só seguidores aprovados), escolher se o local aparece, exportar os próprios dados, excluir a conta e os dados de verdade, e termos de uso. Atenção especial a menores de idade.
+9. **Performance:** timeline paginada (20 por vez) e a contagem de zaps e de seguidores guardada (não calculada a cada leitura).
+10. **Painel interno:** ver denúncias, banir contas e cadastrar arenas, que podem virar parceiras depois.
 
 ## Decisões de produto já tomadas
 
 - Sem nível nem ranking de usuários (08/10/2026).
 - A única interação nas partidas é o **zap** (o ícone de raio da marca), sem comentários por enquanto.
-- Conquistas usam só as partidas da própria pessoa: as dela e as que ela aceitou.
+- Conquistas usam só as partidas da própria pessoa: as dela, as marcações que ela aceitou e os convidados que ela reivindicou.
+- Partidas lançadas à mão sempre mostram o selo **manual**.

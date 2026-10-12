@@ -1078,6 +1078,7 @@
   let currentView = 'inicio', currentMatchId = null;
   const navStack = []; // telas anteriores, para o botão voltar (a rota usa replaceState, sem histórico do navegador)
   const ID_VIEWS = ['partida', 'atividade', 'perfil'];
+  const OPT_ID_VIEWS = ['entrar'];
   function go(view, id, back) {
     if (SCREEN) view = 'jogar';
     if (ID_VIEWS.includes(view) && !id) view = 'inicio';
@@ -1087,13 +1088,14 @@
     if (view !== 'jogar') $('#banner').classList.remove('show'); // aviso de game/set e so do placar
     document.body.dataset.view = view;
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
-    const tab = ['partida', 'atividade', 'perfil', 'notificacoes'].includes(view) ? 'inicio' : view;
+    const tab = ['partida', 'atividade', 'perfil', 'notificacoes', 'entrar'].includes(view) ? 'inicio' : view;
     $$('.tabbar .tab').forEach(b => b.classList.toggle('on', b.dataset.go === tab));
     if (view === 'inicio') renderHome();
     if (view === 'partida') renderMatchView(id);
     if (view === 'atividade') renderAct(id);
     if (view === 'perfil') renderPerfil(id);
     if (view === 'notificacoes') renderNotifs();
+    if (view === 'entrar') renderEntrar(id);
     if (view === 'voce') renderMe();
     if (view === 'jogar') { render(); renderVoice(); }
     const sc = $('#view-' + view + ' .scroll'); if (sc && !back) sc.scrollTop = 0;
@@ -1112,6 +1114,7 @@
     if (h.startsWith('partida-')) return go('partida', h.slice(8));
     if (h.startsWith('atividade-')) return go('atividade', h.slice(10));
     if (h.startsWith('perfil-')) return go('perfil', h.slice(7));
+    if (h === 'entrar' || h.startsWith('entrar-')) return go('entrar', h.slice(7) || null);
     if (['inicio', 'jogar', 'voce', 'notificacoes'].includes(h)) return go(h);
     go('inicio');
   }
@@ -1290,7 +1293,7 @@
     load: () => store.get(KEY_SOCIAL, null),
     save: v => store.set(KEY_SOCIAL, v),
     // a Rafa (perfil de exemplo) publica as partidas do demo.js, com estatística completa
-    extraActivities: () => (window.CantaDemo ? window.CantaDemo.history().map(m => toActivity(m, 'rafa')) : []),
+    extraActivities: () => (window.CantaDemo ? window.CantaDemo.history().map(m => toActivity(m, 'rafa')).concat((window.CantaDemo.guestMatches ? window.CantaDemo.guestMatches() : []).map(m => toActivity(m, m.ownerId))) : []),
   });
   const TYPE_LABEL = Object.fromEntries(SO.TYPES.map(t => [t.id, t.label]));
   const VIS_ICON = { todos: 'i-globe', seguidores: 'i-users', 'so-eu': 'i-lock' };
@@ -1302,7 +1305,12 @@
     const me = k.find(x => x.key === S.fold(prefs.me || '')) || k[0];
     return me ? me.name : 'Você';
   }
-  function syncMe() { SO.setMe({ name: myName(), city: prefs.city || SO.CITY }); }
+  // seu ID no app (curto, para passar a alguém): fica nos ajustes do aparelho até existir conta de verdade
+  function myUid() {
+    if (!prefs.uid) { const B = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; let s = ''; for (let i = 0; i < 6; i++) s += B[Math.floor(Math.random() * 32)]; prefs.uid = 'UP-' + s; savePrefs(); }
+    return prefs.uid;
+  }
+  function syncMe() { SO.setMe({ name: myName(), city: prefs.city || SO.CITY, uid: myUid() }); }
 
   const firstName = n => String(n || '').trim().split(/\s+/)[0];
   const userColor = id => { const u = SO.user(id); return u && u.color ? u.color : '#AFFB48'; };
@@ -1329,8 +1337,10 @@
     const mine = ownerId === 'me';
     const meKey = S.fold(myName());
     const users = SO.users();
+    const links = p.links || {};
     const asPlayer = n => {
       const f = S.fold(n);
+      if (links[n]) return { userId: links[n] };
       if (mine && f === meKey) return { userId: 'me' };
       const u = users.find(x => S.fold(x.name) === f);
       return u ? { userId: u.id } : { name: n };
@@ -1338,7 +1348,7 @@
     const owner = SO.user(ownerId);
     const r = m.demo ? (parseInt(String(m.id).replace(/\D/g, ''), 10) || 0) : 0;
     const a = {
-      id: m.id, ownerId, matchId: m.id, playedAt: m.endedAt || m.createdAt, sport: st.cfg.sport, source: m.manual ? 'manual' : 'live',
+      id: m.id, ownerId, matchId: m.id, playedAt: m.endedAt || m.createdAt, sport: st.cfg.sport, source: p.sourceOrig || (m.manual ? 'manual' : 'live'),
       type: p.type || (m.demo ? ['amistoso', 'treino', 'amistoso', 'resenha', 'amistoso', 'campeonato'][r % 6] : 'amistoso'),
       title: p.title || '', caption: p.caption || (m.demo && r % 4 === 1 ? ['Jogão hoje!', 'Saque calibrado', 'Que virada', 'Dupla afinada'][r % 4] : ''),
       visibility: p.visibility || 'todos', place: p.place || (owner && owner.place) || '',
@@ -1376,6 +1386,8 @@
   // Placar da atividade: uma linha por time, com jogadores e sets.
   function actResultHTML(a) {
     const r = a.result || {};
+    const claim = a.ownerId !== 'me' ? SO.myClaims().find(c => c.id === a.id && c.status === 'aceito') : null;
+    if (claim) a = Object.assign({}, a, { teams: a.teams.map(t => Object.assign({}, t, { players: t.players.map(p => (!p.userId && p.name === claim.player ? { userId: 'me' } : p)) })) });
     const cols = r.sets && r.sets.length ? r.sets : r.final ? [r.final] : [];
     return '<div class="ascore">' + [0, 1].map(t => {
       const tm = a.teams[t] || { players: [] };
@@ -1410,7 +1422,7 @@
     const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
     return '<article class="act" data-act="' + esc(a.id) + '">' +
       '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' +
-      '<span>' + ic('s-' + a.sport) + esc(fmtWhen(a.playedAt)) + (a.place ? ' · ' + esc(a.place) : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span>' + typeBadge(a) + '</header>' +
+      '<span>' + ic('s-' + a.sport) + esc(fmtWhen(a.playedAt)) + (a.place ? ' · ' + esc(a.place) : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h3 class="act-title">' + esc(actTitle(a)) + '</h3>' +
       (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       actResultHTML(a) +
@@ -1431,7 +1443,7 @@
 
   // ---------- Início: timeline ----------
   function renderFeed() {
-    syncMe();
+    syncMe(); materializeClaims();
     const kind = prefs.feedKind === 'geral' ? 'geral' : 'seguindo';
     setRadio('feedKind', kind);
     const list = SO.feed(kind, myActivities()).slice(0, 40);
@@ -1469,7 +1481,7 @@
   function actHeadHTML(a) {
     const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
     return '<div class="panel act-detail">' +
-      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner.name) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span>' + typeBadge(a) + '</header>' +
+      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner.name) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h2 class="act-title">' + esc(actTitle(a)) + '</h2>' + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label || 'Todos') + '</span>' + (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') + '</div>' +
       actResultHTML(a) + '<footer class="act-foot">' + zapBtnHTML(a) + '</footer></div>';
@@ -1496,7 +1508,7 @@
     const wins = acts.filter(a => a.result && a.result.winner != null && a.teams[a.result.winner].players.some(p => p.userId === id)).length;
     const fol = SO.isFollowing(id);
     let h = '<div class="panel me-card"><div class="me-head">' + avatarHTML(id, 'xl') + '<div class="me-id"><div class="me-name"><h2>' + esc(u.name) + '</h2></div>' +
-      '<div class="me-meta"><span>' + ic('i-pin') + esc(u.city) + '</span><span>' + ic('i-grid') + esc(u.sports.map(s => SPORT_SHORT[s] || sportLabel(s)).join(' · ')) + '</span></div></div></div>' +
+      '<div class="me-meta"><button class="idchip" type="button" data-copy="' + esc(SO.publicId(id)) + '">' + esc(SO.publicId(id)) + ic('i-copy') + '</button><span>' + ic('i-pin') + esc(u.city) + '</span><span>' + ic('i-grid') + esc(u.sports.map(s => SPORT_SHORT[s] || sportLabel(s)).join(' · ')) + '</span></div></div></div>' +
       (u.bio ? '<p class="me-bio">' + esc(u.bio) + '</p>' : '') +
       '<div class="me-counts"><div><b>' + acts.length + '</b><span>Partidas</span></div><div><b>' + (u.followers + (fol ? 1 : 0)) + '</b><span>Seguidores</span></div><div><b>' + u.following + '</b><span>Seguindo</span></div></div>' +
       '<div class="perfil-actions"><button class="btn ' + (fol ? '' : 'btn-brand') + ' follow" type="button" data-follow="' + esc(id) + '">' + (fol ? ic('i-check') + 'Seguindo' : ic('i-user-plus') + 'Seguir') + '</button>' +
@@ -1509,7 +1521,7 @@
 
   // ---------- Notificações ----------
   function renderNotifs() {
-    syncMe();
+    syncMe(); materializeClaims();
     const list = SO.notifications(myActivities());
     const seenBefore = (store.get(KEY_SOCIAL, {}) || {}).readUntil || 0;
     const row = (n, inner, actions) => '<div class="notif' + (n.t > seenBefore ? ' new' : '') + '">' + avatarHTML(n.actor) + '<div class="notif-txt">' + inner + '<small>' + esc(fmtWhen(n.t)) + '</small>' + (actions || '') + '</div></div>';
@@ -1525,6 +1537,10 @@
       }
       if (n.kind === 'zap') return row(n, '<p>' + who(n.actor) + (n.others ? ' e mais ' + n.others : '') + ' ' + (n.others ? 'deram' : 'deu') + ' zap na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>');
       if (n.kind === 'accepted') return row(n, '<p>' + who(n.actor) + ' confirmou a marcação na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>');
+      if (n.kind === 'claimReq') return row(n, '<p>' + who(n.actor) + ' disse que é <b>“' + esc(n.claim.guest) + '”</b> na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>',
+        n.status === 'pendente' ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-claimresp="recusado" data-claimid="' + esc(n.claim.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-claimresp="aceito" data-claimid="' + esc(n.claim.id) + '">' + ic('i-check') + 'Aceitar</button></div>'
+          : '<div class="notif-st st-' + esc(n.status) + '">' + (n.status === 'aceito' ? ic('i-check') + 'Aceito · as estatísticas foram para ' + esc(firstName(SO.user(n.actor).name)) : 'Recusado') + '</div>');
+      if (n.kind === 'claimOk') return row(n, '<p>' + who(n.actor) + ' aceitou: <b>“' + esc(n.guest) + '”</b> agora é você. As estatísticas entraram no seu perfil.</p>', '<div class="notif-act"><button class="btn btn-sm" type="button" data-act="' + esc(a.id) + '">Ver partida</button></div>');
       if (n.kind === 'follow') return row(n, '<p>' + who(n.actor) + ' começou a seguir você</p>', SO.isFollowing(n.actor) ? '' : '<div class="notif-act"><button class="btn btn-sm btn-brand follow" type="button" data-follow="' + esc(n.actor) + '">' + ic('i-user-plus') + 'Seguir de volta</button></div>');
       return '';
     }).join('');
@@ -1543,7 +1559,7 @@
       const teams = a.teams.map((t, i) => ({ name: teamLabel(t, true).replace('Você', firstName(meN)), color: t.color || (i ? 'laranja' : 'verde'), players: t.players.map(p => (p.userId === 'me' ? meN : SO.nameOf(p))).filter(Boolean) }));
       const m = { id: 'acc-' + id, createdAt: a.playedAt - (a.durationMs || 0), endedAt: a.playedAt, cfgInput: { sport: a.sport }, teams, events: [], redo: [], finished: true,
         manual: { sets: a.result.sets, final: a.result.final, winner: a.result.winner, durationMs: a.durationMs || undefined },
-        post: { status: 'publicada', type: a.type, title: a.title, caption: '', visibility: 'todos', place: a.place, fromActivity: id, ownerId: a.ownerId } };
+        post: { status: 'publicada', type: a.type, title: a.title, caption: '', visibility: 'todos', place: a.place, fromActivity: id, ownerId: a.ownerId, sourceOrig: a.source } };
       const hist = readHist(); hist.push(m); hist.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0));
       writeHist(hist);
     }
@@ -1555,6 +1571,7 @@
     if (currentView === 'notificacoes') renderNotifs();
     if (currentView === 'atividade') renderAct(currentMatchId);
     if (currentView === 'perfil') renderPerfil(currentMatchId);
+    if (currentView === 'entrar') renderEntrar(currentMatchId);
     if (currentView === 'voce') renderMe();
     if (currentView === 'partida') renderMatchView(currentMatchId);
     renderBell();
@@ -1618,7 +1635,8 @@
     if (!box) return;
     const taken = new Set(Object.values(pickers).flatMap(x => x.items.map(i => i.userId)).filter(Boolean));
     const f = S.fold(q);
-    const users = SO.users().filter(u => !taken.has(u.id) && (!f || S.fold(u.name).includes(f)))
+    const qc = SO.normCode(q);
+    const users = SO.users().filter(u => !taken.has(u.id) && (!f || S.fold(u.name).includes(f) || (qc.length >= 4 && SO.normCode(SO.publicId(u.id)).includes(qc))))
       .sort((a, b) => (SO.isFollowing(b.id) - SO.isFollowing(a.id)) || a.name.localeCompare(b.name)).slice(0, 6);
     let h = users.map(u => '<button type="button" data-pick-add="' + key + '" data-uid="' + esc(u.id) + '">' + avatarHTML(u.id, 'xs') + '<span>' + esc(u.name) + '<small>' + esc(u.place) + (SO.isFollowing(u.id) ? ' · você segue' : '') + '</small></span></button>').join('');
     if (p.free && q.trim()) h += '<button type="button" data-pick-add="' + key + '" data-name="' + esc(q.trim()) + '"><span class="av av-xs free">+</span><span>Adicionar “' + esc(q.trim()) + '”<small>sem conta no app</small></span></button>';
@@ -1831,12 +1849,13 @@
     const a = toActivity(m, 'me');
     const from = m.post && m.post.fromActivity ? SO.activity(m.post.fromActivity) : null;
     return '<div class="panel act-detail">' +
-      '<header class="act-head">' + avatarHTML('me') + '<span class="act-who"><b>' + esc(myName()) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span>' + typeBadge(a) + '</header>' +
+      '<header class="act-head">' + avatarHTML('me') + '<span class="act-who"><b>' + esc(myName()) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       (a.title ? '<h2 class="act-title">' + esc(a.title) + '</h2>' : '') + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label) + '</span>' +
-      (from ? '<span>' + ic('i-tag') + 'Marcada por ' + esc(firstName(SO.user(from.ownerId).name)) + '</span>' : '') + '</div>' +
+      (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') +
+      (from ? '<span>' + ic('i-tag') + (m.post.claimed ? 'Você era “' + esc(m.post.claimed) + '” na partida de ' : 'Marcada por ') + esc(firstName(SO.user(from.ownerId).name)) + '</span>' : '') + '</div>' +
       '<footer class="act-foot">' + zapBtnHTML(a) + (from ? '<button class="btn btn-sm" type="button" data-act="' + esc(from.id) + '">Ver original</button>' : '<button class="btn btn-sm" type="button" data-save="' + esc(m.id) + '">' + ic('i-edit') + 'Editar</button>') + '</footer></div>' +
-      tagListHTML(a);
+      tagListHTML(a) + (m.post && m.post.fromActivity ? '' : inviteHTML(m, a));
   }
 
   // Resumo de partida lançada à mão (sem lances, então sem gráficos de ponto a ponto).
@@ -1875,10 +1894,144 @@
     $('#btnSocialReset').addEventListener('click', () => { SO.reset(); toast('Rede de demonstração recomeçada'); refreshSocial(); });
   }
 
+  // ---------- Entrar numa partida pelo código ou link ----------
+  // Quem jogou sem conta pede ao dono para ser um dos convidados; aceito, as estatísticas daquele jogador
+  // passam a ser dele (vale para partidas antigas também).
+  const inviteLink = id => location.origin + location.pathname + '#entrar-' + SO.matchCode(id);
+  function guestsOf(a) {
+    const out = [];
+    a.teams.forEach((t, ti) => t.players.forEach(p => { if (!p.userId && p.name) out.push({ name: p.name, team: ti }); }));
+    return out;
+  }
+  // pedidos aceitos pelos donos viram partidas suas (cópia com os lances, convidado trocado pelo seu nome)
+  function materializeClaims() {
+    const hist = readHist();
+    let changed = false;
+    for (const c of SO.myClaims()) {
+      if (c.status !== 'aceito' || hist.some(m => m.post && m.post.fromActivity === c.id)) continue;
+      const src = findMatch(c.id), a = SO.activity(c.id);
+      if (!src || !a) continue;
+      const meN = myName();
+      const rn = n => (n === c.player ? meN : n);
+      const m = JSON.parse(JSON.stringify(src));
+      m.id = 'cl-' + c.id; delete m.demo; delete m.guestDemo; delete m.ownerId;
+      m.teams.forEach(t => { t.players = (t.players || []).map(rn); });
+      m.events.forEach(ev => { if (ev.player) ev.player = rn(ev.player); if (ev.assist) ev.assist = rn(ev.assist); });
+      m.post = { status: 'publicada', type: a.type, title: a.title, caption: '', visibility: 'todos', place: a.place, fromActivity: c.id, ownerId: a.ownerId, claimed: c.player, sourceOrig: a.source };
+      hist.push(m); changed = true;
+    }
+    if (changed) { hist.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0)); writeHist(hist); }
+  }
+
+  let entrarPick = null;
+  function renderEntrar(code) {
+    syncMe(); materializeClaims();
+    const demo = (window.CantaDemo && window.CantaDemo.guestMatches ? window.CantaDemo.guestMatches() : []).map(m => SO.activity(m.id)).filter(Boolean);
+    let h = '<div class="panel entrar-hero">' + '<span class="choose-ic alt">' + ic('i-tag') + '</span>' +
+      '<h2>Jogou com alguém que marcou no app?</h2><p>Peça o <b>código</b> ou o <b>link</b> da partida e diga qual jogador era você. Quando o dono aceitar, as estatísticas daquele jogador passam a ser suas, inclusive de jogos antigos.</p>' +
+      '<form class="entrar-form" id="entrarForm"><input type="text" id="entrarCode" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="P-XXXXXX" value="' + esc(code || '') + '"><button class="btn btn-brand" type="submit">Buscar</button></form>' +
+      (demo.length ? '<div class="demo-codes"><span>Para testar</span>' + demo.map(a => '<button class="pill" type="button" data-code="' + esc(SO.matchCode(a.id)) + '">' + esc(SO.matchCode(a.id)) + ' · ' + esc(SPORT_SHORT[a.sport] || sportLabel(a.sport)) + ' ' + esc(firstName(SO.user(a.ownerId).name)) + '</button>').join('') + '</div>' : '') + '</div>';
+    if (code) {
+      const mine = myActivities();
+      const a = SO.findByCode(code, mine);
+      if (!a) h += '<div class="empty-state">' + ic('i-info') + '<b>Nenhuma partida com o código ' + esc(code.toUpperCase()) + '</b><span>Confira o código com quem marcou. Ele fica na tela da partida, em “Convidar quem jogou”.</span></div>';
+      else if (a.ownerId === 'me') h += '<div class="empty-state">' + ic('i-check') + '<b>Essa partida é sua</b><span>Pedidos de quem jogou com você chegam nas notificações.</span><button class="btn" type="button" data-open="' + esc(a.id) + '">Abrir partida</button></div>';
+      else {
+        const st = SO.claimStatus(a.id);
+        const claim = SO.myClaims().find(c => c.id === a.id);
+        const owner = SO.user(a.ownerId);
+        h += '<div class="panel">' + '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b data-user="' + esc(a.ownerId) + '">' + esc(owner.name) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span><span class="act-badges">' + typeBadge(a) + '</span></header>' + actResultHTML(a) + '</div>';
+        if (st === 'aceito') h += '<div class="claim-st ok">' + ic('i-check') + '<span><b>Pronto: “' + esc(claim.player) + '” agora é você</b><small>As estatísticas desse jogador entraram no seu perfil e nas suas conquistas.</small></span><button class="btn btn-sm btn-brand" type="button" data-go="voce">Ver perfil</button></div>';
+        else if (st === 'pendente') h += '<div class="claim-st">' + ic('i-clock') + '<span><b>Pedido enviado para ' + esc(firstName(owner.name)) + '</b><small>Você pediu para ser “' + esc(claim.player) + '”. Avisamos quando ele aceitar.</small></span><button class="btn btn-sm" type="button" data-claimcancel="' + esc(a.id) + '">Cancelar</button></div>';
+        else {
+          const guests = guestsOf(a);
+          if (!guests.length) h += '<div class="empty-state"><b>Todos os jogadores desta partida já têm conta</b><span>Se você jogou e não aparece, peça para ' + esc(firstName(owner.name)) + ' marcar você.</span></div>';
+          else {
+            if (!entrarPick || !guests.some(g => g.name === entrarPick)) entrarPick = guests.length === 1 ? guests[0].name : null;
+            h += '<section class="group"><h3>Quem era você nesta partida?</h3><div class="claim-list">' + guests.map(g => '<label class="claim-opt' + (entrarPick === g.name ? ' on' : '') + '" style="--tc:' + colorVar(a.teams[g.team].color || (g.team ? 'laranja' : 'verde')) + '"><input type="radio" name="claimWho" value="' + esc(g.name) + '"' + (entrarPick === g.name ? ' checked' : '') + '><i></i><span><b>' + esc(g.name) + '</b><small>sem conta · time de ' + esc(teamLabel(a.teams[g.team], true)) + '</small></span></label>').join('') + '</div></section>';
+            if (!prefs.myName) h += '<section class="group"><h3>Crie sua conta</h3><div class="list fields"><label class="field"><span>Seu nome</span><input type="text" id="entrarName" maxlength="40" placeholder="Como você quer aparecer" value="' + esc(entrarPick || '') + '"></label><label class="field"><span>Cidade</span><input type="text" id="entrarCity" maxlength="60" placeholder="Montes Claros, MG" value="' + esc(prefs.city || '') + '"></label></div></section>';
+            h += '<button class="btn-primary" type="button" data-claimsend="' + esc(a.id) + '"' + (entrarPick ? '' : ' disabled') + '>' + ic('i-user-plus') + (entrarPick ? 'Pedir para entrar como ' + esc(entrarPick) : 'Escolha qual jogador era você') + '</button>' +
+              '<p class="hint center">' + esc(firstName(owner.name)) + ' recebe o pedido e confirma. Nada muda na partida dele até lá.</p>';
+          }
+        }
+      }
+    }
+    // seus pedidos
+    const claims = SO.myClaims();
+    if (claims.length) h += '<section class="block"><div class="sec-head"><h2>Seus pedidos</h2></div><div class="plist panel">' + claims.map(c => {
+      const a = SO.activity(c.id); if (!a) return '';
+      return '<div class="prow">' + avatarHTML(a.ownerId) + '<span class="prow-txt"><b>' + esc(sportLabel(a.sport)) + ' com ' + esc(firstName(SO.user(a.ownerId).name)) + '</b><small>como “' + esc(c.player) + '” · ' + (c.status === 'aceito' ? 'aceito' : 'aguardando') + '</small></span><button class="btn btn-sm" type="button" data-code="' + esc(SO.matchCode(a.id)) + '">Ver</button></div>';
+    }).join('') + '</div></section>';
+    $('#entrarBody').innerHTML = h;
+  }
+  function sendClaim(id) {
+    const who = getRadio('claimWho') || entrarPick;
+    if (!who) return;
+    if ($('#entrarName')) {
+      const n = $('#entrarName').value.trim();
+      if (!n) { toast('Diga seu nome para criar a conta'); $('#entrarName').focus(); return; }
+      prefs.myName = n; prefs.city = ($('#entrarCity').value || '').trim(); savePrefs(); syncMe();
+    }
+    SO.requestClaim(id, who);
+    toast('Pedido enviado');
+    renderEntrar(SO.matchCode(id));
+    setTimeout(() => { if (currentView === 'entrar') renderEntrar(SO.matchCode(id)); renderBell(); }, 61000); // simulação: o dono aceita em 1 min
+  }
+  function respondClaimReq(cid, status) {
+    const c = SO.incomingClaims(myActivities()).find(x => x.id === cid);
+    if (!c || !c.activity) return;
+    SO.respondClaim(c, status);
+    if (status === 'aceito') {
+      const hist = readHist();
+      const m = hist.find(x => x.id === c.activity.id);
+      if (m) { m.post = Object.assign({}, m.post, { links: Object.assign({}, (m.post || {}).links, { [c.guest]: c.userId }) }); writeHist(hist); }
+    }
+    toast(status === 'aceito' ? firstName(SO.user(c.userId).name) + ' agora é “' + c.guest + '” na partida' : 'Pedido recusado');
+    refreshSocial();
+  }
+  // Na sua partida: quem jogou sem conta, pedidos e convite (código e link)
+  function inviteHTML(m, a) {
+    const guests = guestsOf(a);
+    const reqs = SO.incomingClaims([a]);
+    const links = (m.post && m.post.links) || {};
+    const linked = Object.entries(links);
+    if (!guests.length && !linked.length && !reqs.length) return '<div class="panel invite"><div class="invite-code"><span>Código da partida</span><button class="idchip" type="button" data-copy="' + esc(SO.matchCode(m.id)) + '">' + esc(SO.matchCode(m.id)) + ic('i-copy') + '</button></div></div>';
+    return '<div class="panel invite">' + ph('i-user-plus', 'Convidar quem jogou') +
+      '<p class="hint">Quem jogou sem conta entra pelo link ou pelo código, escolhe qual jogador era e você confirma. As estatísticas dele vão junto.</p>' +
+      '<div class="plist">' + guests.map(g => {
+        const r = reqs.find(x => x.guest === g.name && x.status === 'pendente');
+        return '<div class="prow"><span class="av free">' + esc(initials(g.name)) + '</span><span class="prow-txt"><b>' + esc(g.name) + '</b><small>' + (r ? esc(SO.user(r.userId).name) + ' disse que é este jogador' : 'sem conta no app') + '</small></span>' +
+          (r ? '<span class="prow-act"><button class="btn btn-sm" type="button" data-claimresp="recusado" data-claimid="' + esc(r.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-claimresp="aceito" data-claimid="' + esc(r.id) + '">Aceitar</button></span>' : '') + '</div>';
+      }).join('') + linked.map(([g, uid]) => '<div class="prow">' + avatarHTML(uid) + '<span class="prow-txt"><b data-user="' + esc(uid) + '">' + esc(SO.user(uid).name) + '</b><small class="st-aceito">era “' + esc(g) + '” · confirmado</small></span></div>').join('') + '</div>' +
+      '<div class="invite-code"><span>Código</span><button class="idchip" type="button" data-copy="' + esc(SO.matchCode(m.id)) + '">' + esc(SO.matchCode(m.id)) + ic('i-copy') + '</button><button class="btn btn-sm" type="button" data-copy="' + esc(inviteLink(m.id)) + '">' + ic('i-copy') + 'Copiar link</button>' + (navigator.share ? '<button class="btn btn-sm btn-brand" type="button" data-sharelink="' + esc(m.id) + '">' + ic('i-share') + 'Enviar</button>' : '') + '</div></div>';
+  }
+  async function copyText(t) {
+    try { await navigator.clipboard.writeText(t); toast('Copiado: ' + (t.length > 32 ? 'link da partida' : t)); }
+    catch (e) {
+      const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('Copiado'); } catch (err) { console.warn('[copiar] falhou', err); toast(t); }
+      ta.remove();
+    }
+  }
+  function wireClaims() {
+    document.addEventListener('submit', e => { if (e.target.id === 'entrarForm') { e.preventDefault(); const c = $('#entrarCode').value.trim(); entrarPick = null; go('entrar', c ? SO.normCode(c).replace(/^P(?=[A-Z0-9]{6}$)/, 'P-') : null); } });
+    document.addEventListener('change', e => { if (e.target.name === 'claimWho') { entrarPick = e.target.value; renderEntrar(currentMatchId); } });
+    document.addEventListener('click', e => {
+      const cd = e.target.closest('[data-code]'); if (cd) { entrarPick = null; go('entrar', cd.dataset.code); return; }
+      const cs = e.target.closest('[data-claimsend]'); if (cs) { sendClaim(cs.dataset.claimsend); return; }
+      const cc = e.target.closest('[data-claimcancel]'); if (cc) { SO.cancelClaim(cc.dataset.claimcancel); toast('Pedido cancelado'); renderEntrar(currentMatchId); return; }
+      const cr = e.target.closest('[data-claimresp]'); if (cr) { respondClaimReq(cr.dataset.claimid, cr.dataset.claimresp); return; }
+      const cp = e.target.closest('[data-copy]'); if (cp) { copyText(cp.dataset.copy); return; }
+      const sl = e.target.closest('[data-sharelink]');
+      if (sl) { const id = sl.dataset.sharelink; navigator.share({ title: 'Nossa partida no ULTRA PLAY', text: 'Entra no ULTRA PLAY e pega as suas estatísticas da nossa partida (código ' + SO.matchCode(id) + ')', url: inviteLink(id) }).catch(err => console.info('[convite] compartilhar cancelado', err)); }
+    });
+  }
+
   // ---------- Partida salva ----------
   function findMatch(id) {
     if (id === 'live') return match;
-    return history().find(m => m.id === id) || (String(id).startsWith('demo-') && window.CantaDemo ? window.CantaDemo.history().find(m => m.id === id) : null) || null;
+    return history().find(m => m.id === id) || (String(id).startsWith('demo-') && window.CantaDemo ? window.CantaDemo.history().find(m => m.id === id) : null)
+      || (String(id).startsWith('conv-') && window.CantaDemo && window.CantaDemo.guestMatches ? window.CantaDemo.guestMatches().find(m => m.id === id) : null) || null;
   }
   function renderMatchView(id) {
     const m = findMatch(id);
@@ -1984,7 +2137,7 @@
     // cabeçalho
     h += '<div class="panel me-card"><div class="me-head"><span class="me-avatar">' + esc(initials(p.name)) + '</span><div class="me-id">' +
       '<div class="me-name"><h2>' + esc(p.name) + '</h2>' + (useDemo || isPro() ? '<span class="pro-badge">PRO</span>' : '') + '</div>' +
-      '<div class="me-meta">' + (extra ? '<span>' + ic('i-pin') + esc(extra.city) + '</span><span>' + ic('i-calendar') + esc(extra.since.replace('jogando desde', 'Desde')) + '</span>' : '<span>' + ic('i-grid') + esc(sportsTxt) + '</span>') + '</div>' +
+      '<div class="me-meta">' + (!useDemo ? '<button class="idchip" type="button" data-copy="' + esc(myUid()) + '" title="Seu ID: passe para alguém te achar">' + esc(myUid()) + ic('i-copy') + '</button>' : '') + (extra ? '<span>' + ic('i-pin') + esc(extra.city) + '</span><span>' + ic('i-calendar') + esc(extra.since.replace('jogando desde', 'Desde')) + '</span>' : '<span>' + ic('i-grid') + esc(sportsTxt) + '</span>') + '</div>' +
       '</div></div>' +
       (extra ? '<p class="me-bio">' + esc(extra.bio) + '</p>' : '') +
       '<div class="me-counts">' + (extra
@@ -2057,7 +2210,7 @@
 
     // partidas recentes
     h += '<div class="panel">' + ph('i-history', 'Partidas recentes') + '<div class="recs">' + p.recent.slice(0, 6).map(r =>
-      '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(sportLabel(r.sport)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</span></span><small>' + esc(fmtWhen(r.endedAt)) + ' · contra ' + esc(r.oppPlayers || r.opp) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
+      '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(sportLabel(r.sport)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</span>' + (r.manual ? '<span class="mtag" title="Lançada depois do jogo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span><small>' + esc(fmtWhen(r.endedAt)) + ' · contra ' + esc(r.oppPlayers || r.opp) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
     body.innerHTML = h;
     const on = body.querySelector('.sf.on');
     if (on && meSport) { const strip = on.parentElement; strip.scrollLeft = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2; } // só na horizontal: não mexe na rolagem da página
@@ -2234,7 +2387,7 @@
         { label: 'Winners', value: T[0].winners + '-' + T[1].winners }, { label: 'Erros', value: (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df) }, { label: 'Maior sequência', value: T[0].maxStreak + '-' + T[1].maxStreak },
       ],
       timeline: st.timeline, mvp,
-      typeLabel: m.post && m.post.type && m.post.type !== 'amistoso' ? TYPE_LABEL[m.post.type] : '',
+      typeLabel: [m.post && m.post.type && m.post.type !== 'amistoso' ? TYPE_LABEL[m.post.type] : '', st.manual && !(m.post && m.post.sourceOrig === 'live') ? 'Manual' : ''].filter(Boolean).join(' · '),
       playersLine: m.teams.map(t => (t.players || []).join(' e ') || t.name).join('  ×  '),
     };
   }
@@ -2561,6 +2714,7 @@
     });
 
     wireSocial();
+    wireClaims();
 
     // Nova partida
     buildSwatches();

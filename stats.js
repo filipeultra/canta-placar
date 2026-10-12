@@ -189,7 +189,7 @@
       const deficit = Math.max(0, ...st.timeline.map(d => sign * d));
       const zeroSet = st.state.sets.some(x => !x.matchTb && x.games[t] >= 6 && x.games[1 - t] === 0);
       out.recent.push({
-        id: m.id, endedAt: m.endedAt || m.createdAt || 0, sport: st.cfg.sport, won, sets: setsFor(st, t), team: m.teams[t].name, opp: m.teams[1 - t].name,
+        id: m.id, endedAt: m.endedAt || m.createdAt || 0, sport: st.cfg.sport, won, manual: !!(st.manual && !(m.post && m.post.sourceOrig === 'live')), sets: setsFor(st, t), team: m.teams[t].name, opp: m.teams[1 - t].name,
         oppPlayers: (m.teams[1 - t].players || []).join(' e '),
         pts: me.pts || 0, errors: (me.errors || 0) + (me.df || 0), aces: me.aces || 0, teamPts: st.teams[t].pts, oppPts: st.teams[1 - t].pts,
         durationMs: st.durationMs, streak: st.teams[t].maxStreak, comeback: won === true ? deficit : 0, margin: st.teams[t].pts - st.teams[1 - t].pts, zeroSet,

@@ -1963,3 +1963,63 @@ body.tv .cpanel { display: none; }
   body.panel-on .team .sets > span { --set-cell: 22px; }
   body.panel-on .team-name { font-size: clamp(18px, 5vw, 22px); }
 }
+
+/* =========================================================
+   v10 · IDs, entrar numa partida pelo código, convite e selo de partida manual
+   ========================================================= */
+.act-badges { flex: none; align-self: flex-start; display: grid; justify-items: end; gap: 4px; }
+.act-badges .tbadge { align-self: auto; }
+.mtag {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px 2px 5px; border-radius: 6px;
+  border: 1px dashed var(--hair-strong); color: var(--fg-2);
+  font: 600 9.5px/1.2 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+}
+.mtag .ic { font-size: 11px; }
+.rec-l .mtag { margin-left: 2px; }
+.idchip {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 7px;
+  border: 1px solid var(--hair-strong); background: var(--fill); color: var(--fg);
+  font: 600 11px/1 var(--font-mono); letter-spacing: 0.06em; cursor: pointer;
+}
+.idchip .ic { font-size: 12px; color: var(--fg-2); }
+.me-meta .idchip { margin-right: 2px; }
+
+.entrar-hero { gap: 10px; }
+.entrar-hero > .choose-ic { justify-self: start; }
+.entrar-hero h2 { margin: 2px 0 0; font: 700 21px/1.2 var(--font-display); letter-spacing: -0.02em; }
+.entrar-hero p { margin: 0; color: var(--fg-2); font-size: 14px; line-height: 1.45; }
+.entrar-hero p b { color: var(--fg); }
+.entrar-form { display: flex; gap: 8px; width: 100%; }
+.entrar-form input { flex: 1; min-width: 0; height: 48px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--fill); box-shadow: inset 0 0 0 1px var(--hair); color: var(--fg); font: 700 20px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; }
+.entrar-form input::placeholder { color: var(--fg-3); }
+.entrar-form input:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--brand), 0 0 0 4px color-mix(in srgb, var(--brand) 14%, transparent); }
+.entrar-form .btn { height: 48px; padding: 0 18px; }
+.demo-codes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.demo-codes > span { font: 500 10px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); margin-right: 2px; }
+.demo-codes .pill { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; }
+.claim-list { display: grid; gap: 8px; }
+.claim-opt { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--hair-strong); background: var(--surface); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.claim-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.claim-opt i { flex: none; width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--hair-strong); }
+.claim-opt.on { border-color: var(--brand); background: var(--brand-soft); }
+.claim-opt.on i { box-shadow: inset 0 0 0 6px var(--brand); }
+.claim-opt span { display: grid; gap: 2px; }
+.claim-opt b { font: 700 16px/1.2 var(--font-display); }
+.claim-opt small { color: var(--fg-2); font-size: 12px; }
+.claim-opt::after { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--tc); }
+.btn-primary:disabled { opacity: 0.45; box-shadow: none; cursor: default; }
+.claim-st { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid var(--hair-strong); background: var(--surface-2); }
+.claim-st > .ic { font-size: 22px; color: var(--fg-2); }
+.claim-st.ok { border-color: color-mix(in srgb, var(--brand) 40%, transparent); background: var(--brand-soft); }
+.claim-st.ok > .ic { color: var(--brand-ink); }
+.claim-st > span { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.claim-st b { font: 700 14px/1.25 var(--font-display); }
+.claim-st small { color: var(--fg-2); font-size: 12.5px; line-height: 1.35; }
+.invite .hint { margin: -4px 0 0; }
+.invite-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--hair); }
+.invite-code > span { font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-2); margin-right: auto; }
+.invite-code .idchip { height: 30px; font-size: 13px; }
+.invite:not(:has(.plist)) .invite-code { padding-top: 0; border-top: 0; }
+.entrar-hero { grid-template-columns: minmax(0, 1fr); }
+.entrar-hero > * { min-width: 0; }
+.entrar-form input { width: 100%; }

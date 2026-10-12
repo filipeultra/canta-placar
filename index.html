@@ -140,6 +140,16 @@
     <div class="scroll"><div class="page" id="actBody"></div></div>
   </section>
 
+  <!-- ENTRAR numa partida pelo código ou link -->
+  <section class="view" id="view-entrar" data-tab="inicio">
+    <header class="hdr">
+      <button class="icon-btn" type="button" data-action="back" title="Voltar"><svg><use href="#i-back"/></svg></button>
+      <h1 class="hdr-title">Entrar numa partida</h1>
+      <span class="hdr-spacer"></span>
+    </header>
+    <div class="scroll"><div class="page" id="entrarBody"></div></div>
+  </section>
+
   <!-- PERFIL de outra pessoa -->
   <section class="view" id="view-perfil" data-tab="inicio">
     <header class="hdr">
@@ -597,6 +607,10 @@
       </section>
       <button class="choose-card choose-btn" type="button" data-action="launch">
         <span class="choose-head"><span class="choose-ic alt"><svg><use href="#i-pencil-line"/></svg></span><span><b>Lançar partida</b><small>Esqueceu de marcar? Registre o resultado do jeito que lembrar</small></span></span>
+        <svg class="ic chev"><use href="#i-chev"/></svg>
+      </button>
+      <button class="choose-card choose-btn" type="button" data-go="entrar">
+        <span class="choose-head"><span class="choose-ic alt"><svg><use href="#i-tag"/></svg></span><span><b>Entrar numa partida</b><small>Jogou com alguém que já marcou? Use o código ou o link e pegue suas estatísticas</small></span></span>
         <svg class="ic chev"><use href="#i-chev"/></svg>
       </button>
     </div>

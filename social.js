@@ -87,17 +87,27 @@
     return sets;
   }
 
+  // IDs curtos e legíveis (sem 0/O/1/I para não confundir ao digitar)
+  const B32 = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  function short(str, n) { let h = hash(str), out = ''; for (let i = 0; i < n; i++) { out += B32[h % 32]; h = ((h >>> 5) ^ hash(str + i)) >>> 0; } return out; }
+  const userCode = id => 'UP-' + short('user:' + id, 6);
+  const matchCode = id => 'P-' + short('match:' + id, 6);
+  const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^P(?=[A-Z0-9]{6}$)/, 'P').replace(/^([A-Z]+)/, '$1');
+
   function create(opts) {
     const o = opts || {};
     const load = o.load || (() => null), save = o.save || (() => {});
     const now = () => (o.now ? o.now() : Date.now());
     let me = { id: 'me', name: 'Você', city: CITY, place: '', color: '#AFFB48' };
     let store = Object.assign(blankStore(), load() || {});
-    function blankStore() { return { v: 1, follows: SEED_FOLLOWS.slice(), myZaps: { 'tag-lu-old': 1 }, tagResp: {}, readUntil: now() - 30 * HOUR }; }
+    function blankStore() { return { v: 1, follows: SEED_FOLLOWS.slice(), myZaps: { 'tag-lu-old': 1 }, tagResp: {}, claims: {}, claimResp: {}, readUntil: now() - 30 * HOUR }; }
+    store.claims = store.claims || {}; store.claimResp = store.claimResp || {};
     const persist = () => save(store);
 
     const userMap = new Map(USERS.map(u => [u.id, u]));
     const user = id => (id === 'me' ? me : userMap.get(id) || null);
+    const publicId = id => (id === 'me' ? me.uid || userCode('me') : userCode(id));
+    const userByCode = c => { const k = normCode(c); return USERS.find(u => normCode(userCode(u.id)) === k) || (me.uid && normCode(me.uid) === k ? me : null); };
     const nameOf = p => (p && p.userId && user(p.userId) ? user(p.userId).name : (p && p.name) || '');
 
     // ---------- partidas fictícias dos outros ----------
@@ -253,17 +263,56 @@
           if (tagStatus(a, t.userId) === 'aceito') out.push({ id: 'acc:' + a.id + ':' + t.userId, kind: 'accepted', t: (t.at || a.playedAt) + MIN, actor: t.userId, activity: a });
         }
       }
+      for (const c of incomingClaims(mine)) if (c.activity) out.push({ id: 'claimreq:' + c.id, kind: 'claimReq', t: c.t, actor: c.userId, activity: c.activity, claim: c, status: c.status });
+      for (const c of myClaims()) {
+        const a = allOthers().find(x => x.id === c.id);
+        if (a && c.status === 'aceito') out.push({ id: 'claimok:' + c.id, kind: 'claimOk', t: c.at + MIN, actor: a.ownerId, activity: a, guest: c.player });
+      }
       [['ju', 1, 13, 10], ['gui', 3, 21, 5], ['duda', 6, 8, 40]].forEach(([u, d, h, m]) => out.push({ id: 'follow:' + u, kind: 'follow', t: at(d, h, m), actor: u }));
       return out.filter(n => n.t <= now()).sort((x, y) => y.t - x.t);
     }
-    const unread = mine => notifications(mine).filter(n => n.t > store.readUntil || (n.kind === 'tag' && n.status === 'pendente')).length;
+    const unread = mine => notifications(mine).filter(n => n.t > store.readUntil || ((n.kind === 'tag' || n.kind === 'claimReq') && n.status === 'pendente')).length;
     function markRead() { store.readUntil = now(); persist(); }
+
+    // ---------- entrar numa partida pelo código (convidado vira você) ----------
+    const findByCode = (code, mine) => { const k = normCode(code); return allOthers().concat(mine || []).find(a => normCode(matchCode(a.id)) === k) || null; };
+    function requestClaim(id, player) { store.claims[id] = { player, at: now() }; persist(); }
+    function cancelClaim(id) { delete store.claims[id]; persist(); }
+    // o dono fictício aceita um minuto depois (simulação, como nas marcações)
+    function claimStatus(id) {
+      const c = store.claims[id];
+      if (!c) return null;
+      return now() - c.at > MIN ? 'aceito' : 'pendente';
+    }
+    const myClaims = () => Object.keys(store.claims).map(id => Object.assign({ id, status: claimStatus(id) }, store.claims[id]));
+
+    // Pedidos de outras pessoas nas suas partidas: alguém do app com o mesmo primeiro nome de um convidado.
+    const first = n => String(n || '').trim().split(/\s+/)[0];
+    const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    function incomingClaims(mine) {
+      const out = [];
+      for (const a of mine || []) {
+        if (a.fromActivity || a.visibility === 'so-eu') continue;
+        a.teams.forEach((t, ti) => t.players.forEach(p => {
+          if (p.userId || !p.name) return;
+          const u = USERS.find(x => fold(first(x.name)) === fold(first(p.name)) && !involves(a, x.id));
+          if (!u) return;
+          const id = a.id + '|' + p.name;
+          out.push({ id, activity: a, guest: p.name, team: ti, userId: u.id, t: a.playedAt + (a.durationMs || 0) + 35 * MIN, status: (store.claimResp[id] || {}).status || 'pendente' });
+        }));
+      }
+      // os já respondidos continuam na lista (o app troca o convidado pela conta ao aceitar)
+      for (const [id, r] of Object.entries(store.claimResp)) if (!out.some(x => x.id === id)) out.push(Object.assign({ id }, r, { activity: (mine || []).find(a => a.id === r.matchId) || null }));
+      return out.filter(c => c.t <= now());
+    }
+    function respondClaim(c, status) { store.claimResp[c.id] = { status, matchId: c.activity.id, guest: c.guest, userId: c.userId, t: c.t, team: c.team }; persist(); }
 
     function reset() { store = blankStore(); others = null; persist(); }
 
     return {
       TYPES, VISIBILITY, PLACES, CITY,
       setMe(p) { me = Object.assign({}, me, p, { id: 'me' }); },
+      publicId, userByCode, matchCode, normCode, findByCode, requestClaim, cancelClaim, claimStatus, myClaims, incomingClaims, respondClaim,
       me: () => me, user, users: () => USERS.slice(), nameOf,
       isFollowing, toggleFollow, followsMe,
       following: () => store.follows.map(user).filter(Boolean),
@@ -275,5 +324,5 @@
     };
   }
 
-  return { create, TYPES, VISIBILITY, PLACES, CITY, USERS };
+  return { create, TYPES, VISIBILITY, PLACES, CITY, USERS, userCode, matchCode };
 });

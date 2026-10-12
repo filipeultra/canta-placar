@@ -87,5 +87,30 @@
     return list;
   }
 
-  return { ATHLETE, history };
+  // Partidas de pessoas do app com jogadores que ainda não têm conta (convidados), para demonstrar o
+  // "entrar numa partida pelo código": quem jogou pede ao dono para ser aquele jogador e recebe as estatísticas.
+  const GUEST_GAMES = [
+    { id: 'conv-1', owner: 'biel', daysAgo: 1, hour: 18, min: 40, sport: 'beach', teams: [['Biel Costa', 'Juninho'], ['Gui Alves', 'Léo Barros']], edge: 0.55 },
+    { id: 'conv-2', owner: 'nina', daysAgo: 3, hour: 9, min: 10, sport: 'peteca', teams: [['Nina Prado', 'Lari'], ['Ju Campos', 'Fê Ramos']], edge: 0.5 },
+    { id: 'conv-3', owner: 'caio', daysAgo: 6, hour: 19, min: 20, sport: 'padel', teams: [['Caio Lima', 'Tio Beto'], ['Gui Alves', 'Bia Fonseca']], edge: 0.52 },
+  ];
+  let guestCache = null;
+  function guestMatches(nowMs) {
+    const now = nowMs || Date.now();
+    if (guestCache && Math.abs(guestCache.now - now) < 3600000) return guestCache.list;
+    const r = rng(20261013);
+    const list = GUEST_GAMES.map((g, i) => {
+      const start = new Date(now); start.setDate(start.getDate() - g.daysAgo); start.setHours(g.hour, g.min, 0, 0);
+      const teams = [{ name: 'Verde', color: 'verde', players: g.teams[0].slice() }, { name: 'Laranja', color: 'laranja', players: g.teams[1].slice() }];
+      const cfgInput = g.sport === 'beach' ? { sport: 'beach', setsToWin: 1, gamesPerSet: 6, deuce: 'golden', decider: 'supertb', firstServer: i % 2 }
+        : g.sport === 'padel' ? { sport: 'padel', setsToWin: 2, gamesPerSet: 6, deuce: 'star', decider: 'supertb', firstServer: i % 2 }
+          : Object.assign({ sport: 'peteca', firstServer: i % 2 }, E.SPORTS.peteca.defaults, { setsToWin: 1 });
+      const played = playMatch(r, cfgInput, teams, start.getTime(), g.edge);
+      return { id: g.id, ownerId: g.owner, createdAt: start.getTime(), endedAt: played.endedAt, cfgInput, teams, events: played.events, redo: [], finished: true, demo: true, guestDemo: true };
+    }).filter(m => m.endedAt < now);
+    guestCache = { now, list };
+    return list;
+  }
+
+  return { ATHLETE, history, guestMatches };
 });
