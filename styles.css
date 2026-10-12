@@ -2250,7 +2250,12 @@ body.welcome-on { overflow: hidden; }
 .sug .btn { min-width: 0; padding: 0 8px; gap: 5px; justify-content: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12.5px; }
 .sug .btn .ic { flex: none; }
 /* timeline: a barra Seguindo/Geral gruda no topo com uma faixa da cor do fundo; o que rola some por baixo dela */
-.feed-bar { position: sticky; top: 0; z-index: 5; margin: -8px -16px 0; padding: 8px 16px 14px; background: linear-gradient(180deg, var(--bg) 0, var(--bg) 62%, color-mix(in srgb, var(--bg) 0%, transparent)); }
+.feed-bar {
+  position: sticky; top: 0; z-index: 5; margin: -8px -16px 0; padding: 8px 16px 14px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent);
+}
 /* menu de baixo: o conteúdo esmaece antes de passar por trás dele */
 .tab-scrim { position: absolute; left: 0; right: 0; bottom: 0; height: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 19; pointer-events: none; background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 0%, transparent), color-mix(in srgb, var(--bg) 88%, transparent) 62%, var(--bg)); }
 body[data-view="jogar"] .tab-scrim, body.tv .tab-scrim { display: none; }
@@ -2264,3 +2269,6 @@ body[data-view="jogar"] .tab-scrim, body.tv .tab-scrim { display: none; }
 /* gráfico de momento: o SVG é desenhado em 600 de largura e encolhe na tela; o texto acompanha para continuar legível */
 .momentum text { font: 700 17px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
 @media (min-width: 700px) { .momentum text { font-size: 13px; } }
+/* logo da barra fixa um pouco menor (a marca continua grande na tela de entrada) */
+.hdr .brand-logo { height: 22px; }
+@media (min-width: 900px) { .hdr .brand-logo { height: 24px; } }
