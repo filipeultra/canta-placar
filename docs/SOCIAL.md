@@ -32,9 +32,13 @@ Este documento descreve como a parte social funciona hoje no protótipo e o que 
 Sugestão para Postgres (por exemplo Supabase, que já traz login, regras por linha, tempo real e armazenamento de fotos).
 
 ```text
-users            id, public_id (UP-XXXXXX, único), name, handle (único), city, lat, lng, home_place_id, bio, avatar_url,
+users            id, public_id (UP-XXXXXX, único), name, handle (único), city,
+                 privacy_level ('aberto'|'personalizado'|'privado', padrão 'aberto'),
+                 privacy_show jsonb { partidas, estatisticas, conquistas, recordes, confrontos, atividade, geral }, lat, lng, home_place_id, bio, avatar_url,
                  sports text[], created_at, deleted_at
-follows          follower_id → users, followee_id → users, created_at          PK (follower_id, followee_id)
+follows          follower_id → users, followee_id → users, status ('ativo'|'pendente'), created_at   PK (follower_id, followee_id)
+blocks           user_id, blocked_id, created_at                                PK (user_id, blocked_id)
+reports          id, reporter_id, target_user_id | target_match_id, reason, created_at, status
 places           id, name, city, lat, lng, created_by                           (arenas, clubes, quadras)
 matches          id, code (P-XXXXXX, único, gerado no servidor), owner_id → users, sport, source ('live'|'manual'), cfg jsonb,
                  played_at, duration_ms, type, title, caption (≤140), visibility ('todos'|'seguidores'|'so-eu'),
@@ -72,6 +76,16 @@ Pontos importantes:
 
 Jogadores marcados que aceitaram sempre veem a partida, mesmo que seja só para seguidores.
 
+**Privacidade do perfil (por cima da visibilidade de cada partida):**
+
+| Nível | Quem não segue vê | Seguir |
+| --- | --- | --- |
+| Aberto (padrão de toda conta nova) | Tudo o que é público | Direto |
+| Personalizado | Só os itens marcados: partidas, números, conquistas, recordes, confrontos e parceiros, calendário; e se aparece no Geral | Direto |
+| Privado | Só nome, foto e ID; fora do Geral; publicações novas saem como "Seguidores" | Pedido que a pessoa aprova (`follows.status = 'pendente'`) |
+
+**Bloquear:** quem foi bloqueado não aparece na sua timeline, não vê seu perfil e não pode te marcar nem pedir para entrar nas suas partidas. Bloquear também desfaz o seguir nos dois sentidos.
+
 **Geral (perto de você):** no protótipo é "mesma cidade". No banco, o ideal é pelo local da partida (`places.lat/lng`) num raio de, por exemplo, 30 km da cidade da pessoa, com fallback para a cidade escrita. Nunca mostre a localização exata da pessoa, só o nome da arena ou quadra.
 
 ## Funções do protótipo → endpoints
@@ -106,6 +120,8 @@ Jogadores marcados que aceitaram sempre veem a partida, mesmo que seja só para 
 ## Decisões de produto já tomadas
 
 - Sem nível nem ranking de usuários (08/10/2026).
+- Toda conta nova começa com perfil **aberto**. A pessoa muda em Ajustes > Privacidade do perfil e pode ver a prévia "como os outros veem".
+- Na tela de entrada, os números "ao vivo" (pessoas jogando agora, partidas e pontos de hoje, por esporte) são estimados pela hora do dia até existir o dado real. No banco, saem de partidas abertas nos últimos 15 minutos.
 - A única interação nas partidas é o **zap** (o ícone de raio da marca), sem comentários por enquanto.
 - Conquistas usam só as partidas da própria pessoa: as dela, as marcações que ela aceitou e os convidados que ela reivindicou.
 - Partidas lançadas à mão sempre mostram o selo **manual**.

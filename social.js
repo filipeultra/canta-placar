@@ -27,6 +27,15 @@
     { id: 'seguidores', label: 'Seguidores', hint: 'Só quem segue você vê' },
     { id: 'so-eu', label: 'Só eu', hint: 'Fica só no seu perfil, para você' },
   ];
+  // Privacidade do perfil. Aberto: tudo para todos. Personalizado: cada item escolhido aparece para todos
+  // (seguidores veem tudo). Privado: só quem você aprovar vê partidas e números; fora do Geral.
+  const PRIVACY_ITEMS = [
+    ['partidas', 'Partidas', 'Lista de partidas e o que você publica'], ['estatisticas', 'Números', 'Partidas, vitórias, aproveitamento e sequências'],
+    ['conquistas', 'Conquistas', 'Medalhas e a conquista mais recente'], ['recordes', 'Recordes pessoais', 'Maior sequência, mais aces, maior virada…'],
+    ['confrontos', 'Confrontos e parceiros', 'Contra quem e com quem você joga'], ['atividade', 'Calendário de atividade', 'Dias em que você jogou'],
+    ['geral', 'Aparecer no Geral', 'Suas partidas públicas na timeline de quem joga perto'],
+  ];
+  const PRIVACY_OPEN = () => ({ level: 'aberto', show: Object.fromEntries(PRIVACY_ITEMS.map(i => [i[0], true])) });
   const PLACES = ['Arena Beach MOC', 'Clube Pentágono', 'Padel Point', 'Praça de Esportes', 'Quadra do Ibituruna', 'Arena Sol Nascente'];
 
   // Pessoas fictícias. Rafa e os parceiros e rivais são os mesmos do "perfil de exemplo" (demo.js).
@@ -43,8 +52,8 @@
     { id: 'gui', name: 'Gui Alves', city: CITY, place: 'Padel Point', sports: ['padel', 'beach'], color: '#5C9DFF', bio: '', followers: 45, following: 61 },
     { id: 'leo', name: 'Léo Barros', city: CITY, place: 'Clube Pentágono', sports: ['tenis', 'padel'], color: '#C8FF6A', bio: 'Tênis no Pentágono às 6h. Quem topa?', followers: 58, following: 49 },
     { id: 'ju', name: 'Ju Campos', city: CITY, place: 'Praça de Esportes', sports: ['peteca', 'volei'], color: '#FFC94D', bio: '', followers: 39, following: 52 },
-    { id: 'bia', name: 'Bia Fonseca', city: CITY, place: 'Clube Pentágono', sports: ['tenis'], color: '#6C7BFF', bio: 'Tenista federada. Aulas para iniciantes.', followers: 310, following: 120 },
-    { id: 'pedro', name: 'Pedro Sá', city: CITY, place: 'Arena Sol Nascente', sports: ['futevolei', 'volei'], color: '#FF5E3A', bio: 'Organizo o futevôlei de sábado.', followers: 142, following: 97 },
+    { id: 'bia', name: 'Bia Fonseca', city: CITY, place: 'Clube Pentágono', sports: ['tenis'], color: '#6C7BFF', bio: 'Tenista federada. Aulas para iniciantes.', followers: 310, following: 120, privacy: { level: 'privado' } },
+    { id: 'pedro', name: 'Pedro Sá', city: CITY, place: 'Arena Sol Nascente', sports: ['futevolei', 'volei'], color: '#FF5E3A', bio: 'Organizo o futevôlei de sábado.', followers: 142, following: 97, privacy: { level: 'personalizado', show: { partidas: false, estatisticas: true, conquistas: true, recordes: true, confrontos: false, atividade: true, geral: false } } },
     { id: 'carol', name: 'Carol Mendes', city: CITY, place: 'Quadra do Ibituruna', sports: ['volei', 'beach'], color: '#2FD5C7', bio: '', followers: 66, following: 74 },
     { id: 'davi', name: 'Davi Rocha', city: 'Belo Horizonte, MG', place: 'Arena Pampulha', sports: ['beach', 'padel'], color: '#9D5CFF', bio: 'BH. Beach todo dia.', followers: 420, following: 210 },
   ];
@@ -98,10 +107,10 @@
     const o = opts || {};
     const load = o.load || (() => null), save = o.save || (() => {});
     const now = () => (o.now ? o.now() : Date.now());
-    let me = { id: 'me', name: 'Você', city: CITY, place: '', color: '#AFFB48' };
+    let me = { id: 'me', name: 'Você', city: CITY, place: '', color: '#AFFB48', privacy: PRIVACY_OPEN() };
     let store = Object.assign(blankStore(), load() || {});
-    function blankStore() { return { v: 1, follows: SEED_FOLLOWS.slice(), myZaps: { 'tag-lu-old': 1 }, tagResp: {}, claims: {}, claimResp: {}, readUntil: now() - 30 * HOUR }; }
-    store.claims = store.claims || {}; store.claimResp = store.claimResp || {};
+    function blankStore() { return { v: 1, follows: SEED_FOLLOWS.slice(), myZaps: { 'tag-lu-old': 1 }, tagResp: {}, claims: {}, claimResp: {}, followReq: {}, blocked: [], readUntil: now() - 30 * HOUR }; }
+    store.claims = store.claims || {}; store.claimResp = store.claimResp || {}; store.followReq = store.followReq || {}; store.blocked = store.blocked || [];
     const persist = () => save(store);
 
     const userMap = new Map(USERS.map(u => [u.id, u]));
@@ -176,18 +185,43 @@
     }
 
     // ---------- seguir ----------
-    const isFollowing = id => store.follows.includes(id);
+    const privacyOf = id => { const u = user(id); const p = (u && u.privacy) || {}; const o = PRIVACY_OPEN(); return { level: p.level || 'aberto', show: Object.assign(o.show, p.show || {}) }; };
+    // perfil privado: o pedido de seguir é aprovado pela pessoa (simulação: um minuto depois)
+    function settleRequests() { for (const [id, t] of Object.entries(store.followReq)) if (now() - t > MIN) { delete store.followReq[id]; if (!store.follows.includes(id)) store.follows.push(id); } }
+    const isFollowing = id => { settleRequests(); return store.follows.includes(id); };
+    const followStatus = id => (isFollowing(id) ? 'seguindo' : store.followReq[id] ? 'solicitado' : null);
     function toggleFollow(id) {
-      if (!user(id) || id === 'me') return false;
-      store.follows = isFollowing(id) ? store.follows.filter(x => x !== id) : store.follows.concat(id);
+      if (!user(id) || id === 'me') return null;
+      if (isFollowing(id)) store.follows = store.follows.filter(x => x !== id);
+      else if (store.followReq[id]) delete store.followReq[id];
+      else if (privacyOf(id).level === 'privado') store.followReq[id] = now();
+      else store.follows = store.follows.concat(id);
       persist();
-      return isFollowing(id);
+      return followStatus(id);
+    }
+    const isBlocked = id => store.blocked.includes(id);
+    function toggleBlock(id) {
+      if (isBlocked(id)) store.blocked = store.blocked.filter(x => x !== id);
+      else { store.blocked = store.blocked.concat(id); store.follows = store.follows.filter(x => x !== id); delete store.followReq[id]; }
+      persist();
+      return isBlocked(id);
+    }
+    // o que um visitante (não seguidor) pode ver do perfil
+    function canView(id, item) {
+      if (id === 'me') return true;
+      if (isBlocked(id)) return false;
+      const p = privacyOf(id);
+      if (p.level === 'aberto' || isFollowing(id)) return true;
+      if (p.level === 'privado') return false;
+      return p.show[item] !== false;
     }
     const followsMe = id => SEED_FOLLOWERS.includes(id);
 
     // ---------- visibilidade ----------
     function canSee(a) {
       if (a.ownerId === 'me') return true;
+      if (isBlocked(a.ownerId)) return false;
+      if (!canView(a.ownerId, 'partidas')) return false;
       if (a.visibility === 'so-eu') return false;
       if (a.visibility === 'seguidores') return isFollowing(a.ownerId);
       return true;
@@ -235,7 +269,8 @@
       const visibleMine = (mine || []).filter(a => a.visibility !== 'so-eu');
       const pool = allOthers().filter(canSee);
       let list;
-      if (kind === 'geral') list = pool.filter(a => a.visibility === 'todos' && a.city === me.city).concat(visibleMine.filter(a => a.visibility === 'todos'));
+      const meInGeral = me.privacy.level === 'aberto' || (me.privacy.level === 'personalizado' && me.privacy.show.geral !== false && me.privacy.show.partidas !== false);
+      if (kind === 'geral') list = pool.filter(a => a.visibility === 'todos' && a.city === me.city && canView(a.ownerId, 'geral')).concat(meInGeral ? visibleMine.filter(a => a.visibility === 'todos') : []);
       else list = pool.filter(a => isFollowing(a.ownerId) || (involves(a, 'me') && tagStatus(a, 'me') === 'aceito')).concat(visibleMine);
       // partida aceita de uma marcação aparece uma vez só (a original, de quem marcou)
       const shown = new Set(list.map(a => a.id));
@@ -246,7 +281,7 @@
     const activity = id => allOthers().find(a => a.id === id) || null;
 
     // Pessoas para seguir: mesma cidade, mais seguidores primeiro.
-    const suggestions = () => USERS.filter(u => u.city === me.city && !isFollowing(u.id)).sort((a, b) => b.followers - a.followers);
+    const suggestions = () => USERS.filter(u => u.city === me.city && !isFollowing(u.id) && !store.followReq[u.id] && !isBlocked(u.id)).sort((a, b) => b.followers - a.followers);
 
     // ---------- notificações ----------
     function notifications(mine) {
@@ -314,7 +349,7 @@
       setMe(p) { me = Object.assign({}, me, p, { id: 'me' }); },
       publicId, userByCode, matchCode, normCode, findByCode, requestClaim, cancelClaim, claimStatus, myClaims, incomingClaims, respondClaim,
       me: () => me, user, users: () => USERS.slice(), nameOf,
-      isFollowing, toggleFollow, followsMe,
+      isFollowing, toggleFollow, followsMe, followStatus, privacyOf, canView, isBlocked, toggleBlock, PRIVACY_ITEMS, PRIVACY_OPEN,
       following: () => store.follows.map(user).filter(Boolean),
       followers: () => SEED_FOLLOWERS.map(user).filter(Boolean),
       canSee, involves, tagStatus, respondTag,
@@ -324,5 +359,5 @@
     };
   }
 
-  return { create, TYPES, VISIBILITY, PLACES, CITY, USERS, userCode, matchCode };
+  return { create, TYPES, VISIBILITY, PLACES, CITY, USERS, userCode, matchCode, PRIVACY_ITEMS, PRIVACY_OPEN };
 });

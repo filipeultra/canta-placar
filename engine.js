@@ -295,15 +295,20 @@
   }
 
   // Igual ao replay, mas devolve o resultado e o placar depois de cada lance (para o historico e o CSV).
-  function replayDetailed(c, events) {
+  // opts.context: guarda, em cada ponto, o placar de antes (quem sacava, set, game, tiebreak) e as situações
+  // (break, set e match point). É mais caro; só o "ponto a ponto" pede.
+  function replayDetailed(c, events, opts) {
     const s = initialState(c);
     const rows = [];
     let cc = c;
+    const ctx = !!(opts && opts.context);
     for (const ev of events || []) {
       let out;
+      const pre = ctx && ev && ev.type === 'point' && !s.done
+        ? { server: s.server, set: s.sets.length + 1, games: s.games.slice(), points: s.points.slice(), tb: s.inTiebreak, mtb: s.isMatchTb, sit: situations(s, cc) } : null;
       if (ev && ev.type === 'config') { cc = applyConfig(s, cc, ev); out = s.last; }
       else out = applyEvent(s, cc, ev);
-      rows.push({ ev, out: out ? Object.assign({}, out) : null, score: scoreLine(s, cc) });
+      rows.push({ ev, out: out ? Object.assign({}, out) : null, score: scoreLine(s, cc), pre, diff: s.timeline.length ? s.timeline[s.timeline.length - 1] : 0 });
     }
     return { state: s, rows, cfg: cc };
   }

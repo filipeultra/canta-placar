@@ -282,6 +282,27 @@
   </nav>
 </div>
 
+<!-- Boas-vindas: entrar, criar conta ou explorar; números do app ao vivo -->
+<section class="welcome" id="welcome" role="dialog" aria-modal="true" aria-label="Boas-vindas ao ULTRA PLAY" hidden>
+  <div class="wl-inner">
+    <svg class="wl-logo" viewBox="0 0 182 46" aria-hidden="true"><use href="#logo-h"/></svg>
+    <h1 class="wl-title">O placar que escuta.<br>A rede de quem joga.</h1>
+    <p class="wl-sub">Marque os pontos falando, guarde suas estatísticas e veja quem está jogando perto de você.</p>
+    <div class="wl-live" aria-live="off">
+      <span class="wl-badge"><i></i>Ao vivo no Brasil</span>
+      <div class="wl-big"><b id="wlNow">0</b><span>pessoas jogando agora</span></div>
+      <div class="wl-row">
+        <div><b id="wlToday">0</b><span>partidas hoje</span></div>
+        <div><b id="wlPts">0</b><span>pontos marcados hoje</span></div>
+        <div><b id="wlCity">0</b><span id="wlCityLbl">jogando perto de você</span></div>
+      </div>
+      <div class="wl-sports" id="wlSports"></div>
+    </div>
+    <div class="wl-step" id="wlStep"></div>
+    <p class="wl-legal">Ao continuar, você concorda com os Termos de uso e a Política de privacidade.</p>
+  </div>
+</section>
+
 <div class="banner" id="banner" aria-live="assertive">
   <div class="banner-card">
     <div class="banner-title" id="bannerTitle"></div>
@@ -420,6 +441,10 @@
           <div class="row"><span class="row-ic"><svg><use href="#i-users"/></svg></span><span>Rede de demonstração<small>Pessoas, partidas, zaps e convites fictícios para ver a timeline funcionando</small></span><button class="btn" type="button" id="btnSocialReset">Recomeçar</button></div>
         </div>
       </section>
+      <section class="group" id="privGroup">
+        <h3>Privacidade do perfil</h3>
+        <div class="list" id="privBody"></div>
+      </section>
       <section class="group">
         <h3>Voz</h3>
         <div class="list">
@@ -482,6 +507,15 @@
           </div>
           <label class="row"><span class="row-ic"><svg><use href="#i-phone"/></svg></span><span>Manter a tela ligada</span><input class="switch" type="checkbox" id="pAwake"></label>
           <div class="row"><span class="row-ic"><svg><use href="#i-window"/></svg></span><span>Placar numa segunda janela<small>Arraste para a TV ligada no notebook</small></span><button class="btn" type="button" id="btnWindow"><svg><use href="#i-window"/></svg>Abrir</button></div>
+        </div>
+      </section>
+      <section class="group">
+        <h3>Conta</h3>
+        <div class="list">
+          <div class="row"><span class="row-ic"><svg><use href="#i-user"/></svg></span><span>Seu ID<small>Passe para alguém te achar ou te marcar</small></span><button class="idchip" type="button" id="pUid" data-copy=""></button></div>
+          <div class="row"><span class="row-ic"><svg><use href="#i-download"/></svg></span><span>Exportar meus dados<small>Partidas, lances, perfil e rede, num arquivo</small></span><button class="btn" type="button" id="btnExportAll">Exportar</button></div>
+          <div class="row"><span class="row-ic"><svg><use href="#i-back"/></svg></span><span>Sair da conta<small>Volta para a tela de entrada; seus dados ficam no aparelho</small></span><button class="btn" type="button" id="btnLogout">Sair</button></div>
+          <div class="row"><span class="row-ic danger-ic"><svg><use href="#i-trash"/></svg></span><span>Excluir conta e dados<small>Apaga partidas, perfil e rede deste aparelho, de vez</small></span><button class="btn danger" type="button" id="btnDeleteAll">Excluir</button></div>
         </div>
       </section>
     </div>

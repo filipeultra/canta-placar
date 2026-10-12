@@ -51,7 +51,7 @@
   const HIST_MAX = 100;
   const writeHist = hist => store.set(KEY_HIST, hist.slice(0, HIST_MAX));
 
-  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true, myName: '', city: '', feedKind: 'seguindo', lastSport: '' };
+  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true, myName: '', city: '', feedKind: 'seguindo', lastSport: '', privacy: null };
   const prefs = Object.assign({}, DEFAULT_PREFS, store.get(KEY_PREFS, {}));
   const savePrefs = () => store.set(KEY_PREFS, prefs);
 
@@ -1222,8 +1222,11 @@
     }
     const ps = st.players.filter(p => p.pts + p.errors + p.df + p.assists + p.aces > 0);
     if (ps.length) {
-      h += '<div class="panel">' + ph('i-users', 'Por jogador') + '<div class="table-wrap"><table class="players-table"><thead><tr><th>Jogador</th><th>Pts</th><th>Aces</th><th>Win.</th><th>Assist.</th><th>Erros</th><th>Rede</th><th>Fora</th></tr></thead><tbody>' +
-        ps.map(p => '<tr><td><i style="--tc:' + colorVar(m.teams[p.team].color) + '"></i>' + esc(p.name) + (st.mvp && st.mvp === p ? ' <span class="badge">Destaque</span>' : '') + '</td><td>' + p.pts + '</td><td>' + p.aces + '</td><td>' + p.winners + '</td><td>' + p.assists + '</td><td>' + (p.errors + p.df) + '</td><td>' + p.rede + '</td><td>' + p.fora + '</td></tr>').join('') +
+      // colunas sem nenhum valor saem (assistência só existe em alguns esportes; rede/fora só com detalhe)
+      const COLS = [['Pts', p => p.pts], ['Erros', p => p.errors + p.df], ['Aces', p => p.aces], ['Win.', p => p.winners], ['Assist.', p => p.assists], ['Rede', p => p.rede], ['Fora', p => p.fora]]
+        .filter(([l, f], k) => k < 2 || ps.some(p => f(p) > 0));
+      h += '<div class="panel">' + ph('i-users', 'Por jogador') + '<div class="table-wrap"><table class="players-table"><thead><tr><th>Jogador</th>' + COLS.map(c0 => '<th>' + c0[0] + '</th>').join('') + '</tr></thead><tbody>' +
+        ps.map(p => '<tr><td><span class="pl-name"><i style="--tc:' + colorVar(m.teams[p.team].color) + '"></i><span>' + esc(p.name) + '</span></span>' + (st.mvp && st.mvp === p ? '<span class="badge">Destaque</span>' : '') + '</td>' + COLS.map(c0 => '<td>' + c0[1](p) + '</td>').join('') + '</tr>').join('') +
         '</tbody></table></div></div>';
     } else {
       h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
@@ -1310,7 +1313,15 @@
     if (!prefs.uid) { const B = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; let s = ''; for (let i = 0; i < 6; i++) s += B[Math.floor(Math.random() * 32)]; prefs.uid = 'UP-' + s; savePrefs(); }
     return prefs.uid;
   }
-  function syncMe() { SO.setMe({ name: myName(), city: prefs.city || SO.CITY, uid: myUid() }); }
+  const myPrivacy = () => { const p = prefs.privacy || {}; const o = window.CantaSocial.PRIVACY_OPEN(); return { level: p.level || 'aberto', show: Object.assign(o.show, p.show || {}) }; };
+  const defaultVis = () => (myPrivacy().level === 'privado' ? 'seguidores' : 'todos');
+  const PRIV_LBL = { aberto: 'Perfil aberto', personalizado: 'Perfil personalizado', privado: 'Perfil privado' };
+  const PRIV_HINT = {
+    aberto: 'Qualquer pessoa vê seu perfil, suas partidas públicas e seus números. Suas partidas aparecem no Geral.',
+    personalizado: 'Escolha o que quem não segue você pode ver. Seus seguidores continuam vendo tudo.',
+    privado: 'Só quem você aprovar vê suas partidas e números. Quem não segue você vê só nome e foto. Você sai do Geral.',
+  };
+  function syncMe() { SO.setMe({ name: myName(), city: prefs.city || SO.CITY, uid: myUid(), privacy: myPrivacy() }); }
 
   const firstName = n => String(n || '').trim().split(/\s+/)[0];
   const userColor = id => { const u = SO.user(id); return u && u.color ? u.color : '#AFFB48'; };
@@ -1418,7 +1429,7 @@
     if (sc) kp.push(['Placar', sc]);
     if (a.durationMs) kp.push(['Duração', fmtDur(a.durationMs)]);
     if (a.stats) kp.push(['Pontos', a.stats.pts[0] + '-' + a.stats.pts[1]]);
-    else kp.push(['Esporte', SPORT_SHORT[a.sport] || sportLabel(a.sport)]);
+    else if (a.result && a.result.sets && a.result.sets.length > 1) kp.push(['Sets', String(a.result.sets.length)]);
     const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
     return '<article class="act" data-act="' + esc(a.id) + '">' +
       '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' +
@@ -1437,7 +1448,7 @@
     const list = SO.suggestions().slice(0, 8);
     if (!list.length) return '';
     return '<section class="suggest"><div class="sec-head"><h2>Jogam perto de você</h2><span class="sec-meta">' + esc(SO.me().city.split(',')[0]) + '</span></div><div class="suggest-row">' +
-      list.map(u => '<div class="sug">' + avatarHTML(u.id, 'lg') + '<b data-user="' + esc(u.id) + '">' + esc(u.name) + '</b><small>' + esc(u.place) + '</small><button class="btn btn-sm follow" type="button" data-follow="' + esc(u.id) + '">' + ic('i-user-plus') + 'Seguir</button></div>').join('') +
+      list.map(u => '<div class="sug">' + avatarHTML(u.id, 'lg') + '<b data-user="' + esc(u.id) + '">' + esc(u.name) + '</b><small>' + esc(u.place) + '</small><button class="btn btn-sm follow" type="button" data-follow="' + esc(u.id) + '">' + ic(SO.privacyOf(u.id).level === 'privado' ? 'i-lock' : 'i-user-plus') + esc(followLbl(u.id)) + '</button></div>').join('') +
       '</div></section>';
   }
 
@@ -1501,22 +1512,83 @@
 
   // ---------- Perfil de outra pessoa ----------
   function renderPerfil(id) {
-    const u = SO.user(id);
+    syncMe();
+    const isMe = id === 'me';
+    const u = isMe ? Object.assign({}, SO.me(), { name: myName(), sports: [], bio: '', followers: SO.followers().length, following: SO.following().length }) : SO.user(id);
     if (!u) { $('#perfilBody').innerHTML = '<div class="empty-state"><b>Perfil não encontrado</b></div>'; return; }
-    $('#perfilTitle').textContent = firstName(u.name);
-    const acts = SO.byUser(id);
+    $('#perfilTitle').textContent = isMe ? 'Seu perfil' : firstName(u.name);
+    const priv = isMe ? myPrivacy() : SO.privacyOf(id);
+    // na prévia do seu perfil, valem as suas escolhas para quem não segue você
+    const can = item => (isMe ? (priv.level === 'aberto' || (priv.level === 'personalizado' && priv.show[item] !== false)) : SO.canView(id, item));
+    const blocked = !isMe && SO.isBlocked(id);
+    const acts = isMe ? myActivities().filter(a => a.visibility === 'todos') : SO.byUser(id);
+    if (isMe) { const sp = new Set(acts.map(a => a.sport)); u.sports = Array.from(sp); }
     const wins = acts.filter(a => a.result && a.result.winner != null && a.teams[a.result.winner].players.some(p => p.userId === id)).length;
-    const fol = SO.isFollowing(id);
-    let h = '<div class="panel me-card"><div class="me-head">' + avatarHTML(id, 'xl') + '<div class="me-id"><div class="me-name"><h2>' + esc(u.name) + '</h2></div>' +
-      '<div class="me-meta"><button class="idchip" type="button" data-copy="' + esc(SO.publicId(id)) + '">' + esc(SO.publicId(id)) + ic('i-copy') + '</button><span>' + ic('i-pin') + esc(u.city) + '</span><span>' + ic('i-grid') + esc(u.sports.map(s => SPORT_SHORT[s] || sportLabel(s)).join(' · ')) + '</span></div></div></div>' +
-      (u.bio ? '<p class="me-bio">' + esc(u.bio) + '</p>' : '') +
-      '<div class="me-counts"><div><b>' + acts.length + '</b><span>Partidas</span></div><div><b>' + (u.followers + (fol ? 1 : 0)) + '</b><span>Seguidores</span></div><div><b>' + u.following + '</b><span>Seguindo</span></div></div>' +
-      '<div class="perfil-actions"><button class="btn ' + (fol ? '' : 'btn-brand') + ' follow" type="button" data-follow="' + esc(id) + '">' + (fol ? ic('i-check') + 'Seguindo' : ic('i-user-plus') + 'Seguir') + '</button>' +
-      (SO.followsMe(id) ? '<span class="sec-meta">segue você</span>' : '') + '</div></div>';
-    if (acts.length) h += '<div class="streaks"><div class="streak">' + ic('i-flag') + '<b>' + acts.length + '</b><span>partidas</span></div><div class="streak">' + ic('i-trophy') + '<b>' + wins + '</b><span>vitórias</span></div><div class="streak">' + ic('i-pin') + '<b>' + esc(String(new Set(acts.map(a => a.place)).size)) + '</b><span>' + (new Set(acts.map(a => a.place)).size === 1 ? 'quadra' : 'quadras') + '</span></div></div>';
-    if (id === 'rafa') h += '<button class="cont-link" type="button" data-action="demo-profile">Ver estatísticas completas da Rafa</button>';
-    h += '<section class="block"><div class="sec-head"><h2>Partidas</h2><span class="sec-meta">' + acts.length + '</span></div><div class="feed">' + (acts.length ? acts.slice(0, 20).map(actCardHTML).join('') : '<div class="empty-state"><b>Sem partidas visíveis</b><span>Algumas partidas podem ser só para seguidores.</span></div>') + '</div></section>';
+    const fs = isMe ? null : SO.followStatus(id);
+    let h = isMe ? '<div class="preview-note">' + ic('i-info') + '<span><b>Prévia:</b> é assim que quem não segue você vê seu perfil (' + esc(PRIV_LBL[priv.level].toLowerCase()) + ').</span><button class="btn btn-sm" type="button" data-action="prefs">Mudar</button></div>' : '';
+    h += '<div class="panel me-card"><div class="me-head">' + avatarHTML(id, 'xl') + '<div class="me-id"><div class="me-name"><h2>' + esc(u.name) + '</h2>' + (priv.level === 'privado' ? '<span class="privtag" title="Perfil privado">' + ic('i-lock') + '</span>' : '') + '</div>' +
+      '<div class="me-meta"><button class="idchip" type="button" data-copy="' + esc(SO.publicId(id)) + '">' + esc(SO.publicId(id)) + ic('i-copy') + '</button><span>' + ic('i-pin') + esc(u.city) + '</span>' + (u.sports.length && can('estatisticas') ? '<span>' + ic('i-grid') + esc(u.sports.map(s => SPORT_SHORT[s] || sportLabel(s)).join(' · ')) + '</span>' : '') + '</div></div></div>' +
+      (u.bio && can('estatisticas') ? '<p class="me-bio">' + esc(u.bio) + '</p>' : '') +
+      '<div class="me-counts"><div><b>' + (can('partidas') ? acts.length : '–') + '</b><span>Partidas</span></div><div><b>' + (u.followers + (fs === 'seguindo' ? 1 : 0)) + '</b><span>Seguidores</span></div><div><b>' + u.following + '</b><span>Seguindo</span></div></div>' +
+      (isMe ? '' : '<div class="perfil-actions">' + (blocked ? '<button class="btn" type="button" data-block="' + esc(id) + '">Desbloquear</button>' : '<button class="btn ' + (fs ? '' : 'btn-brand') + ' follow" type="button" data-follow="' + esc(id) + '">' + ic(fs === 'seguindo' ? 'i-check' : fs === 'solicitado' ? 'i-clock' : priv.level === 'privado' ? 'i-lock' : 'i-user-plus') + esc(followLbl(id)) + '</button>') +
+        (SO.followsMe(id) ? '<span class="sec-meta">segue você</span>' : '') + '</div>') + '</div>';
+    if (blocked) { h += '<div class="empty-state">' + ic('i-lock') + '<b>Você bloqueou ' + esc(firstName(u.name)) + '</b><span>As partidas dessa pessoa não aparecem para você, e ela não pode te marcar.</span></div>'; $('#perfilBody').innerHTML = h; return; }
+    if (!isMe && priv.level === 'privado' && fs !== 'seguindo') {
+      h += '<div class="empty-state lock-state">' + ic('i-lock') + '<b>Perfil privado</b><span>' + (fs === 'solicitado' ? 'Pedido enviado. Quando ' + esc(firstName(u.name)) + ' aprovar, você vê as partidas e os números.' : 'Siga para pedir acesso às partidas e aos números de ' + esc(firstName(u.name)) + '.') + '</span></div>';
+    } else if (isMe && priv.level === 'privado') {
+      h += '<div class="empty-state lock-state">' + ic('i-lock') + '<b>Perfil privado</b><span>Quem não segue você vê só o nome e a foto. Pedidos para seguir chegam nas notificações.</span></div>';
+    } else {
+      if (can('estatisticas') && acts.length) h += '<div class="streaks"><div class="streak">' + ic('i-flag') + '<b>' + acts.length + '</b><span>partidas</span></div><div class="streak">' + ic('i-trophy') + '<b>' + wins + '</b><span>vitórias</span></div><div class="streak">' + ic('i-pin') + '<b>' + new Set(acts.map(a => a.place).filter(Boolean)).size + '</b><span>' + (new Set(acts.map(a => a.place).filter(Boolean)).size === 1 ? 'quadra' : 'quadras') + '</span></div></div>';
+      if (isMe && can('conquistas')) {
+        const got = S.profile(history(), myName()).achievements.filter(a => a.progress >= 1);
+        if (got.length) h += '<div class="panel">' + ph('i-medal', 'Conquistas', '<span class="sec-meta">' + got.length + '</span>') + '<div class="medal-row">' + got.slice(0, 8).map(a => medalHTML(a)).join('') + '</div></div>';
+      }
+      if (id === 'rafa' && can('estatisticas')) h += '<button class="cont-link" type="button" data-action="demo-profile">Ver estatísticas completas da Rafa</button>';
+      if (can('partidas')) h += '<section class="block"><div class="sec-head"><h2>Partidas</h2><span class="sec-meta">' + acts.length + '</span></div><div class="feed">' + (acts.length ? acts.slice(0, 20).map(actCardHTML).join('') : '<div class="empty-state"><b>Sem partidas visíveis</b><span>Algumas partidas podem ser só para seguidores.</span></div>') + '</div></section>';
+      const hidden = SO.PRIVACY_ITEMS.filter(i => i[0] !== 'geral' && !can(i[0]));
+      if (hidden.length) h += '<p class="hint center">' + ic('i-lock') + ' ' + (isMe ? 'Escondido de quem não segue você: ' : 'Privado por ' + esc(firstName(u.name)) + ': ') + esc(hidden.map(i => i[1].toLowerCase()).join(', ')) + '.</p>';
+    }
+    if (!isMe) h += '<div class="perfil-safety"><button class="linkish" type="button" data-block="' + esc(id) + '">' + (blocked ? 'Desbloquear' : 'Bloquear') + '</button><span>·</span><button class="linkish" type="button" data-report="' + esc(id) + '">Denunciar perfil</button></div>';
     $('#perfilBody').innerHTML = h;
+  }
+
+  // ---------- Ajustes: privacidade e conta ----------
+  function renderPrivacy() {
+    const p = myPrivacy();
+    let h = '<div class="row stack"><div class="seg seg-wide" role="radiogroup" aria-label="Nível de privacidade">' +
+      [['aberto', 'Aberto', 'i-globe'], ['personalizado', 'Personalizado', 'i-sliders'], ['privado', 'Privado', 'i-lock']].map(([v, l, icn]) => '<label><input type="radio" name="privLevel" value="' + v + '"' + (p.level === v ? ' checked' : '') + '><span>' + ic(icn) + l + '</span></label>').join('') + '</div>' +
+      '<small class="priv-hint">' + esc(PRIV_HINT[p.level]) + '</small></div>';
+    const PIC = { partidas: 'i-flag', estatisticas: 'i-chart', conquistas: 'i-medal', recordes: 'i-trophy', confrontos: 'i-swords', atividade: 'i-calendar', geral: 'i-globe' };
+    if (p.level === 'personalizado') h += SO.PRIVACY_ITEMS.map(([k, l, d]) => '<label class="row"><span class="row-ic">' + ic(PIC[k]) + '</span><span>' + esc(l) + '<small>' + esc(d) + '</small></span><input class="switch" type="checkbox" data-priv="' + k + '"' + (p.show[k] !== false ? ' checked' : '') + '></label>').join('');
+    h += '<div class="row"><span class="row-ic">' + ic('i-user') + '</span><span>Ver como os outros veem<small>Prévia do seu perfil para quem não segue você</small></span><button class="btn" type="button" id="btnPrivPreview">' + ic('i-user') + 'Ver</button></div>';
+    $('#privBody').innerHTML = h;
+  }
+  function savePrivacy(p) { prefs.privacy = p; savePrefs(); syncMe(); renderPrivacy(); refreshSocial(); }
+  function wirePrivacy() {
+    $('#privBody').addEventListener('change', e => {
+      const p = myPrivacy();
+      if (e.target.name === 'privLevel') { p.level = e.target.value; savePrivacy(p); toast(PRIV_LBL[p.level]); }
+      if (e.target.dataset.priv) { p.show[e.target.dataset.priv] = e.target.checked; savePrivacy(p); }
+    });
+    $('#privBody').addEventListener('click', e => { if (e.target.closest('#btnPrivPreview')) { closeAllSheets(); go('perfil', 'me'); } });
+    $('#btnExportAll').addEventListener('click', () => {
+      const all = { exportadoEm: new Date().toISOString(), perfil: { nome: myName(), id: myUid(), cidade: prefs.city || '', privacidade: myPrivacy() }, partidas: readHist(), partidaAoVivo: match, rede: store.get(KEY_SOCIAL, {}), ajustes: prefs };
+      download('ultra-play-meus-dados.json', JSON.stringify(all, null, 2), 'application/json');
+    });
+    $('#btnLogout').addEventListener('click', () => { prefs.onboarded = false; savePrefs(); closeAllSheets(); showWelcome(); });
+    $('#btnDeleteAll').addEventListener('click', e => {
+      const b = e.currentTarget;
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Toque de novo'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Excluir'; }, 4000); return; }
+      try { Object.keys(localStorage).filter(k => k.startsWith('canta.')).forEach(k => localStorage.removeItem(k)); } catch (err) { console.warn('[conta] limpeza falhou', err); }
+      location.hash = ''; location.reload();
+    });
+    document.addEventListener('click', e => {
+      const bl = e.target.closest('[data-block]');
+      if (bl) { const on = SO.toggleBlock(bl.dataset.block); toast(on ? 'Pessoa bloqueada' : 'Pessoa desbloqueada'); refreshSocial(); return; }
+      const rp = e.target.closest('[data-report]');
+      if (rp) toast('Denúncia enviada. A equipe vai analisar, obrigado.');
+      if (e.target.closest('[data-go-perfil-me]')) go('perfil', 'me');
+    });
   }
 
   // ---------- Notificações ----------
@@ -1585,12 +1657,14 @@
     if (on) $$('[data-zap="' + CSS.escape(id) + '"]').forEach(b => { b.classList.add('pop'); });
   }
   function onFollow(id) {
-    const on = SO.toggleFollow(id);
-    toast(on ? 'Seguindo ' + firstName(SO.user(id).name) : 'Você deixou de seguir ' + firstName(SO.user(id).name));
+    const st = SO.toggleFollow(id);
+    const n = firstName(SO.user(id).name);
+    toast(st === 'seguindo' ? 'Seguindo ' + n : st === 'solicitado' ? 'Pedido enviado: ' + n + ' tem perfil privado' : 'Você deixou de seguir ' + n);
     refreshSocial();
     if (isOpen('#sheetPeople')) $$('#peopleBody [data-follow="' + CSS.escape(id) + '"]').forEach(b => { b.outerHTML = followBtnHTML(id); });
   }
-  const followBtnHTML = id => '<button class="btn btn-sm follow' + (SO.isFollowing(id) ? '' : ' btn-brand') + '" type="button" data-follow="' + esc(id) + '">' + (SO.isFollowing(id) ? 'Seguindo' : 'Seguir') + '</button>';
+  const followLbl = id => { const s = SO.followStatus(id); return s === 'seguindo' ? 'Seguindo' : s === 'solicitado' ? 'Solicitado' : SO.privacyOf(id).level === 'privado' ? 'Pedir para seguir' : 'Seguir'; };
+  const followBtnHTML = id => '<button class="btn btn-sm follow' + (SO.followStatus(id) ? '' : ' btn-brand') + '" type="button" data-follow="' + esc(id) + '">' + followLbl(id) + '</button>';
   function openPeople(title, ids) {
     $('#peopleTitle').textContent = title;
     $('#peopleBody').innerHTML = ids.length ? '<div class="plist">' + ids.map(id => {
@@ -1678,8 +1752,8 @@
       '</div><datalist id="placeList">' + SO.PLACES.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist></section>' +
       (o.tags ? '<section class="group"><h3>Marcar pessoas</h3>' + pickerHTML(o.prefix + 'Tags', 'Quem jogou com você ou contra você', 8, false, o.tags, 'Buscar pessoa para marcar') + '<p class="hint">Quem for marcado recebe uma notificação para confirmar. Ao aceitar, a partida entra no perfil dela também.</p></section>' : '') +
       '<section class="group"><h3>Quem pode ver</h3><div class="seg seg-wide" role="radiogroup" aria-label="Quem pode ver">' +
-      SO.VISIBILITY.map(v => '<label><input type="radio" name="' + o.prefix + 'Vis" value="' + v.id + '"' + ((p.visibility || 'todos') === v.id ? ' checked' : '') + '><span>' + ic(VIS_ICON[v.id]) + esc(v.label) + '</span></label>').join('') + '</div>' +
-      '<p class="hint" id="' + o.prefix + 'VisHint">' + esc((SO.VISIBILITY.find(v => v.id === (p.visibility || 'todos')) || {}).hint || '') + '</p></section>';
+      SO.VISIBILITY.map(v => '<label><input type="radio" name="' + o.prefix + 'Vis" value="' + v.id + '"' + ((p.visibility || defaultVis()) === v.id ? ' checked' : '') + '><span>' + ic(VIS_ICON[v.id]) + esc(v.label) + '</span></label>').join('') + '</div>' +
+      '<p class="hint" id="' + o.prefix + 'VisHint">' + esc((SO.VISIBILITY.find(v => v.id === (p.visibility || defaultVis())) || {}).hint || '') + '</p></section>';
   }
   function readPost(prefix, base) {
     const val = id => ($('#' + prefix + id) ? $('#' + prefix + id).value.trim() : '');
@@ -1687,7 +1761,7 @@
     const tags = (pickers[prefix + 'Tags'] ? pickers[prefix + 'Tags'].items : []).filter(i => i.userId && i.userId !== 'me');
     return Object.assign({}, base || {}, {
       type: getRadio(prefix + 'Type') || 'amistoso', title: val('Title'), caption: val('Caption').slice(0, 140), place: val('Place'),
-      visibility: getRadio(prefix + 'Vis') || 'todos',
+      visibility: getRadio(prefix + 'Vis') || defaultVis(),
       tagged: tags.map(t => old.find(x => x.userId === t.userId) || { userId: t.userId, status: 'pendente', at: Date.now() }),
     });
   }
@@ -1763,7 +1837,7 @@
       '<section class="group"><h3>Resultado</h3><div class="seg seg-wide" role="radiogroup" aria-label="Resultado"><label><input type="radio" name="lnWin" value="0"><span>Vitória</span></label><label><input type="radio" name="lnWin" value="1"><span>Derrota</span></label><label><input type="radio" name="lnWin" value="" checked><span>Não informar</span></label></div>' +
       '<div class="seg seg-wide seg-sm" role="radiogroup" aria-label="Placar"><label><input type="radio" name="lnMode" value="sets" checked><span>Placar por set</span></label><label><input type="radio" name="lnMode" value="final"><span>Só o final</span></label><label><input type="radio" name="lnMode" value="none"><span>Sem placar</span></label></div>' +
       '<div id="lnScore"></div><p class="hint" id="lnScoreHint"></p></section>' +
-      postFieldsHTML({ visibility: 'todos' }, { prefix: 'ln', tags: null }) +
+      postFieldsHTML({ visibility: defaultVis() }, { prefix: 'ln', tags: null }) +
       '<p class="form-error" id="lnError" role="alert" hidden></p>' +
       '<button class="btn-primary" type="submit">' + ic('i-check') + 'Lançar partida</button>';
     renderLaunchScore(); renderLaunchTitle();
@@ -2027,6 +2101,95 @@
     });
   }
 
+  // ---------- Boas-vindas (entrar / criar conta) com números do app ao vivo ----------
+  // Números calculados pela hora do dia (mais gente à noite e no fim de semana) e oscilando devagar.
+  const WL_SPORTS = [['beach', 0.41], ['padel', 0.2], ['volei', 0.12], ['futevolei', 0.1], ['tenis', 0.11], ['peteca', 0.06]];
+  let wlTimer = null, wlNowVal = 0;
+  function wlCurve(d) {
+    const h = d.getHours() + d.getMinutes() / 60;
+    const eve = Math.exp(-Math.pow((h - 19.5) / 2.4, 2)), morn = 0.45 * Math.exp(-Math.pow((h - 8) / 1.6, 2)), lunch = 0.15 * Math.exp(-Math.pow((h - 12.5) / 1.2, 2));
+    const wk = [0, 6].includes(d.getDay()) ? 1.25 : 1;
+    return (0.06 + eve + morn + lunch) * wk;
+  }
+  function wlNumbers() {
+    const d = new Date();
+    const base = Math.round(3600 * wlCurve(d));
+    let today = 0; // partidas já jogadas hoje: soma da curva até agora
+    for (let m = 0; m < d.getHours() * 60 + d.getMinutes(); m += 10) { const t = new Date(d); t.setHours(0, m, 0, 0); today += wlCurve(t) * 3600 / 4.2 / 6; }
+    return { now: base, today: Math.round(today), pts: Math.round(today * 96) };
+  }
+  const fmtN = n => (n >= 1e6 ? (n / 1e6).toFixed(1).replace('.', ',') + ' mi' : n.toLocaleString('pt-BR'));
+  function countTo(el, to, ms) {
+    const from = Number(el.dataset.v || 0), t0 = performance.now();
+    el.dataset.v = to;
+    const step = t => { const k = Math.min(1, (t - t0) / ms); const e = 1 - Math.pow(1 - k, 3); el.textContent = fmtN(Math.round(from + (to - from) * e)); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  function wlRender(first) {
+    const n = wlNumbers();
+    if (first || !wlNowVal) wlNowVal = n.now; else wlNowVal = Math.max(40, wlNowVal + Math.round((n.now - wlNowVal) * 0.3 + (Math.random() - 0.45) * 14));
+    countTo($('#wlNow'), wlNowVal, first ? 1400 : 700);
+    countTo($('#wlToday'), n.today + (first ? 0 : Math.floor(Math.random() * 4)), first ? 1400 : 700);
+    countTo($('#wlPts'), n.pts, first ? 1400 : 700);
+    const city = (prefs.city || SO.CITY).split(',')[0];
+    $('#wlCityLbl').textContent = 'jogando em ' + city;
+    countTo($('#wlCity'), Math.max(3, Math.round(wlNowVal * 0.009)), first ? 1400 : 700);
+    const max = WL_SPORTS[0][1];
+    $('#wlSports').innerHTML = WL_SPORTS.map(([sp, w]) => '<div class="wl-sp"><span>' + ic('s-' + sp) + esc(sportLabel(sp)) + '</span><u><em style="width:' + Math.round(w / max * 100) + '%"></em></u><b>' + fmtN(Math.round(wlNowVal * w)) + '</b></div>').join('');
+  }
+  function wlStep(kind) {
+    const box = $('#wlStep');
+    if (kind === 'signup' || kind === 'complete') {
+      box.innerHTML = '<form class="wl-form" id="wlForm"><b class="wl-form-title">' + (kind === 'complete' ? 'Complete seu perfil' : 'Criar conta') + '</b>' +
+        '<label class="field"><span>Seu nome</span><input type="text" id="wlName" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="' + esc(prefs.myName || '') + '"></label>' +
+        '<label class="field"><span>Cidade</span><input type="text" id="wlCity2" maxlength="60" placeholder="Montes Claros, MG" value="' + esc(prefs.city || '') + '"></label>' +
+        '<span class="field"><span>O que você joga</span><span class="chips-pick">' + Object.keys(E.SPORTS).map(k => '<label class="cpick"><input type="checkbox" name="wlSport" value="' + k + '"' + ((prefs.mySports || []).includes(k) ? ' checked' : '') + '><span>' + ic('s-' + k) + esc(SPORT_SHORT[k] || E.SPORTS[k].label) + '</span></label>').join('') + '</span></span>' +
+        '<p class="form-error" id="wlErr" hidden></p><button class="btn-primary" type="submit">' + ic('i-check') + 'Começar</button><button class="linkish center" type="button" data-wl="back">Voltar</button></form>';
+      const n = $('#wlName'); if (n) n.focus();
+      return;
+    }
+    if (kind === 'login') {
+      box.innerHTML = '<div class="wl-actions"><button class="btn-ghost wl-prov" type="button" data-wl="auth">' + ic('i-globe') + 'Continuar com Google</button><button class="btn-ghost wl-prov" type="button" data-wl="auth">' + ic('i-user') + 'Continuar com Apple</button><button class="btn-ghost wl-prov" type="button" data-wl="auth">' + ic('i-phone') + 'Entrar com o celular</button><button class="linkish center" type="button" data-wl="back">Voltar</button></div>';
+      return;
+    }
+    box.innerHTML = '<div class="wl-actions"><button class="btn-primary" type="button" data-wl="signup">Criar conta grátis</button><button class="btn-ghost" type="button" data-wl="login">Já tenho conta</button><button class="linkish center" type="button" data-wl="skip">Explorar sem conta</button></div>';
+  }
+  function showWelcome() {
+    const w = $('#welcome');
+    w.hidden = false; document.body.classList.add('welcome-on');
+    wlStep(); wlRender(true);
+    clearInterval(wlTimer); wlTimer = setInterval(() => { if (!w.hidden) wlRender(false); }, 3000);
+  }
+  function hideWelcome(msg) {
+    prefs.onboarded = true; savePrefs();
+    $('#welcome').hidden = true; document.body.classList.remove('welcome-on');
+    clearInterval(wlTimer);
+    syncMe(); refreshSocial();
+    if (msg) toast(msg);
+  }
+  function wireWelcome() {
+    $('#welcome').addEventListener('click', e => {
+      const b = e.target.closest('[data-wl]'); if (!b) return;
+      const k = b.dataset.wl;
+      if (k === 'skip') hideWelcome();
+      else if (k === 'auth') { if (prefs.myName) hideWelcome('Bem-vindo de volta, ' + firstName(prefs.myName)); else wlStep('complete'); }
+      else if (k === 'back') wlStep();
+      else wlStep(k);
+    });
+    $('#welcome').addEventListener('submit', e => {
+      if (e.target.id !== 'wlForm') return;
+      e.preventDefault();
+      const n = $('#wlName').value.trim();
+      if (!n) { const er = $('#wlErr'); er.textContent = 'Diga seu nome para criar a conta.'; er.hidden = false; return; }
+      prefs.myName = n; prefs.city = $('#wlCity2').value.trim(); prefs.mySports = $$('input[name="wlSport"]:checked').map(x => x.value);
+      if (!prefs.privacy) prefs.privacy = { level: 'aberto' }; // toda conta nova começa com perfil aberto
+      savePrefs(); myUid();
+      hideWelcome('Conta criada. Bem-vindo, ' + firstName(n) + '!');
+    });
+    const h = location.hash || '';
+    if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar')) showWelcome();
+  }
+
   // ---------- Partida salva ----------
   function findMatch(id) {
     if (id === 'live') return match;
@@ -2112,12 +2275,13 @@
     const hist = history();
     const known = S.knownPlayers(hist);
     const body = $('#meBody');
-    const useDemo = meDemo === null ? !known.length : meDemo;
+    const hasMe = !!known.length || !!prefs.myName; // com conta (nome) o seu perfil existe mesmo sem partidas
+    const useDemo = meDemo === null ? !hasMe : meDemo;
     let list, who, extra = null;
     if (useDemo) { list = DM.history(); who = DM.ATHLETE.name; extra = DM.ATHLETE; }
     else {
       list = hist;
-      const me = known.find(k => k.key === S.fold(prefs.me || prefs.myName || '')) || known[0];
+      const me = known.find(k => k.key === S.fold(prefs.me || prefs.myName || '')) || (prefs.myName ? { name: prefs.myName } : known[0]);
       who = me.name;
     }
     const all = S.profile(list, who);
@@ -2130,26 +2294,31 @@
     const sportsTxt = sportsOf.map(sportLabel).join(' · ');
     let h = '';
     h += '<div class="seg seg-wide me-switch" role="radiogroup" aria-label="Qual perfil">' +
-      '<label><input type="radio" name="meWho" value="0"' + (!useDemo ? ' checked' : '') + (known.length ? '' : ' disabled') + '><span>Meu perfil</span></label>' +
+      '<label><input type="radio" name="meWho" value="0"' + (!useDemo ? ' checked' : '') + (hasMe ? '' : ' disabled') + '><span>Meu perfil</span></label>' +
       '<label><input type="radio" name="meWho" value="1"' + (useDemo ? ' checked' : '') + '><span>Perfil de exemplo</span></label></div>';
     if (useDemo) h += '<p class="demo-note">' + ic('i-info') + '<span>Atleta e partidas fictícias, para mostrar como fica um perfil com 4 meses de jogo.' + (known.length ? '' : ' O seu aparece aqui depois da primeira partida com o seu nome.') + '</span></p>';
 
     // cabeçalho
     h += '<div class="panel me-card"><div class="me-head"><span class="me-avatar">' + esc(initials(p.name)) + '</span><div class="me-id">' +
       '<div class="me-name"><h2>' + esc(p.name) + '</h2>' + (useDemo || isPro() ? '<span class="pro-badge">PRO</span>' : '') + '</div>' +
-      '<div class="me-meta">' + (!useDemo ? '<button class="idchip" type="button" data-copy="' + esc(myUid()) + '" title="Seu ID: passe para alguém te achar">' + esc(myUid()) + ic('i-copy') + '</button>' : '') + (extra ? '<span>' + ic('i-pin') + esc(extra.city) + '</span><span>' + ic('i-calendar') + esc(extra.since.replace('jogando desde', 'Desde')) + '</span>' : '<span>' + ic('i-grid') + esc(sportsTxt) + '</span>') + '</div>' +
+      (!useDemo ? '<div class="me-privrow"><button class="privchip p-' + myPrivacy().level + '" type="button" data-action="prefs">' + ic(myPrivacy().level === 'privado' ? 'i-lock' : myPrivacy().level === 'personalizado' ? 'i-sliders' : 'i-globe') + esc(PRIV_LBL[myPrivacy().level]) + '</button><button class="linkish small" type="button" data-go-perfil-me>Ver como os outros veem</button></div>' : '') +
+      '<div class="me-meta">' + (!useDemo ? '<button class="idchip" type="button" data-copy="' + esc(myUid()) + '" title="Seu ID: passe para alguém te achar">' + esc(myUid()) + ic('i-copy') + '</button>' : '') + (extra ? '<span>' + ic('i-pin') + esc(extra.city) + '</span><span>' + ic('i-calendar') + esc(extra.since.replace('jogando desde', 'Desde')) + '</span>' : (sportsTxt ? '<span>' + ic('i-grid') + esc(sportsTxt) + '</span>' : '')) + '</div>' +
       '</div></div>' +
       (extra ? '<p class="me-bio">' + esc(extra.bio) + '</p>' : '') +
       '<div class="me-counts">' + (extra
         ? [['Seguidores', extra.followers], ['Seguindo', extra.following], ['Partidas', all.matches]]
         : [['Partidas', all.matches], ['Seguidores', SO.followers().length, 'followers'], ['Seguindo', SO.following().length, 'following']]).map(([l, v, k]) => (k ? '<button type="button" data-people="' + k + '">' : '<div>') + '<b>' + v + '</b><span>' + l + '</span>' + (k ? '</button>' : '</div>')).join('') + '</div>' +
-      (!useDemo && known.length > 1 ? '<div class="me-pick"><span class="sec-meta">Ver como:</span>' + known.slice(0, 12).map(k => '<button class="pill' + (k.name === who ? ' on' : '') + '" type="button" data-me="' + esc(k.name) + '">' + esc(k.name) + '</button>').join('') + '</div>' : '') + '</div>';
+      (!useDemo && known.length > 1 && !prefs.myName ? '<div class="me-pick"><span class="sec-meta">Ver como:</span>' + known.slice(0, 12).map(k => '<button class="pill' + (k.name === who ? ' on' : '') + '" type="button" data-me="' + esc(k.name) + '">' + esc(k.name) + '</button>').join('') + '</div>' : '') + '</div>';
 
     // filtro por esporte
     if (sportsOf.length > 1) h += '<div class="sport-filter" role="radiogroup" aria-label="Esporte">' +
       '<button class="sf' + (meSport ? '' : ' on') + '" type="button" role="radio" aria-checked="' + !meSport + '" data-mesport="">' + ic('i-grid') + '<span>Todos</span></button>' +
       sportsOf.map(sp => '<button class="sf' + (meSport === sp ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (meSport === sp) + '" data-mesport="' + sp + '" title="' + esc(sportLabel(sp)) + ': ' + all.sports[sp] + (all.sports[sp] === 1 ? ' partida' : ' partidas') + '">' + ic('s-' + sp) + '<span>' + esc(SPORT_SHORT[sp] || sportLabel(sp)) + '</span></button>').join('') + '</div>';
 
+    if (!useDemo && !all.matches) {
+      body.innerHTML = h + '<div class="empty-state first-match">' + ic('i-flag') + '<b>Sua primeira partida aparece aqui</b><span>Marque ao vivo falando os pontos ou lance uma partida que já jogou. Daí saem seus números, recordes e conquistas.</span><div class="actions"><button class="btn btn-brand" type="button" data-action="choose">' + ic('i-plus') + 'Nova partida</button><button class="btn" type="button" data-go="entrar">' + ic('i-tag') + 'Tenho um código</button></div></div>';
+      return;
+    }
     // sequências
     h += '<div class="streaks">' +
       '<div class="streak hot">' + ic('i-flame') + '<b>' + (cur.kind ? cur.len : '–') + '</b><span>' + (cur.kind === 'D' ? (cur.len === 1 ? 'derrota seguida' : 'derrotas seguidas') : (cur.len === 1 ? 'vitória seguida' : 'vitórias seguidas')) + '</span></div>' +
@@ -2226,7 +2395,8 @@
     $('#proBody').innerHTML =
       '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
       '<ul class="pro-list">' +
-      '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Abra o gráfico da partida e veja cada ponto: quem fez, ace, winner, erro na rede ou pra fora, golpe e placar naquele instante.</span></li>' +
+      '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Cada ponto no gráfico e na lista, game a game: quem fez, ace, winner, erro, golpe e o placar naquele instante. Filtre por jogador ou tipo de lance.</span></li>' +
+      '<li><svg><use href="#i-target"/></svg><span><b>Pontos decisivos</b>Break points, set points e match points convertidos e salvos por cada time, viradas na liderança e maior vantagem.</span></li>' +
       '<li><svg><use href="#i-download"/></svg><span><b>Exportar planilha e dados</b>Todos os lances em CSV para Excel e Google Planilhas, e em JSON para análise.</span></li>' +
       '<li><svg><use href="#i-trophy"/></svg><span><b>Histórico completo</b>Hoje o aparelho guarda as últimas ' + HIST_MAX + ' partidas. No Pro, todas, com recordes e confrontos de tudo (quando houver conta na nuvem).</span></li>' +
       '</ul>' +
@@ -2244,56 +2414,162 @@
 
   // ---------- Momento ponto a ponto (Pro) ----------
   const TAG_LBL = { ace: 'Ace', df: 'Dupla falta', winner: 'Winner', error: 'Erro' };
+  // Resumo (viradas, sequência, maior vantagem), pontos decisivos (break/set/match point), gráfico com as áreas
+  // de cada time, filtros por tipo de lance e jogador, lista agrupada por game e navegação ponto a ponto.
+  let mom = null;
+  function momentData(m) {
+    const c = E.makeConfig(m.cfgInput);
+    const rows = E.replayDetailed(c, (m.events || []).filter(e => e && typeof e === 'object'), { context: true }).rows;
+    const pts = rows.filter(r => r.ev.type === 'point' && r.pre && (!r.out || r.out.type !== 'ignored'));
+    const st = S.matchStats(m);
+    // pontos decisivos: em cada um, quem tinha a chance e se converteu
+    const key = { break: [[0, 0], [0, 0]], set: [[0, 0], [0, 0]], match: [[0, 0], [0, 0]] };
+    pts.forEach(r => {
+      r.keys = [];
+      for (const s of r.pre.sit) {
+        if (!key[s.type]) continue;
+        key[s.type][s.team][1]++;
+        if (r.ev.team === s.team) key[s.type][s.team][0]++;
+        r.keys.push(s.type);
+      }
+    });
+    let changes = 0, lastLead = 0, maxLead = [0, 0];
+    pts.forEach(r => {
+      const d = r.diff;
+      const lead = d > 0 ? 1 : d < 0 ? -1 : 0;
+      if (lead && lastLead && lead !== lastLead) changes++;
+      if (lead) lastLead = lead;
+      if (d > maxLead[0]) maxLead[0] = d;
+      if (-d > maxLead[1]) maxLead[1] = -d;
+    });
+    return { m, c, st, pts, key, changes, maxLead };
+  }
+  const KEY_LBL = { break: 'BP', set: 'SP', match: 'MP' };
+  const KEY_NAME = { break: 'Break point', set: 'Set point', match: 'Match point' };
+
   function openMoment(m) {
     if (!m) return;
     if (!isPro()) { openPro('momento'); return; }
-    const st = S.matchStats(m);
-    const pts = st.rows.filter(r => r.ev.type === 'point' && (!r.out || r.out.type !== 'ignored'));
-    const tl = st.timeline;
-    const W = Math.max(640, pts.length * 12), H = 220, pad = 22; // altura fixa; partida longa rola na horizontal
-    const hi = Math.max(1, ...tl), lo = Math.min(-1, ...tl);
-    const x = i => pad + (W - 2 * pad) * (i / Math.max(1, tl.length));
-    const y = d => pad + (H - 2 * pad) * (hi - d) / (hi - lo);
-    let line = 'M' + x(0) + ' ' + y(0);
-    tl.forEach((d, i) => { line += ' L' + x(i + 1).toFixed(1) + ' ' + y(d).toFixed(1); });
-    const mk = pts.map((r, i) => {
-      const ev = r.ev, d = tl[i];
-      const cls = 'mk t' + ev.team + (ev.tag ? ' ' + ev.tag : '');
-      const cx = x(i + 1).toFixed(1), cy = y(d).toFixed(1);
-      const shape = ev.tag === 'error' || ev.tag === 'df'
-        ? '<path class="' + cls + '" d="M' + (cx - 4) + ' ' + (cy - 4) + 'l8 8M' + (cx - 4) + ' ' + (+cy + 4) + 'l8-8"/>'
-        : '<circle class="' + cls + '" cx="' + cx + '" cy="' + cy + '" r="' + (ev.tag === 'ace' || ev.tag === 'winner' ? 4.6 : 3) + '"/>';
-      return '<g data-pt="' + i + '" style="--tc:' + colorVar(m.teams[ev.team].color) + '">' + shape + '<rect x="' + (cx - 7) + '" y="0" width="14" height="' + H + '" fill="transparent" stroke="none"/></g>';
-    }).join('');
-    const marks = st.setMarks.map(n => '<line class="grid" x1="' + x(n) + '" x2="' + x(n) + '" y1="' + pad + '" y2="' + (H - pad) + '"/>').join('');
-    const svg = '<div class="mom-scroll"><svg class="mom" viewBox="0 0 ' + W + ' ' + H + '" style="width:' + W + 'px;height:' + H + 'px">' + marks +
-      '<line class="zero" x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(0) + '" y2="' + y(0) + '"/><path class="mom-line" d="' + line + '"/>' + mk + '</svg></div>';
-    const legend = '<div class="mom-legend"><span><i class="lg dot"></i>ponto</span><span><i class="lg big"></i>ace ou winner</span><span><i class="lg x">✕</i>erro do adversário</span><span>linhas verticais = fim de set</span></div>';
-    const listHTML = pts.map((r, i) => {
-      const ev = r.ev;
-      return '<div class="pt-row" data-pt="' + i + '"><span class="pt-n">' + (i + 1) + '</span><i style="--tc:' + colorVar(m.teams[ev.team].color) + '"></i><span class="pt-what"><b>' + esc(m.teams[ev.team].name) + '</b>' +
-        (ev.tag ? ' · ' + esc(TAG_LBL[ev.tag]) + (ev.errType ? ' ' + esc(ERR_LABEL[ev.errType]) : '') : '') + (ev.shot && ev.tag !== 'ace' ? ' · ' + esc(G.SHOT_LABEL[ev.shot] || ev.shot) : '') +
-        (ev.player ? ' · ' + esc(ev.player) : '') + (ev.assist ? ' (assist. ' + esc(ev.assist) + ')' : '') + '</span><span class="pt-score">' + esc(r.score) + '</span></div>';
-    }).join('');
-    $('#momentBody').innerHTML = '<p class="hint">' + esc(m.teams[0].name) + ' acima da linha, ' + esc(m.teams[1].name) + ' abaixo. Toque num ponto do gráfico ou da lista.</p>' + svg + legend +
-      '<div class="pt-info" id="ptInfo">Toque num ponto para ver o lance.</div><div class="pt-list">' + listHTML + '</div>';
+    mom = momentData(m);
+    mom.filter = 'todos'; mom.cur = -1;
+    const { st, pts, key, c } = mom;
+    const T = m.teams, nm = t => esc(T[t].name), dot = t => '<i class="tdot" style="--tc:' + colorVar(T[t].color) + '"></i>';
+    const runT = st.teams[0].maxStreak >= st.teams[1].maxStreak ? 0 : 1;
+    const leadT = mom.maxLead[0] >= mom.maxLead[1] ? 0 : 1;
+    let h = '<div class="mom-tiles">' +
+      '<div class="mt"><b>' + mom.changes + '</b><span>' + (mom.changes === 1 ? 'virada na liderança' : 'viradas na liderança') + '</span></div>' +
+      '<div class="mt">' + dot(runT) + '<b>' + st.teams[runT].maxStreak + '</b><span>maior sequência · ' + nm(runT) + '</span></div>' +
+      '<div class="mt">' + dot(leadT) + '<b>+' + mom.maxLead[leadT] + '</b><span>maior vantagem · ' + nm(leadT) + '</span></div>' +
+      '<div class="mt"><b>' + pts.length + '</b><span>pontos disputados</span></div></div>';
+    const keyRows = ['break', 'set', 'match'].filter(k => key[k][0][1] + key[k][1][1] > 0 && (k !== 'break' || c.kind === 'games'));
+    if (keyRows.length) h += '<div class="mom-keys"><span class="cp-label">Pontos decisivos · convertidos</span>' + keyRows.map(k => '<div class="mk-row"><span>' + KEY_NAME[k] + 's</span>' +
+      [0, 1].map(t => '<span class="mk-team">' + dot(t) + '<b>' + key[k][t][0] + '/' + key[k][t][1] + '</b></span>').join('') + '</div>').join('') + '</div>';
+    // filtros: tipo de lance e jogadores
+    const players = st.players.filter(p => p.pts + p.errors + p.df + p.assists > 0).map(p => p.name);
+    const F = [['todos', 'Todos'], ['decisivos', 'Decisivos'], ['ace', 'Aces'], ['winner', 'Winners'], ['erro', 'Erros']].concat(players.map(p => ['p:' + p, firstName(p)]));
+    h += '<div class="mom-filters" role="radiogroup" aria-label="Filtrar lances">' + F.map(([v, l]) => '<button class="pill' + (v === 'todos' ? ' on' : '') + '" type="button" data-momf="' + esc(v) + '">' + esc(l) + '</button>').join('') + '</div>';
+    h += momentChartHTML() + '<div class="mom-legend"><span><i class="lg dot"></i>ponto</span><span><i class="lg big"></i>ace ou winner</span><span><i class="lg x">✕</i>erro de quem perdeu</span><span><i class="lg ring"></i>ponto decisivo</span></div>';
+    h += '<div class="pt-info" id="ptInfo"><span class="pt-info-txt">Toque num ponto do gráfico ou da lista.</span><span class="pt-nav"><button class="icon-btn" type="button" data-ptnav="-1" title="Ponto anterior">' + ic('i-back') + '</button><button class="icon-btn" type="button" data-ptnav="1" title="Próximo ponto">' + ic('i-chev') + '</button></span></div>';
+    h += '<div class="pt-list" id="ptList">' + momentListHTML() + '</div>';
+    $('#momentBody').innerHTML = h;
     $('#momentBody').dataset.mid = m.id;
     openSheet('#sheetMoment');
   }
+  function momentChartHTML() {
+    const { m, st, pts } = mom;
+    const tl = pts.map(r => r.diff);
+    const W = Math.max(640, pts.length * 13), H = 230, pl = 14, pr = 14, pt = 26, pb = 22;
+    const hi = Math.max(2, ...tl), lo = Math.min(-2, ...tl);
+    const x = i => pl + (W - pl - pr) * (i / Math.max(1, tl.length));
+    const y = d => pt + (H - pt - pb) * (hi - d) / (hi - lo);
+    let line = 'M' + x(0) + ' ' + y(0);
+    tl.forEach((d, i) => { line += ' L' + x(i + 1).toFixed(1) + ' ' + y(d).toFixed(1); });
+    const area = line + ' L' + x(tl.length).toFixed(1) + ' ' + y(0) + ' L' + x(0) + ' ' + y(0) + ' Z';
+    const uid = 'mo' + Math.round(Math.random() * 1e6);
+    const c0 = colorVar(m.teams[0].color), c1 = colorVar(m.teams[1].color);
+    // fim de set: índice do ponto que fechou o set
+    const sets = []; pts.forEach((r, i) => { if (r.out && (r.out.type === 'set' || r.out.type === 'match')) sets.push(i + 1); });
+    const setLines = sets.slice(0, -1).map((n, k) => '<line class="setl" x1="' + x(n) + '" x2="' + x(n) + '" y1="' + (pt - 8) + '" y2="' + (H - pb) + '"/><text class="setlbl" x="' + (x(n) + 4) + '" y="' + (pt - 12) + '">SET ' + (k + 2) + '</text>').join('');
+    const mk = pts.map((r, i) => {
+      const ev = r.ev;
+      const cx = x(i + 1).toFixed(1), cy = y(r.diff).toFixed(1);
+      const big = ev.tag === 'ace' || ev.tag === 'winner';
+      const shape = ev.tag === 'error' || ev.tag === 'df'
+        ? '<path class="mk" d="M' + (cx - 3.5) + ' ' + (cy - 3.5) + 'l7 7M' + (cx - 3.5) + ' ' + (+cy + 3.5) + 'l7-7"/>'
+        : '<circle class="mk" cx="' + cx + '" cy="' + cy + '" r="' + (big ? 4.4 : 2.8) + '"/>';
+      return '<g data-pt="' + i + '" class="' + (r.keys.length ? 'key' : '') + '" style="--tc:' + colorVar(m.teams[ev.team].color) + '">' +
+        '<line class="guide" x1="' + cx + '" x2="' + cx + '" y1="' + pt + '" y2="' + (H - pb) + '"/>' + (r.keys.length ? '<circle class="kring" cx="' + cx + '" cy="' + cy + '" r="7"/>' : '') + shape +
+        '<rect x="' + (cx - 6.5) + '" y="0" width="13" height="' + H + '" fill="transparent" stroke="none"/></g>';
+    }).join('');
+    return '<div class="mom-scroll"><svg class="mom" viewBox="0 0 ' + W + ' ' + H + '" style="width:' + W + 'px;height:' + H + 'px">' +
+      '<defs><clipPath id="' + uid + 't"><rect x="0" y="0" width="' + W + '" height="' + y(0) + '"/></clipPath><clipPath id="' + uid + 'b"><rect x="0" y="' + y(0) + '" width="' + W + '" height="' + (H - y(0)) + '"/></clipPath></defs>' +
+      '<path d="' + area + '" clip-path="url(#' + uid + 't)" style="fill:' + c0 + ';fill-opacity:.16;stroke:none"/><path d="' + area + '" clip-path="url(#' + uid + 'b)" style="fill:' + c1 + ';fill-opacity:.16;stroke:none"/>' +
+      '<text class="sidelbl" x="' + pl + '" y="' + (pt - 12) + '" style="fill:' + c0 + '">▲ ' + esc(m.teams[0].name) + ' na frente</text><text class="sidelbl" x="' + pl + '" y="' + (H - 6) + '" style="fill:' + c1 + '">▼ ' + esc(m.teams[1].name) + ' na frente</text>' +
+      setLines + '<line class="zero" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(0) + '" y2="' + y(0) + '"/><path class="mom-line" d="' + line + '"/>' + mk + '</svg></div>';
+  }
+  function momentListHTML() {
+    const { m, pts, c } = mom;
+    let h = '', lastKey = '';
+    pts.forEach((r, i) => {
+      const ev = r.ev, p = r.pre;
+      const gk = c.kind === 'games' ? p.set + ':' + (p.tb ? 'tb' : p.games.join('-')) : String(p.set);
+      if (gk !== lastKey) {
+        lastKey = gk;
+        const lbl = c.kind === 'games'
+          ? 'Set ' + p.set + ' · ' + (p.mtb ? 'super tiebreak' : p.tb ? 'tiebreak' : 'game ' + (p.games[0] + p.games[1] + 1) + ' · ' + p.games[0] + '-' + p.games[1]) + ' · saque ' + m.teams[p.server].name
+          : 'Set ' + p.set;
+        h += '<div class="pt-head" data-g="' + esc(gk) + '">' + esc(lbl) + '</div>';
+      }
+      const kinds = [ev.tag === 'error' || ev.tag === 'df' ? 'erro' : ev.tag || ''].concat(r.keys.length ? ['decisivos'] : []);
+      const who = [ev.player, ev.assist].filter(Boolean);
+      h += '<div class="pt-row" data-pt="' + i + '" data-g="' + esc(gk) + '" data-k="' + esc(kinds.join(' ')) + '" data-p="' + esc(who.join('|')) + '"><span class="pt-n">' + (i + 1) + '</span><i style="--tc:' + colorVar(m.teams[ev.team].color) + '"></i><span class="pt-what"><b>' + esc(m.teams[ev.team].name) + '</b>' +
+        (ev.tag ? ' · ' + esc(TAG_LBL[ev.tag]) + (ev.errType ? ' ' + esc(ERR_LABEL[ev.errType]) : '') : '') + (ev.shot && ev.tag !== 'ace' ? ' · ' + esc(G.SHOT_LABEL[ev.shot] || ev.shot) : '') +
+        (ev.player ? ' · ' + esc(ev.player) : '') + (ev.assist ? ' (assist. ' + esc(ev.assist) + ')' : '') + '</span>' +
+        (r.keys.length ? '<span class="kbadge' + (r.pre.sit.some(s => KEY_LBL[s.type] && s.team === ev.team) ? ' won' : '') + '" title="' + esc(r.keys.map(k => KEY_NAME[k]).join(', ')) + '">' + r.keys.map(k => KEY_LBL[k]).join(' ') + '</span>' : '') +
+        '<span class="pt-score">' + esc(r.score) + '</span></div>';
+    });
+    return h;
+  }
+  function momentVisible(i) {
+    const r = mom.pts[i], f = mom.filter;
+    if (f === 'todos') return true;
+    if (f.startsWith('p:')) return r.ev.player === f.slice(2) || r.ev.assist === f.slice(2);
+    if (f === 'decisivos') return r.keys.length > 0;
+    if (f === 'erro') return r.ev.tag === 'error' || r.ev.tag === 'df';
+    return r.ev.tag === f;
+  }
+  function setMomentFilter(f) {
+    mom.filter = f;
+    $$('#momentBody [data-momf]').forEach(b => b.classList.toggle('on', b.dataset.momf === f));
+    const vis = new Set();
+    $$('#ptList .pt-row').forEach(el => { const ok = momentVisible(Number(el.dataset.pt)); el.hidden = !ok; if (ok) vis.add(el.dataset.g); });
+    $$('#ptList .pt-head').forEach(el => { el.hidden = !vis.has(el.dataset.g); });
+    $$('#momentBody .mom g[data-pt]').forEach(g => g.classList.toggle('dim', !momentVisible(Number(g.dataset.pt))));
+  }
   function showPoint(i) {
-    const m = findMatch($('#momentBody').dataset.mid);
-    if (!m) return;
-    const st = S.matchStats(m);
-    const pts = st.rows.filter(r => r.ev.type === 'point' && (!r.out || r.out.type !== 'ignored'));
-    const r = pts[i]; if (!r) return;
+    if (!mom) return;
+    const r = mom.pts[i]; if (!r) return;
+    mom.cur = i;
+    const { m, pts } = mom;
     const ev = r.ev;
     const t0 = pts[0].ev.t;
-    const det = describe(Object.assign({}, ev)).replace(/^Ponto [^·]*·?\s*/, '') || 'ponto sem detalhe';
-    $('#ptInfo').innerHTML = '<b>Ponto ' + (i + 1) + ' · ' + esc(m.teams[ev.team].name) + '</b><span>' + esc(det) + '</span><span>Placar depois: <b>' + esc(r.score) + '</b> · ' + clock(ev.t - t0) + (ev.heard ? ' · “' + esc(ev.heard) + '”' : '') + '</span>';
+    const det = describe(Object.assign({}, ev)).replace(/^Ponto [^·]*·?\s*/, '') || 'ponto direto, sem detalhe';
+    const keyTxt = r.keys.length ? r.pre.sit.filter(s => KEY_NAME[s.type]).map(s => KEY_NAME[s.type] + ' ' + m.teams[s.team].name + (s.team === ev.team ? ' · convertido' : ' · salvo')).join(' · ') : '';
+    $('#ptInfo .pt-info-txt').innerHTML = '<b>Ponto ' + (i + 1) + ' · ' + esc(m.teams[ev.team].name) + '</b><span>' + esc(det) + '</span>' + (keyTxt ? '<span class="pt-key">' + esc(keyTxt) + '</span>' : '') +
+      '<span>Placar depois: <b>' + esc(r.score) + '</b> · ' + clock(ev.t - t0) + (ev.heard ? ' · “' + esc(ev.heard) + '”' : '') + '</span>';
     $$('#momentBody .pt-row').forEach(el => el.classList.toggle('on', Number(el.dataset.pt) === i));
     $$('#momentBody .mom g').forEach(el => el.classList.toggle('on', Number(el.dataset.pt) === i));
-    const row = $('#momentBody .pt-row[data-pt="' + i + '"]'); if (row) row.scrollIntoView({ block: 'nearest' });
+    const row = $('#momentBody .pt-row[data-pt="' + i + '"]'); if (row && !row.hidden) row.scrollIntoView({ block: 'nearest' });
+    const g = $('#momentBody .mom g[data-pt="' + i + '"]'), sc = $('#momentBody .mom-scroll');
+    if (g && sc) { const cx = Number(g.querySelector('.guide').getAttribute('x1')); if (cx < sc.scrollLeft + 30 || cx > sc.scrollLeft + sc.clientWidth - 30) sc.scrollLeft = cx - sc.clientWidth / 2; }
   }
+  function stepPoint(d) {
+    if (!mom) return;
+    let i = mom.cur < 0 ? (d > 0 ? -1 : mom.pts.length) : mom.cur;
+    do { i += d; } while (i >= 0 && i < mom.pts.length && !momentVisible(i));
+    if (i >= 0 && i < mom.pts.length) showPoint(i);
+  }
+
 
   // ---------- Stickers do mascote no compartilhar ----------
   const STICKERS = [
@@ -2613,7 +2889,12 @@
     });
     $('#stickerText').addEventListener('input', e => { share.stickerText = e.target.value; drawShare(); });
     $('#proBody').addEventListener('click', e => { if (e.target.closest('#proOn')) setPro(true); if (e.target.closest('#proOff')) setPro(false); });
-    $('#momentBody').addEventListener('click', e => { const g = e.target.closest('[data-pt]'); if (g) showPoint(Number(g.dataset.pt)); });
+    $('#momentBody').addEventListener('click', e => {
+      const f = e.target.closest('[data-momf]'); if (f) { setMomentFilter(f.dataset.momf); return; }
+      const n = e.target.closest('[data-ptnav]'); if (n) { stepPoint(Number(n.dataset.ptnav)); return; }
+      const g = e.target.closest('[data-pt]'); if (g) showPoint(Number(g.dataset.pt));
+    });
+    $('#sheetMoment').addEventListener('keydown', e => { if (e.key === 'ArrowRight') { e.preventDefault(); stepPoint(1); } if (e.key === 'ArrowLeft') { e.preventDefault(); stepPoint(-1); } });
     $('#btnPro').addEventListener('click', () => openPro());
     $('#meBody').addEventListener('change', e => {
       if (e.target.name === 'mePeriod') { mePeriod = e.target.value; renderMe(); }
@@ -2715,6 +2996,8 @@
 
     wireSocial();
     wireClaims();
+    wirePrivacy();
+    wireWelcome();
 
     // Nova partida
     buildSwatches();
@@ -2801,6 +3084,7 @@
 
   function openPrefs() {
     $('#pName').value = prefs.myName || (myName() === 'Você' ? '' : myName());
+    renderPrivacy(); $('#pUid').innerHTML = esc(myUid()) + ic('i-copy'); $('#pUid').dataset.copy = myUid();
     $('#pCity').value = prefs.city || '';
     $('#pTts').checked = prefs.tts;
     $('#pBeep').checked = prefs.beep;
