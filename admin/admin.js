@@ -58,6 +58,49 @@
     return true;
   }
   async function me() { const r = await fetch(C.supabaseUrl + '/auth/v1/user', { headers: H(session.access_token) }); return r.ok ? r.json() : null; }
+  // ---------- 2ª etapa (código do app autenticador): o banco só reconhece admin com sessão aal2 ----------
+  const claims = tok => { try { return JSON.parse(atob(String(tok).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) { return {}; } };
+  async function auth(path, body) {
+    const r = await fetch(C.supabaseUrl + '/auth/v1/' + path, { method: 'POST', headers: H(session.access_token), body: JSON.stringify(body || {}) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(j.msg || j.message || j.error_description || 'HTTP ' + r.status); e.code = r.status; throw e; }
+    return j;
+  }
+  let mfaFactor = null;
+  async function gate() {
+    if (claims(session.access_token).aal === 'aal2') return showDash();
+    let isAdm = false;
+    try { isAdm = await rpc('am_i_admin'); } catch (e) { if (e.code === 401) { saveSession(null); return showLogin('Sua sessão expirou. Entre de novo.'); } return showLogin('Não consegui conferir a conta (' + e.message + ').'); }
+    if (isAdm !== true) { await logout(); return showLogin('Esta conta não é administradora. Peça para incluir o seu usuário na tabela admins.'); }
+    const u = await me().catch(() => null);
+    const f = ((u && u.factors) || []).find(x => x.factor_type === 'totp' && x.status === 'verified');
+    $('#login').hidden = false; $('#dash').hidden = true;
+    document.querySelector('.login-card').hidden = true; $('#mfa').hidden = false;
+    $('#mfaMsg').textContent = ''; $('#mfaCode').value = '';
+    if (f) { mfaFactor = f.id; $('#mfaQr').hidden = true; $('#mfaT').textContent = 'Código de segurança'; $('#mfaP').textContent = 'Abra o app autenticador (Google Authenticator, Authy, 1Password…) e digite o código de 6 números do ULTRA PLAY.'; }
+    else {
+      $('#mfaT').textContent = 'Proteja o painel'; $('#mfaP').textContent = 'Na primeira vez, cadastre o ULTRA PLAY num app autenticador: aponte a câmera do app para o QR Code e digite o código que aparecer. Depois, cada entrada pede o código.';
+      try {
+        const en = await auth('factors', { factor_type: 'totp', friendly_name: 'ULTRA PLAY admin ' + new Date().toISOString().slice(0, 16) });
+        mfaFactor = en.id;
+        const qr = en.totp && en.totp.qr_code;
+        if (qr && /^data:image\/svg\+xml/.test(qr)) $('#mfaImg').src = qr; else $('#mfaImg').removeAttribute('src');
+        $('#mfaKey').textContent = (en.totp && en.totp.secret) || '';
+        $('#mfaQr').hidden = false;
+      } catch (e) { $('#mfaMsg').textContent = 'Não consegui preparar o cadastro (' + e.message + '). Confira se o MFA está ligado no Supabase (Authentication → Multi-Factor).'; }
+    }
+    setTimeout(() => $('#mfaCode').focus(), 50);
+  }
+  async function verifyMfa(code) {
+    const ch = await auth('factors/' + encodeURIComponent(mfaFactor) + '/challenge');
+    const j = await auth('factors/' + encodeURIComponent(mfaFactor) + '/verify', { challenge_id: ch.id, code });
+    saveSession({ access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (j.expires_in || 3600) * 1000 });
+  }
+  // sair de verdade: o servidor invalida a sessão (o link roubado de uma aba não vale mais)
+  async function logout() {
+    if (session && session.access_token && configured) { try { await fetch(C.supabaseUrl + '/auth/v1/logout', { method: 'POST', headers: H(session.access_token) }); } catch (e) { /* sem rede: apaga só aqui */ } }
+    saveSession(null);
+  }
   async function sendLink(email) {
     const r = await fetch(C.supabaseUrl + '/auth/v1/otp?redirect_to=' + encodeURIComponent(location.origin + location.pathname), { method: 'POST', headers: H(), body: JSON.stringify({ email, create_user: false }) });
     return r.ok;
@@ -587,7 +630,7 @@
     catch (e) { fail(e); }
     app.classList.remove('loading'); rb.classList.remove('spin');
   }
-  function showLogin(msg) { $('#dash').hidden = true; $('#login').hidden = false; $('#loginMsg').textContent = msg || ''; $('#who').replaceChildren(); }
+  function showLogin(msg) { $('#dash').hidden = true; $('#login').hidden = false; document.querySelector('.login-card').hidden = false; $('#mfa').hidden = true; $('#loginMsg').textContent = msg || ''; $('#who').replaceChildren(); }
   async function showDash() {
     $('#login').hidden = true; $('#dash').hidden = false;
     if (DEMO) {
@@ -597,7 +640,7 @@
     } else {
       const u = await me().catch(() => null);
       const out = el('button', { class: 'icon-btn sm', type: 'button', 'aria-label': 'Sair', title: 'Sair' }, [icon('logout')]);
-      out.addEventListener('click', () => { saveSession(null); showLogin('Você saiu.'); });
+      out.addEventListener('click', async () => { await logout(); showLogin('Você saiu.'); });
       $('#who').replaceChildren(el('span', { title: u && u.email ? u.email : '' }, [icon('shield'), document.createTextNode(u && u.email ? u.email : 'admin')]), out);
     }
     show(secFromHash());
@@ -649,7 +692,21 @@
 
   // tabelas largas rolam de lado: dá para rolar pelo teclado também
   document.querySelectorAll('.tbl, .heat').forEach(b => { b.tabIndex = 0; if (!b.hasAttribute('aria-label')) { const h = b.closest('.card') && b.closest('.card').querySelector('h2'); if (h) b.setAttribute('aria-label', h.textContent); } b.setAttribute('role', 'region'); });
+  $('#mfaForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const code = $('#mfaCode').value.replace(/\D/g, '');
+    if (code.length !== 6) { $('#mfaMsg').textContent = 'São 6 números.'; return; }
+    $('#mfaMsg').textContent = 'Conferindo…';
+    try { await verifyMfa(code); $('#mfaMsg').textContent = ''; gate(); }
+    catch (err) { $('#mfaMsg').textContent = err.code === 401 ? 'Sessão expirou. Entre de novo.' : 'Código não confere. Veja se o relógio do celular está certo e tente o código novo.'; $('#mfaCode').select(); }
+  });
+  $('#mfaOut').addEventListener('click', async () => { await logout(); showLogin(); });
+  // parado por 30 min: sai sozinho (painel aberto num computador esquecido)
+  let lastAct = Date.now();
+  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { lastAct = Date.now(); }, true));
+  setInterval(async () => { if (!DEMO && session && Date.now() - lastAct > 30 * 60e3) { await logout(); showLogin('Saí sozinho depois de 30 minutos parado. Entre de novo.'); } }, 60e3);
+
   takeHash();
   session = readSession();
-  if (DEMO || session) showDash(); else showLogin();
+  if (DEMO) showDash(); else if (session) gate(); else showLogin();
 })();

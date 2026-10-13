@@ -62,6 +62,15 @@
     <p class="msg" id="loginMsg" role="status"></p>
     <p class="muted small">Ainda sem servidor? <a href="?demo=1">Ver o painel com dados de demonstração</a>.</p>
   </div>
+  <div class="login-card" id="mfa" hidden>
+    <svg class="logo" viewBox="0 0 182 46" aria-label="ULTRA PLAY" role="img"><use href="#logo"/></svg>
+    <h1 id="mfaT">Código de segurança</h1>
+    <p class="muted" id="mfaP">Abra o app autenticador (Google Authenticator, Authy, 1Password…) e digite o código de 6 números do ULTRA PLAY.</p>
+    <div class="qr" id="mfaQr" hidden><img id="mfaImg" alt="QR Code para cadastrar o ULTRA PLAY no app autenticador" width="180" height="180"><p class="small muted">Sem câmera? Digite a chave: <code id="mfaKey"></code></p></div>
+    <form id="mfaForm"><label class="field"><span>Código</span><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="123456"></label><button class="btn brand" type="submit">Confirmar</button></form>
+    <p class="msg" id="mfaMsg" role="status"></p>
+    <button class="link" type="button" id="mfaOut">Usar outra conta</button>
+  </div>
 </section>
 
 <div class="app" id="dash" hidden>

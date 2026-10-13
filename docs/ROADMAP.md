@@ -71,6 +71,32 @@ Aparecem no placar, no modo TV e, opcionalmente, falados.
 - **Voz no próprio relógio:** app nativo para Apple Watch e Wear OS (reconhecimento de voz no relógio, que manda o ponto para o celular). Garmin (Connect IQ) não libera o microfone para apps: lá, um app de relógio com botões de ponto na tela. Amazfit (Zepp OS): verificar por modelo.
 - **Kit Pró com a pulseira** (ver `MARKETING.md`).
 
+## 6. Pedidos anotados em 13/10/2026 (para fazer depois)
+
+### 6.1 Indicação para professores e influenciadores
+- **Como funciona:** cada parceiro tem um código ou link (o app já registra o `?ref=UP-XXXXXX` de quem convidou, em `prefs.origin` e nos eventos). Quando a pessoa indicada assina o Pro, o parceiro ganha **uma parte do valor** (sugestão para começar: 20 a 30% da 1ª mensalidade, ou 10% recorrente por 12 meses).
+- **Metas:** a cada **10 indicações que assinam**, um prêmio maior (ex.: Pro vitalício, kit ULTRA com tripé, camiseta, destaque no Instagram oficial). Níveis: Bronze (10), Prata (25), Ouro (50).
+- **No app:** tela "Minhas indicações" com o link, quantas pessoas entraram, quantas assinaram e quanto falta para a próxima meta. No painel de admin: ranking dos parceiros e quanto pagar no mês.
+- **No banco:** tabela `referrals` (quem indicou, quem entrou, quando assinou) preenchida pelo webhook do pagamento; o pagamento ao parceiro sai por Pix (manual no começo; depois por split do provedor de pagamento). Atenção a regras: termo de parceria, nota fiscal/recibo e evitar autoindicação (mesmo aparelho ou mesmo cartão).
+
+### 6.2 Kit ULTRA nas arenas
+- Um **tripé** (de celular, com presilha universal) e um **banner/display** na quadra com: "Marque o placar por voz", QR Code (`utm_source=kit&utm_medium=<arena>`), 3 passos ilustrados (abrir, apoiar o celular no tripé, falar "ponto azul") e o Instagram.
+- Começar com 3 a 5 arenas parceiras; medir no painel as visitas pela origem `kit`. O cartaz A4 (`marketing/posts/08-cartaz.png`) serve de base para a arte.
+
+### 6.3 Pro "borrado" para dar vontade de assinar
+- Nas telas de estatística (resumo da partida, perfil, grupo), mostrar os blocos Pro **com desfoque** e um cadeado: momento ponto a ponto, pontos decisivos, golpes por jogador, evolução no ano, análise por IA.
+- O conteúdo borrado deve ser **de mentira ou genérico** (não dá para "tirar o borrado" pelo inspetor e ver o dado real). Toque no bloco abre a tela do Pro já no recurso certo (`openPro('momento')`).
+- Medir no painel: `pro_view` por recurso → `pro_start`.
+
+### 6.4 Cidade por lista (país → estado → cidade)
+- Trocar o campo de texto livre por seleção: **País** (Brasil primeiro), **Estado** (27 UFs) e **Cidade** (os 5.570 municípios do IBGE), com busca por digitação.
+- A lista do IBGE fica num arquivo do próprio app (~60 kB compactado), sem depender de internet na quadra. Fora do Brasil, cidade em texto.
+- Guardar o código IBGE do município (`city_code`) além do nome: deixa o ranking por cidade e o mapa de arenas certos (sem "BH", "Belo Horizonte" e "B. Horizonte" separados).
+
+### 6.5 Site: posts de "curiosidades e dicas"
+- Uma seção de artigos curtos no site (e no Instagram) com o que as pessoas não descobrem sozinhas: marcar ponto pelo **relógio** (Garmin, Apple Watch, Galaxy, Amazfit) ou fone, **passador de slides** como botão sem fio, **placar na TV** pela segunda janela, outro celular como **câmera** por QR Code, lente **0.5×** e brilho na gravação, grupos com ranking, backup entre celulares, comandos de voz com detalhe ("ace", "dupla falta", "na rede").
+- Cada post com um GIF ou vídeo curto, link para o app (`utm_source=blog`) e a pergunta frequente correspondente em `help.js`.
+
 ## Antes de abrir para o público (checklist)
 
 Já feito na revisão de 12/10/2026:

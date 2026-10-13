@@ -40,6 +40,14 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
   - **Sem consentimento**, só a visita, com um id que some ao fechar.
   - **Com consentimento** (o app pergunta uma vez, depois da 1ª partida; e em Ajustes → Estatísticas de uso), os eventos de uso, com um id sorteado do aparelho.
   - Nenhum nome, e-mail ou partida vai nos eventos.
+- **Segurança do painel (testada em `tests/admin.sql`, seção "invasão", 21 tentativas bloqueadas):**
+  - **Duas etapas para entrar:** link no e-mail + código de 6 números de um app autenticador (Google Authenticator, Authy, 1Password). O banco só reconhece admin com a sessão na 2ª etapa (`aal2` no token); quem rouba só o link do e-mail não entra. Na 1ª vez, o painel mostra o QR Code para cadastrar.
+  - **Ninguém se torna admin pelo app ou pela API:** a tabela `admins` não aceita gravação de ninguém (só pelo SQL Editor do Supabase, com a sua conta de dono do projeto). Também não dá para se dar Pro, criar assinatura, mudar preço, mexer em denúncia ou no registro de ações.
+  - **Não dá para descobrir quem é admin:** `is_admin()` só responde sobre a própria sessão.
+  - **Permissões fechadas por tabela:** o Supabase libera toda tabela nova para todo mundo; `admin.sql` tira tudo e devolve só o necessário. Os testes simulam essa liberação padrão para pegar qualquer esquecimento.
+  - **Sair de verdade:** "Sair" invalida a sessão no servidor; parado por 30 min, o painel sai sozinho. A sessão fica só na aba (some ao fechar).
+  - **No Supabase (você):** Authentication → URL Configuration: pôr `https://filipeultra.github.io/canta-placar/admin/` nas URLs de redirecionamento; Authentication → Multi-Factor: deixar TOTP ligado (já vem ligado). Nunca coloque a chave `service_role` no `config.js` nem no site: só a `anon`.
+  - **Limite conhecido:** qualquer um pode mandar eventos de visita (é assim que o site conta visitas sem login). Isso não dá acesso a nada, mas alguém mal-intencionado pode inflar os números de visitas; o Supabase limita a taxa de pedidos por IP e o painel mostra a origem para identificar.
 - **Primeiro admin:** depois de criar sua conta no app, rode no SQL Editor: `insert into admins (user_id) select id from auth.users where email = 'seu@email.com';`
 
 ## Como ligar (passo a passo)

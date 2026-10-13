@@ -27,8 +27,17 @@ create table public.admins (
   user_id     uuid primary key references public.profiles(id) on delete cascade,
   created_at  timestamptz not null default now()
 );
-create or replace function public.is_admin(uid uuid) returns boolean
-language sql stable security definer set search_path = public as $$ select exists (select 1 from admins where user_id = uid) $$;
+-- admin = está na tabela admins E entrou com a 2ª etapa (código do app autenticador): o token da sessão diz aal2.
+-- Sem parâmetro: ninguém consegue perguntar "fulano é admin?" por outra pessoa.
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select auth.uid() is not null and coalesce(auth.jwt() ->> 'aal', '') = 'aal2' and exists (select 1 from admins where user_id = auth.uid())
+$$;
+-- só a própria pessoa, na tela de entrada do painel: "esta conta está na lista de admins?" (para pedir a 2ª etapa)
+create or replace function public.am_i_admin() returns boolean
+language sql stable security definer set search_path = public as $$ select auth.uid() is not null and exists (select 1 from admins where user_id = auth.uid()) $$;
+revoke execute on function public.is_admin(), public.am_i_admin() from public, anon;
+grant execute on function public.is_admin(), public.am_i_admin() to authenticated;
 
 -- preço mensal de cada plano, para o MRR (ajuste quando os preços forem decididos; ver docs/PRECOS.md)
 create table public.plan_prices (
@@ -46,13 +55,16 @@ alter table public.plan_prices enable row level security;
 create policy events_insert on public.app_events for insert to anon, authenticated
   with check ((user_id is null or user_id = auth.uid()) and created_at > now() - interval '2 days' and created_at < now() + interval '5 minutes'
               and (session = false or name in ('visit', 'app_open')));
-create policy events_admin on public.app_events for select using (public.is_admin(auth.uid()));
+create policy events_admin on public.app_events for select using (public.is_admin());
 create policy admins_self on public.admins for select using (user_id = auth.uid());
 create policy prices_read on public.plan_prices for select using (true);
-grant insert on public.app_events to anon, authenticated;
 grant usage on sequence public.app_events_id_seq to anon, authenticated;
-revoke update, delete on public.app_events from anon, authenticated;
-revoke insert, update, delete on public.admins, public.plan_prices from anon, authenticated;
+-- o Supabase dá acesso total às tabelas novas para anon e authenticated: aqui fica só o que precisa
+revoke all on public.app_events, public.admins, public.plan_prices from anon, authenticated;
+grant insert (device_id, session, user_id, name, props, path, source, medium, campaign, ref, app_version, created_at) on public.app_events to anon, authenticated;
+grant select on public.app_events to authenticated;   -- a regra events_admin deixa só admin ler
+grant select on public.admins to authenticated;       -- a regra admins_self deixa ver só a própria linha
+grant select on public.plan_prices to anon, authenticated;
 
 -- ---------- números do painel (uma chamada só; só admin) ----------
 create or replace function public.admin_metrics(days int default 30) returns jsonb
@@ -63,7 +75,7 @@ declare
   p0 timestamptz := t0 - make_interval(days => d);
   out jsonb;
 begin
-  if not is_admin(auth.uid()) then raise exception 'acesso só para administradores' using errcode = '42501'; end if;
+  if not is_admin() then raise exception 'acesso só para administradores' using errcode = '42501'; end if;
   with
   ev as (select * from app_events where created_at >= p0),
   cur as (select * from ev where created_at >= t0),
@@ -182,13 +194,14 @@ create table public.admin_log (
   created_at  timestamptz not null default now()
 );
 alter table public.admin_log enable row level security;
-create policy admin_log_read on public.admin_log for select using (public.is_admin(auth.uid()));
-grant select on public.admin_log to authenticated;
-revoke insert, update, delete on public.admin_log from anon, authenticated;
+create policy admin_log_read on public.admin_log for select using (public.is_admin());
+revoke all on public.admin_log from anon, authenticated;
+grant select on public.admin_log to authenticated;    -- a regra admin_log_read deixa só admin ler; escrever, só as funções abaixo
+revoke all on sequence public.admin_log_id_seq from anon, authenticated;
 
 create or replace function public.admin_guard() returns void
 language plpgsql stable security definer set search_path = public as $$
-begin if not is_admin(auth.uid()) then raise exception 'acesso só para administradores' using errcode = '42501'; end if; end $$;
+begin if not is_admin() then raise exception 'acesso só para administradores' using errcode = '42501'; end if; end $$;
 
 -- busca de contas (nome, @, código UP-… ou e-mail); sem busca, as mais recentes
 create or replace function public.admin_users(q text default '', lim int default 50) returns jsonb

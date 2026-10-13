@@ -2682,3 +2682,29 @@ body.tour-on { overflow: hidden; }
 .help-foot a { color: var(--brand-ink); font-weight: 600; }
 /* espaços de aviso vazios no Início não somam o espaçamento da página */
 #view-inicio .page > div:empty { display: none; }
+/* ===== v25 · lente (0.5×/1×/2×) e brilho da gravação ===== */
+.vid-tune { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 10px; }
+.lens-seg span { min-width: 54px; justify-content: center; font-variant-numeric: tabular-nums; font-weight: 750; }
+.lens-seg label.na span { opacity: 0.45; }
+.exp-step { display: inline-flex; align-items: center; gap: 6px; }
+.exp-step .icon-btn { position: relative; width: 40px; height: 40px; }
+.exp-step .icon-btn svg { width: 18px; height: 18px; }
+.exp-step .icon-btn b { position: absolute; right: 3px; bottom: 1px; font: 800 13px/1 var(--font); }
+.exp-step .icon-btn[disabled] { opacity: 0.35; }
+.exp-val { display: grid; justify-items: center; gap: 4px; min-width: 70px; }
+.exp-val small { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.exp-dots { display: flex; gap: 5px; align-items: center; }
+.exp-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--fill-strong); }
+.exp-dots i.mid { width: 2px; height: 10px; border-radius: 1px; }
+.exp-dots i.on { width: 10px; height: 10px; background: var(--brand-ink, var(--brand)); }
+/* no modo câmera: em cima da imagem */
+.cam-tune .vid-tune { justify-content: center; margin: 0 0 10px; }
+.cam-tune .seg { background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.cam-tune .seg span { color: rgba(255, 255, 255, 0.8); }
+.cam-tune .seg input:checked + span { background: rgba(255, 255, 255, 0.92); color: #000; }
+.cam-tune .exp-step { padding: 3px 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.cam-tune .exp-step .icon-btn { background: transparent; color: #fff; }
+.cam-tune .exp-val small { color: rgba(255, 255, 255, 0.85); }
+.cam-tune .exp-dots i { background: rgba(255, 255, 255, 0.35); }
+.cam-tune .exp-dots i.on { background: #AFFB48; }
+.view-camera.recording .cam-tune { opacity: 0.9; }

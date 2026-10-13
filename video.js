@@ -116,17 +116,83 @@
     logoPaths.forEach(p => ctx.fill(p));
     ctx.restore();
   }
+  // ---------- lente (0.5× / 1× / 2×) e brilho ----------
+  // 0.5×: usa a lente grande-angular quando o navegador mostra ela (iPhone: "Ultra-angular"; Android: zoom abaixo de 1).
+  // 2×: zoom da câmera quando existe; senão, recorte no próprio vídeo. Brilho: só 2 passos para cada lado, de propósito
+  // (compensação de exposição da câmera quando existe; senão, um ajuste leve na imagem).
+  const LENS = ['w', '1', '2'], EXP_MAX = 2;
+  const cleanTune = t => ({ lens: LENS.includes(t && t.lens) ? t.lens : '1', exp: Math.max(-EXP_MAX, Math.min(EXP_MAX, Math.round(Number(t && t.exp) || 0))) });
+  const WIDE_RE = /ultra|0[.,]5|grande.?angular|wide/i, NOT_BACK = /tele|front|frontal|user|selfie/i;
+  async function wideDevice() {
+    try { const ds = await navigator.mediaDevices.enumerateDevices(); const d = ds.find(x => x.kind === 'videoinput' && WIDE_RE.test(x.label) && !NOT_BACK.test(x.label)); return d ? d.deviceId : null; } catch (e) { return null; }
+  }
+  const VIDEO_BASE = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } };
+  async function openStream(o) {
+    const t = cleanTune(o), facing = o.facing || 'environment';
+    const byFacing = () => navigator.mediaDevices.getUserMedia({ audio: false, video: Object.assign({ facingMode: { ideal: facing } }, VIDEO_BASE) });
+    const byLens = id => navigator.mediaDevices.getUserMedia({ audio: false, video: Object.assign({ deviceId: { exact: id } }, VIDEO_BASE) });
+    let stream = null, lensDev = false;
+    if (t.lens === 'w' && facing !== 'user') {
+      let id = await wideDevice();
+      if (id) { try { stream = await byLens(id); lensDev = true; } catch (e) { stream = null; } }
+      if (!stream) {
+        stream = await byFacing();
+        // os nomes das câmeras só aparecem depois da permissão: confere de novo
+        const caps = capsOf(stream);
+        if (!(caps.zoom && caps.zoom.min < 1) && (id = await wideDevice())) { try { const s2 = await byLens(id); stream.getTracks().forEach(x => x.stop()); stream = s2; lensDev = true; } catch (e) { /* fica a normal */ } }
+      }
+    } else stream = await byFacing();
+    const info = await tune(stream, t, lensDev);
+    return { stream, info };
+  }
+  function capsOf(stream) { const tr = stream && stream.getVideoTracks()[0]; try { return (tr && tr.getCapabilities && tr.getCapabilities()) || {}; } catch (e) { return {}; } }
+  // aplica zoom e exposição na câmera; o que ela não tiver vira ajuste na imagem (info.digitalZoom, info.bright)
+  async function tune(stream, t, lensDev) {
+    t = cleanTune(t);
+    const tr = stream.getVideoTracks()[0], caps = capsOf(stream);
+    const info = { lens: t.lens, exp: t.exp, lensDev: !!lensDev, digitalZoom: 1, bright: 1, wideOK: lensDev || !!(caps.zoom && caps.zoom.min < 1), wideUsed: false, zoomHW: false, expHW: false };
+    const adv = {};
+    if (caps.zoom) {
+      const z = caps.zoom, want = t.lens === '2' ? 2 : t.lens === 'w' && !lensDev ? 0.5 : 1;
+      const v = Math.max(z.min, Math.min(z.max, want));
+      if (Math.abs(v - want) < 0.21 || (t.lens === 'w' && z.min < 1)) { adv.zoom = v; info.zoomHW = true; }
+    }
+    if (t.lens === 'w') info.wideUsed = lensDev || (info.zoomHW && adv.zoom < 1);
+    if (t.lens === '2' && !info.zoomHW) info.digitalZoom = 2;
+    const ec = caps.exposureCompensation;
+    if (ec && ec.max > ec.min) {
+      const step = Math.max(ec.step || 0.33, 0.33);
+      adv.exposureCompensation = Math.max(ec.min, Math.min(ec.max, t.exp * step));
+      if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous')) adv.exposureMode = 'continuous';
+      info.expHW = true;
+    }
+    if (Object.keys(adv).length && tr && tr.applyConstraints) {
+      try { await tr.applyConstraints({ advanced: [adv] }); }
+      catch (e) { info.zoomHW = false; info.expHW = false; if (t.lens === '2') info.digitalZoom = 2; if (t.lens === 'w') info.wideUsed = lensDev; }
+    }
+    if (!info.expHW) info.bright = 1 + 0.08 * t.exp;
+    return info;
+  }
+
   // compõe uma câmera num canvas e devolve o stream do canvas (para gravar e para a prévia mostrar o que vai sair)
   function compose(src, o) {
     const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.srcObject = src; v.play().catch(() => {});
     const c = document.createElement('canvas'); const ctx = c.getContext('2d', { alpha: false });
     const vert = o.orient === 'v'; c.width = vert ? 720 : 1280; c.height = vert ? 1280 : 720;
+    let hasFilter = false; // filtro do canvas (Safari só a partir do 18): sem ele, o brilho vira uma camada leve por cima
+    try { ctx.filter = 'brightness(1.1)'; hasFilter = ctx.filter === 'brightness(1.1)'; ctx.filter = 'none'; } catch (e) { hasFilter = false; }
     let alive = true;
     const draw = () => {
       if (!alive) return;
       const W = c.width, H = c.height, vw = v.videoWidth, vh = v.videoHeight;
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-      if (vw && vh) { const s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s; ctx.drawImage(v, (W - dw) / 2, (H - dh) / 2, dw, dh); }
+      if (vw && vh) {
+        const tu = (o.tune && o.tune()) || {}, z = tu.digitalZoom > 1 ? tu.digitalZoom : 1, b = tu.bright || 1;
+        const s = Math.max(W / vw, H / vh) * z, dw = vw * s, dh = vh * s;
+        if (b !== 1 && hasFilter) ctx.filter = 'brightness(' + b.toFixed(2) + ')';
+        ctx.drawImage(v, (W - dw) / 2, (H - dh) / 2, dw, dh);
+        if (b !== 1) { if (hasFilter) ctx.filter = 'none'; else { ctx.save(); ctx.fillStyle = b > 1 ? '#fff' : '#000'; ctx.globalAlpha = Math.min(0.2, Math.abs(b - 1) * (b > 1 ? 0.7 : 1)); ctx.fillRect(0, 0, W, H); ctx.restore(); } }
+      }
       try { drawOverlay(ctx, W, H, o.overlay ? o.overlay() : null, o.flags || { score: true, plays: true }); } catch (e) { /* placar indisponível: segue só com a imagem */ }
     };
     draw();
@@ -143,16 +209,17 @@
   // onState({ recording, startedAt, segs, bytes, error, interrupted }) avisa a tela.
   const SAFE_MIN_MS = 240000, TARGET_MS = 300000, MAX_MS = 360000;
   function createRecorder(opts) {
-    const st = { recording: false, startedAt: 0, segs: 0, bytes: 0, error: '', interrupted: false, facing: opts.facing || 'environment', orient: opts.orient === 'v' ? 'v' : 'h', flags: Object.assign({ score: true, plays: true }, opts.flags || {}), composed: false };
+    const st = { recording: false, startedAt: 0, segs: 0, bytes: 0, error: '', interrupted: false, facing: opts.facing || 'environment', orient: opts.orient === 'v' ? 'v' : 'h', flags: Object.assign({ score: true, plays: true }, opts.flags || {}), composed: false, tune: cleanTune(opts.tune), lensInfo: null };
     const safeMin = opts.segMs ? opts.segMs * 0.8 : SAFE_MIN_MS, target = opts.segMs || TARGET_MS, maxMs = opts.segMs ? opts.segMs * 1.2 : MAX_MS;
     let stream = null, comp = null, cur = null, live = [], timer = 0, stopping = false, saving = Promise.resolve();
     const recStream = () => (comp ? comp.stream : stream);
     function setPreview() { if (opts.preview) { opts.preview.srcObject = recStream(); opts.preview.muted = true; opts.preview.playsInline = true; opts.preview.style.objectFit = comp ? 'contain' : ''; opts.preview.play().catch(() => {}); } }
-    function newComp() { const old = comp; comp = canCompose() && opts.compose !== false ? compose(stream, { orient: st.orient, overlay: opts.overlay, flags: st.flags }) : null; st.composed = !!comp; if (old) setTimeout(() => old.stop(), 1500); }
+    function newComp() { const old = comp; comp = canCompose() && opts.compose !== false ? compose(stream, { orient: st.orient, overlay: opts.overlay, flags: st.flags, tune: () => st.lensInfo }) : null; st.composed = !!comp; if (old) setTimeout(() => old.stop(), 1500); }
     const emit = () => { if (opts.onState) opts.onState(Object.assign({}, st)); };
     async function openCamera() {
       if (stream) stream.getTracks().forEach(t => t.stop());
-      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: st.facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } });
+      const o = await openStream({ facing: st.facing, lens: st.tune.lens, exp: st.tune.exp });
+      stream = o.stream; st.lensInfo = o.info;
       newComp(); setPreview();
       stream.getVideoTracks().forEach(t => { t.onended = () => { if (st.recording && !stopping) { st.error = 'A gravação parou (o app saiu da tela ou o celular bloqueou). Toque para continuar gravando.'; st.interrupted = true; stopAll(); st.recording = false; emit(); } }; });
     }
@@ -210,6 +277,16 @@
       },
       // placar e lances na gravação (a marca vai sempre)
       setFlags(f) { Object.assign(st.flags, f || {}); emit(); },
+      // lente e brilho: brilho e zoom mudam na hora; trocar para a lente 0.5× (outra câmera) reabre, com o trecho virando
+      async setTune(t) {
+        const nt = cleanTune(Object.assign({}, st.tune, t)), lensChanged = nt.lens !== st.tune.lens;
+        st.tune = nt;
+        if (!stream) { emit(); return st.lensInfo; }
+        const needsReopen = lensChanged && (nt.lens === 'w' || (st.lensInfo && st.lensInfo.wideUsed && !st.lensInfo.zoomHW));
+        if (needsReopen) { if (st.recording) { stopAll(); await openCamera(); beginSeg(); } else await openCamera(); }
+        else st.lensInfo = await tune(stream, nt, false);
+        emit(); return st.lensInfo;
+      },
     };
   }
   // espaço livre no aparelho e quantos minutos de vídeo cabem (aproximado)
@@ -232,5 +309,5 @@
   }
   const fmtMB = b => (b >= 1e9 ? (b / 1e9).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB');
 
-  root.CantaVideo = { supported, mimeType, createRecorder, compose, canCompose, segments, summary, removeMatch, removeAll, locate, fmtMB, freeSpace, TARGET_MS };
+  root.CantaVideo = { openStream, tune, cleanTune, supported, mimeType, createRecorder, compose, canCompose, segments, summary, removeMatch, removeAll, locate, fmtMB, freeSpace, TARGET_MS };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

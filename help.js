@@ -15,6 +15,7 @@
       { icon: 'i-mic', title: 'Onde deixar o celular', text: 'Na lateral, na altura da rede e perto do meio da quadra. Longe da caixa de som. Com muito barulho, um fone ou lapela sem fio ajuda muito.' },
       { icon: 'i-bolt', title: 'Frase curta, depois do lance', text: 'Fale quando a bola parar, virado para o aparelho. “Ponto azul” funciona melhor que uma frase longa.' },
       { icon: 'i-watch', title: 'Ponto pelo relógio ou fone', text: 'Em Ajustes, ligue Controle pelo relógio ou fone: próxima faixa marca para o 1º time, anterior para o 2º e tocar/pausar desfaz.' },
+      { icon: 'i-camera', title: 'Lente 0.5× e brilho na gravação', text: 'Na tela de gravar, escolha 0.5× para pegar a quadra inteira (nos celulares que liberam a lente grande-angular para o navegador), 1× ou 2×. O brilho ajusta um pouco para mais ou para menos, para quadra com sol forte ou à noite.' },
       { icon: 'i-window', title: 'Placar na TV', text: 'No placar, toque no modo TV para letras grandes. No notebook, Abrir placar numa segunda janela e arraste para a TV.' },
       { icon: 'i-users', title: 'Grupos da turma', text: 'Crie um grupo para a turma de sempre: ranking do período, resenha e partidas do grupo num lugar só. Convide pelo link.' },
       { icon: 'i-download', title: 'Guarde um backup', text: 'Suas partidas ficam neste aparelho. Em Ajustes → Exportar meus dados você guarda um arquivo e restaura em outro celular.' },

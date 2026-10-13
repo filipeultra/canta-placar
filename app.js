@@ -743,7 +743,10 @@
     if (sel !== '#sheetReplay' && typeof stopReplay === 'function') stopReplay();
     $$('.sheet').forEach(d => { if ('#' + d.id !== sel) d.hidden = true; });
     const d = $(sel);
+    const wasOpen = !d.hidden;
     d.hidden = false;
+    // abrir de novo começa do topo (Ajustes, ajuda…), não de onde a pessoa tinha parado
+    if (!wasOpen) $$('.sheet-body', d).forEach(b => { b.scrollTop = 0; });
     $('#scrim').hidden = false;
     document.body.classList.add('modal-open');
     const t = d.querySelector('h2');
@@ -3489,7 +3492,7 @@
     closeSheet('#sheetCam');
     recState.matchId = match.id;
     trk('rec_start', { device: 'placar' });
-    recState.r = CVd.createRecorder({ matchId: match.id, label: match.teams[0].name + ' × ' + match.teams[1].name, device: 'placar', preview: $('#recPreview'), orient: vidOrient(), flags: vidFlags(), overlay: () => overlayNow(false),
+    recState.r = CVd.createRecorder({ matchId: match.id, label: match.teams[0].name + ' × ' + match.teams[1].name, device: 'placar', preview: $('#recPreview'), orient: vidOrient(), flags: vidFlags(), tune: vidTune(), overlay: () => overlayNow(false),
       onState: s => { if (s.error) toast(s.error); renderRecDock(); } });
     try { await recState.r.start(); } catch (e) { recState.r = null; renderRecDock(); return; }
     recState.startedAt = Date.now();
@@ -3555,8 +3558,10 @@
       if (s && s.interrupted && !s.recording) { recState.r.start().then(() => { requestWakeLock(); toast('Gravando de novo'); }).catch(() => {}); return; }
       clearTimeout(recState.miniT); recState.mini = !recState.mini; renderRecDock();
     });
-    $('#camBody').addEventListener('change', e => onVidOpt(e.target));
-    $('#view-camera').addEventListener('change', e => onVidOpt(e.target));
+    $('#camBody').addEventListener('change', e => { if (!onVidTune(e)) onVidOpt(e.target); });
+    $('#view-camera').addEventListener('change', e => { if (!onVidTune(e)) onVidOpt(e.target); });
+    $('#camBody').addEventListener('click', e => { if (e.target.closest('[data-videxp]')) onVidTune(e); });
+    $('#view-camera').addEventListener('click', e => { if (e.target.closest('[data-videxp]')) onVidTune(e); });
     $('#camOrient').addEventListener('click', () => { const t = { name: 'vidOrient', value: vidOrient() === 'h' ? 'v' : 'h' }; onVidOpt(t); toast(t.value === 'h' ? 'Vídeo na horizontal' : 'Vídeo na vertical'); });
     window.addEventListener('resize', () => { if (currentView === 'camera') renderCamOrient(); });
     $('#camBody').addEventListener('click', e => {
@@ -3607,13 +3612,14 @@
   async function camPreview() {
     camRelease();
     try {
-      cam.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: cam.facing }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const o = await CVd.openStream({ facing: cam.facing, lens: vidTune().lens, exp: vidTune().exp });
+      cam.stream = o.stream; cam.tinfo = o.info;
       const v = $('#camVideo');
-      // a prévia já mostra o vídeo como vai sair: formato escolhido, marca, placar e lances
-      if (CVd.canCompose()) { cam.pcomp = CVd.compose(cam.stream, { orient: vidOrient(), overlay: () => linkC.ov, flags: vidFlags() }); v.srcObject = cam.pcomp.stream; v.style.objectFit = 'contain'; }
+      // a prévia já mostra o vídeo como vai sair: formato escolhido, lente, brilho, marca, placar e lances
+      if (CVd.canCompose()) { cam.pcomp = CVd.compose(cam.stream, { orient: vidOrient(), overlay: () => linkC.ov, flags: vidFlags(), tune: () => cam.tinfo }); v.srcObject = cam.pcomp.stream; v.style.objectFit = 'contain'; }
       else v.srcObject = cam.stream;
       v.play().catch(() => {});
-      renderCamOrient();
+      renderCamOrient(); renderCamTune();
     }
     catch (e) { $('#camHint').textContent = e && e.name === 'NotAllowedError' ? 'Permita o uso da câmera para gravar (no cadeado da barra de endereço).' : 'Não consegui abrir a câmera neste aparelho.'; }
   }
@@ -3654,8 +3660,9 @@
     camRelease();
     if (cam.pcomp) { cam.pcomp.stop(); cam.pcomp = null; }
     trk('rec_start', { device: 'camera' });
-    cam.r = CVd.createRecorder({ matchId: cam.info.id, label: cam.info.names.join(' × '), device: 'camera', facing: cam.facing, preview: $('#camVideo'), orient: vidOrient(), flags: vidFlags(), overlay: () => linkC.ov, onState: st => { if (st.error) toast(st.error); renderCamState(); } });
+    cam.r = CVd.createRecorder({ matchId: cam.info.id, label: cam.info.names.join(' × '), device: 'camera', facing: cam.facing, preview: $('#camVideo'), orient: vidOrient(), flags: vidFlags(), tune: vidTune(), overlay: () => linkC.ov, onState: st => { if (st.error) toast(st.error); renderCamState(); } });
     try { await cam.r.start(); } catch (e) { cam.r = null; renderCamState(); return; }
+    renderCamTune();
     requestWakeLock();
     clearInterval(cam.timer); cam.timer = setInterval(renderCamState, 1000);
     renderCamState();
@@ -4230,6 +4237,7 @@
   // ----- gravação com a marca, o placar e os lances na tela (video.js desenha; aqui sai o que desenhar) -----
   const vidOrient = () => (prefs.vidOrient === 'v' ? 'v' : 'h');
   const vidFlags = () => Object.assign({ score: true, plays: true }, prefs.vidFlags || {});
+  const vidTune = () => CVd.cleanTune({ lens: prefs.vidLens, exp: prefs.vidExp });
   const cssColor = id => HEX[id] || (getComputedStyle(document.documentElement).getPropertyValue('--c-' + (PALETTE.some(p => p.id === id) ? id : 'verde')).trim() || '#AFFB48');
   let lastPlayOv = null; // último lance, para aparecer uns segundos no vídeo
   const playText = (ev, nm) => 'Ponto ' + nm + (ev.tag ? ' · ' + TAGS[ev.tag] : ev.shot ? ' · ' + (G.SHOT_LABEL[ev.shot] || ev.shot) : '');
@@ -4275,7 +4283,39 @@
     const f = vidFlags(), o = vidOrient();
     return '<div class="vid-opts"><div class="seg seg-sm" role="radiogroup" aria-label="Formato do vídeo"><label><input type="radio" name="vidOrient" value="h"' + (o === 'h' ? ' checked' : '') + '><span>' + ic('i-orient-h') + 'Horizontal</span></label><label><input type="radio" name="vidOrient" value="v"' + (o === 'v' ? ' checked' : '') + '><span>' + ic('i-orient-v') + 'Vertical</span></label></div>' +
       '<label class="vid-flag"><input type="checkbox" name="vidScore"' + (f.score ? ' checked' : '') + '><span>Placar no vídeo</span></label><label class="vid-flag"><input type="checkbox" name="vidPlays"' + (f.plays ? ' checked' : '') + '><span>Lances no vídeo</span></label></div>' +
+      tuneHTML(recState.r && recState.r.state.lensInfo) +
       '<p class="hint small">A marca ULTRA PLAY vai no canto do vídeo.' + (live ? '' : ' O formato não muda ao girar o celular: só por aqui.') + '</p>';
+  }
+  // lente (0.5×, 1×, 2×) e brilho (2 passos para cada lado)
+  function tuneHTML(info) {
+    const t = vidTune(), noWide = info && !info.wideOK;
+    const lens = [['w', '0.5×'], ['1', '1×'], ['2', '2×']].map(([v, l]) => '<label' + (v === 'w' && noWide ? ' class="na" title="Este celular não libera a lente 0.5× para o navegador"' : '') + '><input type="radio" name="vidLens" value="' + v + '"' + (t.lens === v ? ' checked' : '') + '><span>' + l + '</span></label>').join('');
+    const ex = t.exp, dots = [-2, -1, 0, 1, 2].map(k => '<i class="' + (k === ex ? 'on' : k === 0 ? 'mid' : '') + '"></i>').join('');
+    return '<div class="vid-tune"><div class="seg seg-sm lens-seg" role="radiogroup" aria-label="Lente">' + lens + '</div>' +
+      '<div class="exp-step" role="group" aria-label="Brilho"><button class="icon-btn" type="button" data-videxp="-1" aria-label="Menos brilho"' + (ex <= -2 ? ' disabled' : '') + '>' + ic('i-sun') + '<b>−</b></button>' +
+      '<span class="exp-val" aria-live="polite"><span class="exp-dots" aria-hidden="true">' + dots + '</span><small>Brilho ' + (ex > 0 ? '+' : ex < 0 ? '−' : '') + Math.abs(ex) + '</small></span>' +
+      '<button class="icon-btn" type="button" data-videxp="1" aria-label="Mais brilho"' + (ex >= 2 ? ' disabled' : '') + '>' + ic('i-sun') + '<b>+</b></button></div></div>';
+  }
+  async function applyTune(lensChanged) {
+    const t = vidTune(); let info = null;
+    for (const r of [recState.r, cam.r]) if (r) info = await r.setTune(t).catch(() => null) || info;
+    if (!cam.r && cam.stream) {
+      if (lensChanged) await camPreview();
+      else if (cam.tinfo) cam.tinfo = await CVd.tune(cam.stream, t, cam.tinfo.lensDev).catch(() => cam.tinfo);
+      info = cam.tinfo || info;
+    }
+    if (lensChanged && t.lens === 'w' && info && !info.wideUsed) toast('Este celular não libera a lente 0.5× para o navegador. Afaste um pouco o celular para pegar a quadra toda.');
+    renderCamTune(); if (!$('#sheetCam').hidden) $$('#camBody .vid-tune').forEach(x => { x.outerHTML = tuneHTML(info); });
+  }
+  function onVidTune(e) {
+    const b = e.target.closest && e.target.closest('[data-videxp]');
+    if (b) { prefs.vidExp = Math.max(-2, Math.min(2, (Number(prefs.vidExp) || 0) + Number(b.dataset.videxp))); savePrefs(); applyTune(false); return true; }
+    if (e.target.name === 'vidLens') { prefs.vidLens = e.target.value; savePrefs(); applyTune(true); return true; }
+    return false;
+  }
+  function renderCamTune() {
+    const box = $('#camTune'); if (!box) return;
+    box.innerHTML = tuneHTML(cam.r ? cam.r.state.lensInfo : cam.tinfo);
   }
   function onVidOpt(t) {
     if (t.name === 'vidOrient') { prefs.vidOrient = t.value; savePrefs(); [recState.r, cam.r].forEach(r => { if (r) r.setOrient(t.value); }); if (!cam.r && cam.pcomp) camPreview(); renderCamOrient(); renderRecDock(); return true; }
@@ -4413,6 +4453,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13d', date: '13/10/2026', title: 'Lente 0.5× e brilho na gravação', items: [
+      'Na gravação, escolha a lente 0.5× (grande-angular, nos celulares que liberam para o navegador), 1× ou 2×.',
+      'Brilho um pouco para mais ou para menos, em 2 passos para cada lado: bom para sol forte ou quadra à noite.',
+      'Ajustes e outras janelas agora abrem sempre do começo.',
+    ] },
     { id: '2026-10-13c', date: '13/10/2026', title: 'Tutorial e central de ajuda', items: [
       'Tour rápido na primeira vez: mostra onde começar a partida, a timeline, as notificações e os Ajustes. Na 1ª partida, o placar ganha o seu tour.',
       'Ajustes → Central de ajuda: primeiros passos, dicas para a voz acertar sempre e perguntas frequentes. Dá para rever o tutorial quando quiser.',
