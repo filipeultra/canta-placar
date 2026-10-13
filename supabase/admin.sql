@@ -92,7 +92,25 @@ begin
       'reports_open', (select count(*) from reports where status in ('aberta', 'em_analise')),
       'ai_runs', (select count(*) from ai_usage where created_at >= t0),
       'ai_tokens_in', (select coalesce(sum(input_tokens), 0) from ai_usage where created_at >= t0),
-      'ai_tokens_out', (select coalesce(sum(output_tokens), 0) from ai_usage where created_at >= t0)
+      'ai_tokens_out', (select coalesce(sum(output_tokens), 0) from ai_usage where created_at >= t0),
+      'ai_users', (select count(distinct user_id) from ai_usage where created_at >= t0),
+      -- uso (só aparelhos com estatísticas ligadas): agora = últimos 15 min; dia/semana/mês até agora
+      'live_now', (select count(distinct device_id) from ev where created_at > now() - interval '15 minutes'),
+      'dau', (select count(distinct device_id) from ev where name = 'app_open' and not session and created_at > now() - interval '1 day'),
+      'wau', (select count(distinct device_id) from ev where name = 'app_open' and not session and created_at > now() - interval '7 days'),
+      'mau', (select count(distinct device_id) from app_events where name = 'app_open' and not session and created_at > now() - interval '30 days'),
+      'installs', (select count(*) from cur where name = 'install'),
+      'standalone_pct', (select coalesce(round(100.0 * count(*) filter (where props->>'standalone' = 'true') / nullif(count(*), 0)), 0) from cur where name = 'app_open' and props ? 'standalone'),
+      'voice_pct', (select coalesce(round(avg((props->>'voice')::numeric)), 0) from cur where name = 'match_end' and props->>'voice' ~ '^[0-9.]+$'),
+      'recs', (select count(*) from cur where name = 'rec_start'),
+      'shares', (select count(*) from cur where name = 'share'),
+      'invites', (select count(*) from cur where name = 'invite'),
+      'feedbacks', (select count(*) from cur where name = 'feedback'),
+      'subs_new', (select count(*) from subscriptions where created_at >= t0 and provider <> 'cortesia'),
+      'subs_cancel', (select count(*) from subscriptions where status in ('cancelada', 'encerrada') and updated_at >= t0),
+      'users_deleted', (select count(*) from profiles where deleted_at >= t0),
+      'groups_new', (select count(*) from groups where created_at >= t0 and deleted_at is null),
+      'posts', (select count(*) from group_posts where created_at >= t0 and deleted_at is null)
     ) as v
   ),
   days_s as (select generate_series(t0, date_trunc('day', now()), interval '1 day') as day),
@@ -139,11 +157,130 @@ begin
       from weeks_back group by wk) r
   ),
   plans as (select coalesce(jsonb_agg(jsonb_build_object('plan', plan, 'n', n) order by n desc), '[]') as v from (select plan, count(*) n from pro group by plan) p),
-  events_top as (select coalesce(jsonb_agg(jsonb_build_object('name', name, 'n', n) order by n desc), '[]') as v from (select name, count(*) n from cur group by name order by count(*) desc limit 15) e)
+  events_top as (select coalesce(jsonb_agg(jsonb_build_object('name', name, 'n', n) order by n desc), '[]') as v from (select name, count(*) n from cur group by name order by count(*) desc limit 15) e),
+  -- versões do app em uso (aparelhos distintos que abriram no período)
+  versions as (select coalesce(jsonb_agg(jsonb_build_object('version', ver, 'n', n) order by n desc), '[]') as v from (select coalesce(app_version, '?') ver, count(distinct device_id) n from cur where name = 'app_open' group by 1 order by 2 desc limit 8) x),
+  -- quando se joga: partidas por dia da semana (0 = domingo) e hora, no horário de Brasília
+  hours as (select coalesce(jsonb_agg(jsonb_build_object('d', dw, 'h', hr, 'n', n)), '[]') as v from (
+    select extract(dow from played_at at time zone 'America/Sao_Paulo')::int dw, extract(hour from played_at at time zone 'America/Sao_Paulo')::int hr, count(*) n
+    from matches where played_at >= t0 and deleted_at is null group by 1, 2) h)
   select jsonb_build_object('days', d, 'from', to_char(t0, 'YYYY-MM-DD'), 'generated_at', now(), 'kpi', kpi.v, 'daily', daily.v, 'sports', sports.v, 'funnel', funnel.v,
-    'sources', sources.v, 'retention', retention.v, 'plans', plans.v, 'events', events_top.v)
-  into out from kpi, daily, sports, funnel, sources, retention, plans, events_top;
+    'sources', sources.v, 'retention', retention.v, 'plans', plans.v, 'events', events_top.v, 'versions', versions.v, 'hours', hours.v)
+  into out from kpi, daily, sports, funnel, sources, retention, plans, events_top, versions, hours;
   return out;
 end $$;
-revoke execute on function public.admin_metrics(int) from anon;
+revoke execute on function public.admin_metrics(int) from public, anon;
 grant execute on function public.admin_metrics(int) to authenticated;
+
+-- ---------- ações do painel (só admin; cada uma fica registrada em admin_log) ----------
+create table public.admin_log (
+  id          bigserial primary key,
+  admin_id    uuid references public.profiles(id) on delete set null,
+  action      text not null,
+  target      text,
+  detail      jsonb not null default '{}',
+  created_at  timestamptz not null default now()
+);
+alter table public.admin_log enable row level security;
+create policy admin_log_read on public.admin_log for select using (public.is_admin(auth.uid()));
+grant select on public.admin_log to authenticated;
+revoke insert, update, delete on public.admin_log from anon, authenticated;
+
+create or replace function public.admin_guard() returns void
+language plpgsql stable security definer set search_path = public as $$
+begin if not is_admin(auth.uid()) then raise exception 'acesso só para administradores' using errcode = '42501'; end if; end $$;
+
+-- busca de contas (nome, @, código UP-… ou e-mail); sem busca, as mais recentes
+create or replace function public.admin_users(q text default '', lim int default 50) returns jsonb
+language plpgsql stable security definer set search_path = public, auth as $$
+declare pat text := '%' || replace(replace(replace(coalesce(trim(q), ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  perform admin_guard();
+  return (select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc), '[]') from (
+    select p.public_id, p.handle::text as handle, p.name, p.city, p.created_at, p.deleted_at is not null as deleted, u.email,
+      s.plan, s.status as sub_status, p.pro_until, exists (select 1 from admins a where a.user_id = p.id) as is_admin,
+      (select count(*) from matches m where m.owner_id = p.id and m.deleted_at is null) as matches,
+      (select max(m.played_at) from matches m where m.owner_id = p.id and m.deleted_at is null) as last_match,
+      (select count(*) from group_members g where g.user_id = p.id and g.status = 'ativo') as groups,
+      (select count(*) from reports r where r.target_user_id = p.id) as reported
+    from profiles p left join auth.users u on u.id = p.id left join subscriptions s on s.user_id = p.id
+    where coalesce(trim(q), '') = '' or p.name ilike pat or p.handle::text ilike pat or p.public_id ilike pat or u.email ilike pat
+    order by p.created_at desc limit greatest(1, least(coalesce(lim, 50), 200))) x);
+end $$;
+
+-- Pro de cortesia: soma dias ao que a pessoa já tem (0 = tira a cortesia)
+create or replace function public.admin_grant_pro(pid text, days int default 30) returns timestamptz
+language plpgsql security definer set search_path = public as $$
+declare d int := greatest(0, least(coalesce(days, 30), 366)); uid uuid; until timestamptz;
+begin
+  perform admin_guard();
+  select id into uid from profiles where public_id = upper(pid) and deleted_at is null;
+  if uid is null then raise exception 'conta não encontrada' using errcode = 'P0002'; end if;
+  update profiles set pro_until = case when d = 0 then null else greatest(coalesce(pro_until, now()), now()) + make_interval(days => d) end
+    where id = uid returning pro_until into until;
+  insert into admin_log (admin_id, action, target, detail) values (auth.uid(), case when d = 0 then 'pro_revoke' else 'pro_grant' end, upper(pid), jsonb_build_object('days', d));
+  return until;
+end $$;
+
+-- fila de denúncias, com o que foi denunciado e quantas vezes
+create or replace function public.admin_reports(st text default 'abertas', lim int default 100) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform admin_guard();
+  return (select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc), '[]') from (
+    select r.id, r.reason, r.status, r.created_at, r.handled_at, rp.public_id as reporter,
+      case when r.target_post_id is not null then 'post' when r.target_match_id is not null then 'partida' when r.target_group_id is not null then 'grupo' else 'conta' end as kind,
+      coalesce(left(gp.text, 120), m.code || coalesce(' · ' || m.title, ''), g.name || ' · ' || g.code, tu.name || ' · ' || tu.public_id) as target,
+      coalesce(gp.deleted_at, m.deleted_at, g.deleted_at) is not null as removed,
+      (select count(*) from reports r2 where r2.target_post_id is not distinct from r.target_post_id and r2.target_match_id is not distinct from r.target_match_id
+        and r2.target_group_id is not distinct from r.target_group_id and r2.target_user_id is not distinct from r.target_user_id) as same_target
+    from reports r
+    left join profiles rp on rp.id = r.reporter_id
+    left join group_posts gp on gp.id = r.target_post_id
+    left join matches m on m.id = r.target_match_id
+    left join groups g on g.id = r.target_group_id
+    left join profiles tu on tu.id = r.target_user_id
+    where case st when 'abertas' then r.status in ('aberta', 'em_analise') when 'todas' then true else r.status = st end
+    order by r.created_at desc limit greatest(1, least(coalesce(lim, 100), 300))) x);
+end $$;
+
+-- responder a uma denúncia; remove = tira do ar o post, a partida ou o grupo denunciado (contas não são apagadas por aqui)
+create or replace function public.admin_handle_report(rid uuid, st text, remove boolean default false) returns text
+language plpgsql security definer set search_path = public as $$
+declare r reports%rowtype;
+begin
+  perform admin_guard();
+  if st not in ('em_analise', 'resolvida', 'descartada') then raise exception 'situação inválida' using errcode = '22023'; end if;
+  select * into r from reports where id = rid;
+  if not found then raise exception 'denúncia não encontrada' using errcode = 'P0002'; end if;
+  update reports set status = st, handled_at = case when st = 'em_analise' then null else now() end where id = rid;
+  if remove and st = 'resolvida' then
+    if r.target_post_id is not null then update group_posts set deleted_at = coalesce(deleted_at, now()) where id = r.target_post_id;
+    elsif r.target_match_id is not null then update matches set deleted_at = coalesce(deleted_at, now()) where id = r.target_match_id;
+    elsif r.target_group_id is not null then update groups set deleted_at = coalesce(deleted_at, now()) where id = r.target_group_id;
+    end if;
+  end if;
+  insert into admin_log (admin_id, action, target, detail) values (auth.uid(), 'report_' || st, rid::text, jsonb_build_object('remove', remove and st = 'resolvida'));
+  return st;
+end $$;
+
+-- grupos mais movimentados no período
+create or replace function public.admin_groups(days int default 30, lim int default 20) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t0 timestamptz := date_trunc('day', now()) - make_interval(days => greatest(1, least(days, 365)) - 1);
+begin
+  perform admin_guard();
+  return (select coalesce(jsonb_agg(to_jsonb(x) order by x.matches desc, x.members desc), '[]') from (
+    select g.code, g.name, g.sport, g.open, g.created_at,
+      (select count(*) from group_members gm where gm.group_id = g.id and gm.status = 'ativo') as members,
+      (select count(*) from group_members gm where gm.group_id = g.id and gm.status = 'pendente') as pending,
+      (select count(*) from matches m where m.group_id = g.id and m.played_at >= t0 and m.deleted_at is null) as matches,
+      (select count(*) from group_posts gp where gp.group_id = g.id and gp.created_at >= t0 and gp.deleted_at is null) as posts
+    from groups g where g.deleted_at is null
+    order by 8 desc, 6 desc limit greatest(1, least(coalesce(lim, 20), 100))) x);
+end $$;
+
+revoke execute on function public.admin_guard(), public.admin_users(text, int), public.admin_grant_pro(text, int), public.admin_reports(text, int),
+  public.admin_handle_report(uuid, text, boolean), public.admin_groups(int, int) from public, anon;
+grant execute on function public.admin_guard(), public.admin_users(text, int), public.admin_grant_pro(text, int), public.admin_reports(text, int),
+  public.admin_handle_report(uuid, text, boolean), public.admin_groups(int, int) to authenticated;

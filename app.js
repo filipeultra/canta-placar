@@ -1194,7 +1194,7 @@
     if (view === 'grupos') renderGrupos();
     if (view === 'camera') renderCamera(id); else if (typeof camRelease === 'function' && !(cam.r && cam.r.state.recording)) camRelease();
     if (view === 'voce') renderMe();
-    if (view === 'jogar') { render(); renderVoice(); }
+    if (view === 'jogar') { render(); renderVoice(); maybePlayTour(); }
     const hash = '#' + view + (id ? '-' + id : '');
     if (location.hash !== hash) history_replace(hash);
   }
@@ -2510,6 +2510,7 @@
     clearInterval(wlTimer);
     syncMe(); refreshSocial();
     if (msg) toast(msg);
+    maybeOfferTour(msg ? 1600 : 700);
   }
   function wireWelcome() {
     $('#welcome').addEventListener('click', e => {
@@ -4412,6 +4413,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13c', date: '13/10/2026', title: 'Tutorial e central de ajuda', items: [
+      'Tour rápido na primeira vez: mostra onde começar a partida, a timeline, as notificações e os Ajustes. Na 1ª partida, o placar ganha o seu tour.',
+      'Ajustes → Central de ajuda: primeiros passos, dicas para a voz acertar sempre e perguntas frequentes. Dá para rever o tutorial quando quiser.',
+      'A mesma ajuda está no site oficial, na página Ajuda (link no fim da central de ajuda).',
+    ] },
     { id: '2026-10-13b', date: '13/10/2026', title: 'Vídeo com placar, análise do jogo e aviso de troca de lado', items: [
       'O vídeo gravado sai com a marca ULTRA PLAY e, se quiser, o placar e os lances na tela.',
       'O vídeo sai na horizontal mesmo com o celular em pé. Para vertical, toque no botão de formato.',
@@ -4537,6 +4543,123 @@
         actions: [{ label: 'Escrever sugestão', kind: 'brand', icon: 'i-pencil-line', act: () => { closeModal(); openFeedback('sugestao'); } }, { label: 'Agora não', kind: 'link', act: closeModal }] });
     }
   }
+  // ---------- tutorial: tour guiado (Início e placar) e central de ajuda ----------
+  // Na 1ª vez (depois da tela de entrada) pergunta se a pessoa quer o tour; aceitando, o placar ganha o seu tour na 1ª partida.
+  // Recusou? Fica em Ajustes → Ajuda, junto com dicas e perguntas frequentes (conteúdo em help.js, o mesmo do site).
+  const TOUR = {
+    home: [
+      { sel: '.tabbar .tab-play', title: 'Comece por aqui', text: 'Nova partida: escolha o esporte e os times e marque ao vivo. Esqueceu de marcar? Dá para lançar o resultado depois.' },
+      { sel: '#view-inicio .feed-tabs', title: 'Sua timeline', text: 'Suas partidas e as de quem você segue, com placar, estatísticas e replay animado.' },
+      { sel: '#view-inicio .bell', title: 'Notificações', text: 'Quando alguém te marca numa partida ou te dá um zap, aparece aqui.' },
+      { sel: '#view-inicio [data-action="prefs"]', title: 'Ajustes e ajuda', text: 'Voz, microfone, tema, privacidade e a Ajuda: este tutorial, dicas e perguntas frequentes.' },
+      { sel: '.tabbar [data-go="voce"]', title: 'Você', text: 'Seu perfil com evolução, recordes, conquistas e grupos.' },
+      { title: 'No placar, é assim', list: [['i-mic', 'Fale “ponto azul” ou “ace Bia” depois do lance'], ['i-hand', 'Ou toque no lado do time que fez o ponto'], ['i-undo', '“Desfazer” corrige o último lance'], ['i-camera', 'Filme e cada ponto vira um lance em vídeo']], done: 'Bora jogar' },
+    ],
+    play: [
+      { sel: '#board', title: 'Toque para marcar', text: 'Toque no lado do time que fez o ponto. Games, sets, saque e troca de lado seguem a regra do esporte sozinhos.', inset: true },
+      { sel: '#btnMic', title: 'Ou marque falando', text: 'Ligue o microfone e diga “ponto azul”, “ponto Bia” ou “ace laranja”. Um bipe agudo confirma.' },
+      { sel: '#btnUndo', title: 'Errou? Volta', text: 'Desfaz o último lance. Por voz: “desfazer” ou “corrige, ponto laranja”.' },
+      { sel: '#btnHelp', title: 'Todos os comandos', text: 'A lista de comandos de voz, já com o nome dos seus times.' },
+      { sel: '#btnCam', title: 'Filmar a partida', text: 'Grave com este celular ou use outro aparelho como câmera pelo QR Code.' },
+      { sel: '#btnFinish', title: 'Encerrar e salvar', text: 'No fim: estatísticas, análise do jogo e imagem ou vídeo para mandar no grupo.', done: 'Bom jogo!' },
+    ],
+  };
+  let tour = null;
+  const tourShown = n => { if (!n) return false; const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight; };
+  function startTour(kind) {
+    const steps = TOUR[kind].filter(st => !st.sel || tourShown($(st.sel)));
+    if (!steps.length) return;
+    if (!$('#modal').hidden) closeModal();
+    closeAllSheets(); hideBanner();
+    tour = { kind, steps, i: 0, back: document.activeElement };
+    const t = $('#tour'); t.hidden = false; requestAnimationFrame(() => t.classList.add('show'));
+    document.body.classList.add('tour-on');
+    trk('tutorial', { step: 'inicio_' + kind });
+    tourShow();
+  }
+  function tourShow() {
+    const st = tour.steps[tour.i], last = tour.i === tour.steps.length - 1, t = $('#tour'), hole = $('#tourHole'), card = $('#tourCard');
+    $('#tourStep').textContent = (tour.i + 1) + ' de ' + tour.steps.length;
+    $('#tourTitle').textContent = st.title;
+    $('#tourText').innerHTML = st.list ? '<ul class="tour-list">' + st.list.map(([i, x]) => '<li>' + ic(i) + '<span>' + esc(x) + '</span></li>').join('') + '</ul>' : '<p>' + esc(st.text) + '</p>';
+    $('#tourNext').textContent = last ? (st.done || 'Concluir') : 'Próximo';
+    $('#tourPrev').hidden = tour.i === 0;
+    $('#tourDots').innerHTML = tour.steps.map((_, k) => '<i class="' + (k === tour.i ? 'on' : k < tour.i ? 'past' : '') + '"></i>').join('');
+    const n = st.sel && $(st.sel);
+    t.classList.toggle('center', !n);
+    if (n) {
+      const r = n.getBoundingClientRect(), pad = st.inset ? -4 : 6;
+      const x = Math.max(4, r.left - pad), y = Math.max(4, r.top - pad), w = Math.min(innerWidth - 8, r.width + 2 * pad), h = Math.min(innerHeight - 8, r.height + 2 * pad);
+      Object.assign(hole.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px', borderRadius: Math.min(22, h / 2) + 'px' });
+      const ch = card.offsetHeight, cw = card.offsetWidth, below = y + h + 14, above = y - 14 - ch;
+      let top = below + ch < innerHeight - 12 ? below : above > 12 ? above : Math.max(12, (innerHeight - ch) / 2);
+      if (st.inset) top = Math.max(12, Math.min(innerHeight - ch - 12, y + h / 2 - ch / 2));
+      card.style.top = top + 'px';
+      card.style.left = Math.max(12, Math.min(innerWidth - cw - 12, x + w / 2 - cw / 2)) + 'px';
+    } else {
+      Object.assign(hole.style, { left: innerWidth / 2 + 'px', top: innerHeight / 2 + 'px', width: '0px', height: '0px' });
+      card.style.top = ''; card.style.left = '';
+    }
+    setTimeout(() => { if (tour) $('#tourNext').focus(); }, 30);
+  }
+  function tourGo(d) { if (!tour) return; tour.i += d; if (tour.i >= tour.steps.length) { endTour(true); return; } tour.i = Math.max(0, tour.i); tourShow(); }
+  function endTour(done) {
+    if (!tour) return;
+    const k = tour.kind, back = tour.back, at = tour.i;
+    if (k === 'home') prefs.tour = done ? 'feito' : 'pulou'; else prefs.tourPlay = done ? 'feito' : 'pulou';
+    savePrefs();
+    trk('tutorial', { step: (done ? 'fim_' : 'pulou_') + k, at });
+    tour = null;
+    const t = $('#tour'); t.classList.remove('show'); document.body.classList.remove('tour-on');
+    setTimeout(() => { if (!tour) t.hidden = true; }, 220);
+    if (back && back.focus && document.contains(back)) back.focus();
+    if (k === 'home') toast(done ? 'Pronto! Na 1ª partida, mostramos o placar rapidinho.' : 'O tutorial fica em Ajustes → Ajuda, quando quiser.');
+  }
+  // pergunta uma vez, para quem acabou de chegar
+  function maybeOfferTour(delay) {
+    if (prefs.tour || SCREEN || params.get('demo')) return;
+    setTimeout(() => {
+      if (prefs.tour || tour || currentView !== 'inicio' || !$('#welcome').hidden || !$('#modal').hidden || $$('.sheet').some(x => !x.hidden)) return;
+      prefs.tour = 'perguntado'; savePrefs();
+      openModal({ icon: 'i-sparkles', tone: 'brand', title: 'Quer um tour rápido?', text: 'Em 30 segundos mostramos onde fica cada coisa: começar partida, marcar ponto falando, filmar e compartilhar.',
+        actions: [
+          { label: 'Fazer o tour', kind: 'brand', icon: 'i-play', act: () => { prefs.tour = 'aceitou'; savePrefs(); trk('tutorial', { step: 'aceitou' }); closeModal(); setTimeout(() => startTour('home'), 260); } },
+          { label: 'Agora não', kind: 'link', act: () => { prefs.tour = 'recusou'; savePrefs(); trk('tutorial', { step: 'recusou' }); closeModal(); toast('Tudo bem! O tutorial fica em Ajustes → Ajuda.'); } }] });
+    }, delay || 800);
+  }
+  // tour do placar: na 1ª partida de quem fez o tour do Início (ou pedido pela Ajuda)
+  function maybePlayTour() {
+    if (prefs.tour !== 'feito' || prefs.tourPlay || SCREEN || tour) return;
+    setTimeout(() => { if (currentView === 'jogar' && !tour && $('#modal').hidden && !$$('.sheet').some(x => !x.hidden)) startTour('play'); }, 650);
+  }
+  function wireTour() {
+    $('#tourNext').addEventListener('click', () => tourGo(1));
+    $('#tourPrev').addEventListener('click', () => tourGo(-1));
+    $('#tourSkip').addEventListener('click', () => endTour(false));
+    // durante o tour, o teclado é dele: setas e espaço não marcam ponto por trás
+    document.addEventListener('keydown', e => {
+      if (!tour) return;
+      if (e.key === 'Tab') { const f = $$('#tourCard button:not([hidden])'); const i = f.indexOf(document.activeElement); if (e.shiftKey ? i <= 0 : i === f.length - 1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); } return; }
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); endTour(false); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); tourGo(1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); tourGo(-1); }
+      else if (e.key !== 'Enter' && e.key !== ' ') e.preventDefault();
+    }, true);
+    let rt = 0; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (tour) tourShow(); }, 120); });
+  }
+  function helpCenterHTML() {
+    const H = window.CantaHelp || { steps: [], tips: [], faq: [] };
+    return '<div class="help-acts"><button class="btn btn-brand" type="button" data-action="tour">' + ic('i-play') + 'Ver o tutorial</button>' +
+      '<button class="btn" type="button" data-action="tour-play">' + ic('i-hand') + 'Tour do placar</button>' +
+      '<button class="btn" type="button" data-action="help-cmds">' + ic('i-mic') + 'Comandos de voz</button></div>' +
+      '<section class="group"><h3>Primeiros passos</h3><ol class="help-steps">' + H.steps.map((x, i) => '<li><span class="n">' + (i + 1) + '</span><span><b>' + esc(x.title) + '</b>' + esc(x.text) + '</span></li>').join('') + '</ol></section>' +
+      '<section class="group"><h3>Dicas</h3><div class="help-tips">' + H.tips.map(x => '<div class="help-tip"><span class="row-ic">' + ic(x.icon) + '</span><span><b>' + esc(x.title) + '</b>' + esc(x.text) + '</span></div>').join('') + '</div></section>' +
+      '<section class="group"><h3>Perguntas frequentes</h3><div class="faq">' + H.faq.map(x => '<details><summary><span>' + esc(x.q) + '</span>' + ic('i-chev') + '</summary><p>' + esc(x.a) + '</p></details>').join('') + '</div></section>' +
+      '<p class="hint center help-foot">Não achou? <button class="linkish" type="button" data-action="feedback">Fale com a gente</button> · <a href="site/ajuda.html" target="_blank" rel="noopener">Ajuda no site</a></p>';
+  }
+  function openHelpCenter() { closeAllSheets(); openInfo('Ajuda', helpCenterHTML()); trk('tutorial', { step: 'ajuda' }); }
+
   // sequência de semanas: lembrete no Início quando a semana ainda não teve partida
   function streakHTML() {
     try {
@@ -4834,6 +4957,10 @@
         const a = act.dataset.action;
         if (a === 'prefs') openPrefs();
         if (a === 'news') { closeAllSheets(); openNews(); }
+        if (a === 'helpcenter') openHelpCenter();
+        if (a === 'tour') { closeAllSheets(); prefs.tourPlay = null; savePrefs(); if (currentView !== 'inicio') go('inicio'); setTimeout(() => startTour('home'), 280); }
+        if (a === 'tour-play') { closeAllSheets(); go('jogar'); setTimeout(() => startTour('play'), 380); }
+        if (a === 'help-cmds') { closeAllSheets(); renderHelp(); openSheet('#sheetHelp'); }
         if (a === 'retro') openRetro();
         if (a === 'install') doInstall();
         if (a === 'install-later') { prefs.installHideUntil = Date.now() + 14 * 864e5; savePrefs(); renderInstallCard(); }
@@ -4882,6 +5009,7 @@
     $('#infoBody').addEventListener('submit', e => { if (e.target.id === 'fbForm') { e.preventDefault(); sendFeedback(); } });
     $('#infoBody').addEventListener('change', e => { if (e.target.name === 'fbKind') { const k = e.target.value; $('#fbText').placeholder = k === 'problema' ? 'O que aconteceu? Em que tela? Dá para repetir?' : k === 'elogio' ? 'O que você mais curtiu? Podemos usar como depoimento?' : 'O que faria o ULTRA PLAY ficar melhor para você?'; } });
     wireGroups();
+    wireTour();
     if (match && match.camTopic && match.events.length) linkOpenPlacar(); // partida em andamento com câmera conectada: volta a ouvir
     wireClips();
     wireRemote();

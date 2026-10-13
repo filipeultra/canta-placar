@@ -18,6 +18,25 @@
   const PLAN = { pro_mensal: 'Pro mensal', pro_anual: 'Pro anual', fundador: 'Fundador', professor: 'Professor', arena: 'Arena', cortesia: 'Cortesia' };
   const USD_BRL = 5.5, PRICE_IN = 1, PRICE_OUT = 5; // US$ por milhão de tokens (referência classe Haiku; ver docs/IA.md)
   let days = 30, data = null, session = null;
+  const EVT = { visit: 'Visita ao site ou ao app', app_open: 'Abriu o app', signup: 'Criou conta', match_start: 'Começou uma partida', match_end: 'Terminou uma partida', share: 'Compartilhou imagem ou vídeo', pro_view: 'Viu a tela do Pro', pro_start: 'Ativou o Pro', link_open: 'Conectou o celular câmera', group_create: 'Criou um grupo', group_join: 'Entrou num grupo', invite: 'Convidou alguém', install: 'Instalou o app', feedback: 'Mandou sugestão ou problema', rec_start: 'Começou a gravar', ai_analysis: 'Pediu análise por IA', retro: 'Viu a retrospectiva', tutorial: 'Tutorial (aceitou, pulou ou terminou)' };
+  const SECS = {
+    visao: ['Visão geral', 'Como o ULTRA PLAY está indo no período.'], crescimento: ['Crescimento', 'Quem chega, de onde vem e quem fica.'],
+    uso: ['Uso do app', 'Quanto e como as pessoas usam.'], receita: ['Receita', 'Assinaturas, receita mensal e projeção.'],
+    contas: ['Contas', 'Busque uma pessoa e dê Pro de cortesia.'], grupos: ['Grupos', 'As turmas mais movimentadas.'],
+    moderacao: ['Moderação', 'Denúncias e registro de ações dos admins.'], ia: ['IA', 'Análises do jogo por IA e quanto custam.'],
+    eventos: ['Eventos', 'O que o app registra (sem dados pessoais).'],
+  };
+  let sec = 'visao', rst = 'abertas', users = null, reports = null, groups = null, log = null, userQ = '';
+  const csvStore = {};
+  const icon = (name, cls) => { const s = sv('svg', { class: cls || 'ic', 'aria-hidden': 'true' }); s.append(sv('use', { href: '#i-' + name })); return s; };
+  const empty = (txt, ic) => el('div', { class: 'empty' }, [icon(ic || 'check'), el('span', { text: txt })]);
+  const fdate = iso => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
+  function ago(iso) {
+    if (!iso) return '—';
+    const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+    if (s < 90) return 'agora'; if (s < 3600) return 'há ' + Math.round(s / 60) + ' min'; if (s < 86400) return 'há ' + Math.round(s / 3600) + ' h';
+    const d = Math.round(s / 86400); return d < 31 ? 'há ' + d + (d === 1 ? ' dia' : ' dias') : fdate(iso);
+  }
 
   // ---------- sessão (link mágico do Supabase) ----------
   const SKEY = 'ultra.admin.session';
@@ -43,15 +62,33 @@
     const r = await fetch(C.supabaseUrl + '/auth/v1/otp?redirect_to=' + encodeURIComponent(location.origin + location.pathname), { method: 'POST', headers: H(), body: JSON.stringify({ email, create_user: false }) });
     return r.ok;
   }
-  async function fetchMetrics(d) {
-    if (DEMO) return demoMetrics(d);
+  async function call(path, body, method) {
     if (session.expires_at - Date.now() < 60000) await refresh();
-    let r = await fetch(C.supabaseUrl + '/rest/v1/rpc/admin_metrics', { method: 'POST', headers: H(session.access_token), body: JSON.stringify({ days: d }) });
-    if (r.status === 401 && await refresh()) r = await fetch(C.supabaseUrl + '/rest/v1/rpc/admin_metrics', { method: 'POST', headers: H(session.access_token), body: JSON.stringify({ days: d }) });
+    const go = () => fetch(C.supabaseUrl + path, { method: method || 'POST', headers: H(session.access_token), body: body ? JSON.stringify(body) : undefined });
+    let r = await go();
+    if (r.status === 401 && await refresh()) r = await go();
     if (r.status === 401) { const e = new Error('sessão'); e.code = 401; throw e; }
     if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.message || 'HTTP ' + r.status); e.code = j.code === '42501' ? 403 : r.status; throw e; }
     return r.json();
   }
+  const rpc = (fn, args) => call('/rest/v1/rpc/' + fn, args || {});
+  const api = {
+    metrics: d => (DEMO ? Promise.resolve(demoMetrics(d)) : rpc('admin_metrics', { days: d })),
+    users: q => (DEMO ? Promise.resolve(demoStore().users.filter(u => !q || [u.name, u.handle, u.public_id, u.email].some(v => v && v.toLowerCase().includes(q.toLowerCase()))).slice(0, 50)) : rpc('admin_users', { q, lim: 50 })),
+    reports: st => (DEMO ? Promise.resolve(demoStore().reports.filter(r => st === 'todas' || (st === 'abertas' ? ['aberta', 'em_analise'].includes(r.status) : r.status === st))) : rpc('admin_reports', { st, lim: 100 })),
+    groups: d => (DEMO ? Promise.resolve(demoStore().groups.map(g => Object.assign({}, g, { matches: Math.round(g.matches * d / 30), posts: Math.round(g.posts * d / 30) }))) : rpc('admin_groups', { days: d, lim: 30 })),
+    log: () => (DEMO ? Promise.resolve(demoStore().log.slice()) : call('/rest/v1/admin_log?select=action,target,detail,created_at&order=id.desc&limit=40', null, 'GET')),
+    grant(pid, d) {
+      if (!DEMO) return rpc('admin_grant_pro', { pid, days: d });
+      const u = demoStore().users.find(x => x.public_id === pid); const base = Math.max(Date.now(), Date.parse(u.pro_until || 0) || 0);
+      u.pro_until = d ? new Date(base + d * 864e5).toISOString() : null; demoLog(d ? 'pro_grant' : 'pro_revoke', pid, { days: d }); return Promise.resolve(u.pro_until);
+    },
+    handle(id, st, remove) {
+      if (!DEMO) return rpc('admin_handle_report', { rid: id, st, remove: !!remove });
+      const r = demoStore().reports.find(x => x.id === id); r.status = st; r.handled_at = st === 'em_analise' ? null : new Date().toISOString(); if (remove && st === 'resolvida') r.removed = true;
+      demoLog('report_' + st, id, { remove: !!(remove && st === 'resolvida') }); return Promise.resolve(st);
+    },
+  };
 
   // ---------- dados de demonstração (fictícios, sempre iguais) ----------
   function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -73,18 +110,55 @@
       days: d, demo: true, generated_at: new Date().toISOString(),
       kpi: { visits, visits_prev: sum(prev, 'visits'), active, active_prev: Math.round(sum(prev, 'active') * 0.42), users, users_new: sum(cur, 'signups'), users_new_prev: sum(prev, 'signups'), pro, pro_paying: paying,
         mrr: Math.round(paying * 0.52 * 24.9 + paying * 0.3 * 14.99 + paying * 0.18 * 59.9), matches, matches_prev: sum(prev, 'matches'), matches_total: 18240 + matches, groups: 214, reports_open: 2,
-        ai_runs: Math.round(matches * 0.18), ai_tokens_in: Math.round(matches * 0.18 * 1500), ai_tokens_out: Math.round(matches * 0.18 * 250) },
+        ai_runs: Math.round(matches * 0.18), ai_tokens_in: Math.round(matches * 0.18 * 1500), ai_tokens_out: Math.round(matches * 0.18 * 250), ai_users: Math.round(matches * 0.05),
+        live_now: 7 + Math.round(r() * 9), dau: cur[cur.length - 1].active, wau: Math.round(sum(all.slice(-7), 'active') * 0.55), mau: Math.round(sum(all.slice(-30), 'active') * 0.42),
+        installs: Math.round(visits * 0.045), standalone_pct: 41, voice_pct: 63, recs: Math.round(matches * 0.08), shares: Math.round(matches * 0.42), invites: Math.round(matches * 0.1), feedbacks: Math.round(d * 0.9),
+        subs_new: Math.round(paying * 0.12 * d / 30), subs_cancel: Math.round(paying * 0.035 * d / 30), users_deleted: Math.round(d * 0.2), groups_new: Math.round(d * 0.6), posts: Math.round(matches * 0.07) },
       daily: cur,
       sports: [['beach', 0.58], ['padel', 0.17], ['peteca', 0.11], ['tenis', 0.08], ['volei', 0.04], ['futevolei', 0.02]].map(([sport, k]) => ({ sport, n: Math.round(matches * k) })),
       funnel: [['visit', 1], ['signup', 0.31], ['match_start', 0.24], ['match_end', 0.19], ['share', 0.09], ['pro_start', 0.022]].map(([step, k]) => ({ step, n: Math.round(f0 * k) })),
       sources: [['instagram', 'bio', 0.34, 0.1], ['direto', '', 0.22, 0.07], ['convite', '', 0.16, 0.16], ['tiktok', 'bio', 0.12, 0.08], ['cartaz', 'arena', 0.09, 0.12], ['site', 'hero', 0.07, 0.09]].map(([source, medium, k, c]) => ({ source, medium, visits: Math.round(f0 * k), signups: Math.round(f0 * k * c * 3) })),
       retention: Array.from({ length: 8 }, (_, i) => { const w = new Date(today); w.setDate(w.getDate() - w.getDay() + 1 - 7 * (7 - i)); const size = Math.round(90 + i * 22 + r() * 20); const left = 7 - i; const f = [0.46, 0.34, 0.29, 0.26]; const o = { week: w.toISOString().slice(0, 10), size }; ['w1', 'w2', 'w3', 'w4'].forEach((k, j) => { o[k] = j < left ? Math.round(size * (f[j] + (r() - 0.5) * 0.05)) : 0; }); return o; }),
       plans: [['pro_mensal', 0.52], ['pro_anual', 0.3], ['professor', 0.18]].map(([plan, k]) => ({ plan, n: Math.round(paying * k) })).concat([{ plan: 'cortesia', n: pro - paying }]),
+      versions: [['2026.10.13', 0.71], ['2026.10.06', 0.21], ['2026.09.29', 0.08]].map(([version, k]) => ({ version, n: Math.round(sum(cur, 'active') * 0.42 * k) })),
+      hours: (() => { const o = [], rr = rng(77); for (let dw = 0; dw < 7; dw++) for (let h = 6; h < 24; h++) { const wkend = dw === 0 || dw === 6; const w = wkend ? Math.exp(-Math.pow((h - 9) / 2.4, 2)) + 0.5 * Math.exp(-Math.pow((h - 16) / 2, 2)) : Math.exp(-Math.pow((h - 19.5) / 1.7, 2)) + 0.25 * Math.exp(-Math.pow((h - 7) / 1.2, 2)); const n = Math.round(matches / 30 * w * (wkend ? 2.2 : 1.1) * (0.8 + rr() * 0.4)); if (n) o.push({ d: dw, h, n }); } return o; })(),
       events: [['app_open', 3.1], ['match_start', 1.2], ['match_end', 1], ['share', 0.42], ['pro_view', 0.3], ['group_join', 0.12], ['invite', 0.1], ['rec_start', 0.08], ['ai_analysis', 0.06], ['signup', 0.07]].map(([name, k]) => ({ name, n: Math.round(matches * k) })),
     };
   }
 
-  // ---------- desenho ----------
+
+  // contas, grupos e denúncias fictícias (modo demonstração), guardadas só na memória desta aba
+  let demoS = null;
+  function demoStore() {
+    if (demoS) return demoS;
+    const r = rng(4242), now = Date.now(), pick = l => l[Math.floor(r() * l.length)];
+    const first = ['Ana', 'Bruno', 'Carla', 'Diego', 'Elisa', 'Fábio', 'Gabi', 'Heitor', 'Isa', 'João', 'Kaká', 'Lara', 'Marcos', 'Nina', 'Otávio', 'Paula', 'Rafa', 'Sofia', 'Téo', 'Vivi'];
+    const last = ['Souza', 'Lima', 'Prado', 'Rocha', 'Mendes', 'Alves', 'Costa', 'Ramos', 'Teixeira', 'Barros'];
+    const cities = ['Belo Horizonte', 'Rio de Janeiro', 'São Paulo', 'Vitória', 'Florianópolis', 'Salvador', null];
+    const plans = [null, null, null, null, null, 'pro_mensal', 'pro_anual', 'professor'];
+    const code = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(r() * 32)]).join('');
+    const users = Array.from({ length: 48 }, (_, i) => {
+      const f = first[i % first.length], l = pick(last), created = now - Math.floor(r() * 160) * 864e5 - Math.floor(r() * 864e5), plan = pick(plans), m = Math.floor(r() * r() * 140);
+      const handle = (f + '.' + l).toLowerCase().normalize('NFD').replace(/[^a-z.]/g, '') + (i > 19 ? i : '');
+      return { public_id: 'UP-' + code(), handle, name: f + ' ' + l, city: pick(cities), email: handle + '@exemplo.com', created_at: new Date(created).toISOString(), deleted: false, plan, sub_status: plan ? 'ativa' : null,
+        pro_until: !plan && r() < 0.08 ? new Date(now + Math.floor(r() * 40) * 864e5).toISOString() : null, is_admin: i === 0, matches: m, last_match: m ? new Date(now - Math.floor(r() * 20) * 864e5).toISOString() : null, groups: Math.floor(r() * 3), reported: r() < 0.06 ? 1 : 0 };
+    }).sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const groups = [['Beach das 7', 'beach', 18, 46, 31], ['Padel de Quinta', 'padel', 12, 29, 12], ['Peteca do Parque', 'peteca', 22, 27, 40], ['Futevôlei Posto 9', 'futevolei', 15, 21, 9], ['Turma do Sábado', 'beach', 9, 17, 14], ['Tênis Clube Sul', 'tenis', 11, 12, 5], ['Vôlei da Orla', 'volei', 8, 8, 3], ['Beach Kids', 'beach', 14, 6, 2]]
+      .map(([name, sport, members, matches, posts], i) => ({ code: 'G-' + code(), name, sport, open: i % 3 === 0, created_at: new Date(now - (90 - i * 9) * 864e5).toISOString(), members, pending: i % 4 === 1 ? 2 : 0, matches, posts }));
+    const H = h => new Date(now - h * 36e5).toISOString();
+    const reports = [
+      { id: 'd1', kind: 'post', target: 'Quem perdeu ontem é muito ruim, sai do grupo', reason: 'Ofensivo com outra pessoa', status: 'aberta', created_at: H(3), reporter: 'UP-' + code(), same_target: 2, removed: false },
+      { id: 'd2', kind: 'partida', target: 'P-' + code() + ' · Final 6x0 6x0', reason: 'Placar falso, nunca jogamos', status: 'em_analise', created_at: H(20), reporter: 'UP-' + code(), same_target: 1, removed: false },
+      { id: 'd3', kind: 'conta', target: 'Perfil com foto imprópria · UP-' + code(), reason: 'Foto de perfil imprópria', status: 'aberta', created_at: H(30), reporter: 'UP-' + code(), same_target: 3, removed: false },
+      { id: 'd4', kind: 'grupo', target: 'Vendas de raquete · G-' + code(), reason: 'Spam, só propaganda', status: 'resolvida', created_at: H(80), handled_at: H(70), reporter: 'UP-' + code(), same_target: 1, removed: true },
+      { id: 'd5', kind: 'post', target: 'Bora jogar amanhã 7h?', reason: 'Engano', status: 'descartada', created_at: H(120), handled_at: H(118), reporter: 'UP-' + code(), same_target: 1, removed: false },
+    ];
+    demoS = { users, groups, reports, log: [{ action: 'pro_grant', target: users[3].public_id, detail: { days: 30 }, created_at: H(26) }, { action: 'report_resolvida', target: 'd4', detail: { remove: true }, created_at: H(70) }, { action: 'report_descartada', target: 'd5', detail: { remove: false }, created_at: H(118) }] };
+    return demoS;
+  }
+  function demoLog(action, target, detail) { demoStore().log.unshift({ action, target, detail, created_at: new Date().toISOString() }); }
+
+  // ---------- desenho ----------  // ---------- desenho ----------
   const tip = $('#tip');
   function showTip(x, y, title, rows) {
     tip.replaceChildren(el('div', { class: 't', text: title }), ...rows.map(([label, value, color]) => { const r = el('div', { class: 'r' }); if (color) { const i = el('i'); i.style.setProperty('--c', color); r.append(i); } r.append(el('b', { text: value }), el('span', { text: label })); return r; }));
@@ -176,86 +250,393 @@
   }
   function table(box, head, rows, opts) {
     const t = el('table'); if (opts && opts.caption) t.append(el('caption', { class: 'sr-only', text: opts.caption }));
-    t.append(el('thead', {}, [el('tr', {}, head.map(h => el('th', { text: h, scope: 'col' })))]));
-    t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map(c => { if (c && typeof c === 'object') { const td = el('td', { class: c.cls || '', text: c.text }); if (c.bg) { td.style.background = c.bg; td.style.color = c.fg; } return td; } return el('td', { text: c }); })))));
+    t.append(el('thead', {}, [el('tr', {}, head.map(h => typeof h === 'object' ? el('th', { text: h.text, scope: 'col', class: h.cls || '' }) : el('th', { text: h, scope: 'col' })))]));
+    t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map(c => {
+      if (c instanceof Node) return el('td', {}, [c]);
+      if (c && typeof c === 'object') { const td = el('td', { class: c.cls || '', text: c.text == null ? '' : c.text }); if (c.bg) { td.style.background = c.bg; td.style.color = c.fg; } if (c.node) td.append(c.node); if (c.sub) td.append(el('span', { class: 'sub', text: c.sub })); return td; }
+      return el('td', { text: c == null ? '' : c });
+    })))));
+    if (!rows.length) { box.replaceChildren(empty(opts && opts.empty || 'Nada no período.')); return; }
     box.replaceChildren(t);
+  }
+  function spark(values) {
+    const s = sv('svg', { class: 'spark', viewBox: '0 0 64 22', 'aria-hidden': 'true', preserveAspectRatio: 'none' });
+    if (!values || values.length < 2) return s;
+    const max = Math.max(1, ...values), min = Math.min(...values), n = values.length, rg = Math.max(1, max - min);
+    s.append(sv('path', { d: values.map((v, i) => (i ? 'L' : 'M') + ((64 * i) / (n - 1)).toFixed(1) + ' ' + (20 - (18 * (v - min)) / rg).toFixed(1)).join(' '), fill: 'none', stroke: css('--series-1'), 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke' }));
+    return s;
   }
   function delta(cur, prev) {
     if (!prev) return [cur ? 'up' : 'flat', cur ? 'novo no período' : 'sem dados antes'];
     const p = Math.round((100 * (cur - prev)) / prev);
     return [p > 0 ? 'up' : p < 0 ? 'down' : 'flat', (p > 0 ? '+' : '') + p + '% vs. ' + days + ' dias antes'];
   }
-  function kpi(k, v, d, extra) {
-    const box = el('div', { class: 'kpi' + (extra && extra.alert ? ' alert' : '') }, [el('div', { class: 'k', text: k }), el('div', { class: 'v', text: v })]);
-    if (d) { const [dir, txt] = d; const i = el('i', { class: dir, 'aria-hidden': 'true' }); box.append(el('div', { class: 'd' }, [i, el('span', { text: txt })])); }
-    else if (extra && extra.note) box.append(el('div', { class: 'd' }, [el('span', { text: extra.note })]));
+  // um indicador: ícone + nome, número, comparação ou nota; opcional mini linha e link para a seção
+  function kpi(ic, k, v, o) {
+    o = o || {};
+    const box = el(o.href ? 'a' : 'div', { class: 'kpi' + (o.alert ? ' alert' : '') });
+    if (o.href) box.setAttribute('href', '#' + o.href);
+    const head = el('div', { class: 'k' }, [icon(ic), el('span', { text: k })]);
+    box.append(head, el('div', { class: 'v', text: v }));
+    if (o.d) { const [dir, txt] = o.d; box.append(el('div', { class: 'd' }, [el('i', { class: dir, 'aria-hidden': 'true' }), el('span', { text: txt })])); }
+    else if (o.note) box.append(el('div', { class: 'd' }, [el('span', { text: o.note })]));
+    if (o.spark) box.append(spark(o.spark));
+    if (o.title) box.setAttribute('title', o.title);
     return box;
   }
-  function render() {
-    const m = data, K = m.kpi;
-    const aiBRL = ((K.ai_tokens_in * PRICE_IN + K.ai_tokens_out * PRICE_OUT) / 1e6) * USD_BRL;
-    $('#kpis').replaceChildren(
-      kpi('Visitas', nf.format(K.visits), delta(K.visits, K.visits_prev)),
-      kpi('Pessoas ativas', nf.format(K.active), delta(K.active, K.active_prev)),
-      kpi('Contas', nf.format(K.users), null, { note: '+' + nf.format(K.users_new) + ' no período' }),
-      kpi('Novas contas', nf.format(K.users_new), delta(K.users_new, K.users_new_prev)),
-      kpi('Assinantes Pro', nf.format(K.pro), null, { note: nf.format(K.pro_paying) + ' pagando · ' + pct(K.pro, K.users) + '% das contas' }),
-      kpi('Receita mensal (MRR)', money.format(K.mrr), null, { note: 'pelos preços em plan_prices' }),
-      kpi('Partidas', nf.format(K.matches), delta(K.matches, K.matches_prev)),
-      kpi('Grupos', nf.format(K.groups), null, { note: nf.format(K.matches_total) + ' partidas no total' }),
-      kpi('Denúncias abertas', nf.format(K.reports_open), null, { note: K.reports_open ? 'precisam de resposta' : 'nenhuma pendente', alert: K.reports_open > 0 }),
-    );
-    const daily = m.daily || [];
+  const series = key => (data.daily || []).map(r => r[key]);
+  const aiCost = K => ((K.ai_tokens_in * PRICE_IN + K.ai_tokens_out * PRICE_OUT) / 1e6) * USD_BRL;
+  function revenue(K) {
+    const arpu = K.pro_paying ? K.mrr / K.pro_paying : 0;
+    const churnM = K.pro_paying + K.subs_cancel ? (K.subs_cancel / (K.pro_paying + K.subs_cancel)) * (30 / days) : 0;
+    return { arpu, churnM, ltv: churnM ? arpu / churnM : 0, conv: K.users ? K.pro_paying / K.users : 0 };
+  }
+  function setCsv(key, name, head, rows) { csvStore[key] = { name, head, rows }; }
+  function downloadCsv(key) {
+    const c = csvStore[key]; if (!c) return;
+    const q = v => { const s = v == null ? '' : String(v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const body = '﻿' + [c.head].concat(c.rows).map(r => r.map(q).join(';')).join('\r\n');
+    const a = el('a', { href: URL.createObjectURL(new Blob([body], { type: 'text/csv;charset=utf-8' })), download: 'ultraplay-' + c.name + '-' + new Date().toISOString().slice(0, 10) + '.csv' });
+    document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    toast('CSV baixado', 'download');
+  }
+  let toastT = 0;
+  function toast(msg, ic) { const t = $('#toast'); t.replaceChildren(icon(ic || 'check'), el('span', { text: msg })); t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800); }
+
+  // ---------- diálogo ----------
+  const dlg = $('#dlg');
+  function openDlg(o) {
+    $('#dlgIc').replaceChildren(icon(o.icon || 'alert'));
+    $('#dlgT').textContent = o.title;
+    $('#dlgB').replaceChildren(...(o.body || []));
+    $('#dlgA').replaceChildren(...o.actions.map(a => {
+      const b = el('button', { class: 'btn ' + (a.kind || ''), type: 'button' }); if (a.icon) b.append(icon(a.icon)); b.append(document.createTextNode(a.label));
+      b.addEventListener('click', async () => { if (!a.act) { dlg.close(); return; } b.disabled = true; try { if ((await a.act()) !== false) dlg.close(); } catch (e) { toast('Não deu: ' + e.message, 'alert'); } b.disabled = false; });
+      return b;
+    }));
+    dlg.showModal();
+    const first = $('#dlgB').querySelector('input:checked, input, button') || $('#dlgA').lastChild; if (first) first.focus();
+  }
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+  // ---------- seções ----------
+  function renderVisao() {
+    const K = data.kpi, rv = revenue(K);
+    $('#live').replaceChildren(
+      el('span', { class: 'now' }, [el('span', { class: 'pulse', 'aria-hidden': 'true' }), el('b', { text: nf.format(K.live_now) }), el('span', { text: K.live_now === 1 ? 'pessoa usando agora' : 'pessoas usando agora' })]),
+      el('span', { class: 'm' }, [el('b', { text: nf.format(K.dau) }), document.createTextNode('hoje')]),
+      el('span', { class: 'm' }, [el('b', { text: nf.format(K.wau) }), document.createTextNode('na semana')]),
+      el('span', { class: 'm' }, [el('b', { text: nf.format(K.mau) }), document.createTextNode('no mês')]),
+      el('span', { class: 'muted small', text: 'aparelhos com estatísticas ligadas · últimos 15 min' }));
+    $('#kpiVisao').replaceChildren(
+      kpi('eye', 'Visitas', nf.format(K.visits), { d: delta(K.visits, K.visits_prev), spark: series('visits'), href: 'crescimento' }),
+      kpi('activity', 'Pessoas ativas', nf.format(K.active), { d: delta(K.active, K.active_prev), spark: series('active'), href: 'uso' }),
+      kpi('user-plus', 'Novas contas', nf.format(K.users_new), { d: delta(K.users_new, K.users_new_prev), spark: series('signups'), href: 'crescimento' }),
+      kpi('ball', 'Partidas', nf.format(K.matches), { d: delta(K.matches, K.matches_prev), spark: series('matches'), href: 'uso' }),
+      kpi('crown', 'Assinantes Pro', nf.format(K.pro), { note: nf.format(K.pro_paying) + ' pagando · ' + nf.format(K.pro - K.pro_paying) + ' cortesia', href: 'receita' }),
+      kpi('wallet', 'Receita mensal (MRR)', money.format(K.mrr), { note: (rv.conv * 100).toFixed(1).replace('.', ',') + '% das contas pagam', href: 'receita' }),
+      kpi('users', 'Contas', nf.format(K.users), { note: '+' + nf.format(K.users_new) + ' no período', href: 'contas' }),
+      kpi('flag', 'Denúncias abertas', nf.format(K.reports_open), { note: K.reports_open ? 'precisam de resposta' : 'nenhuma pendente', alert: K.reports_open > 0, href: 'moderacao' }));
+    const daily = data.daily || [];
     const ser = [{ key: 'visits', label: 'Visitas', color: '--series-1' }, { key: 'active', label: 'Pessoas ativas', color: '--series-2' }];
     $('#lgDaily').replaceChildren(...ser.map(s => { const i = el('i'); i.style.setProperty('--c', css(s.color)); return el('span', {}, [i, document.createTextNode(s.label)]); }));
-    if (daily.length) {
-      lineChart($('#chDaily'), daily, ser, 'Visitas e pessoas ativas por dia');
-      barChart($('#chSignups'), daily, 'signups', 'Novas contas', '--series-1');
-      barChart($('#chMatches'), daily, 'matches', 'Partidas', '--series-1');
-    }
+    if (daily.length && !$('#chDaily').hidden) lineChart($('#chDaily'), daily, ser, 'Visitas e pessoas ativas por dia');
     table($('#tbDaily'), ['Dia', 'Visitas', 'Ativas', 'Novas contas', 'Partidas'], daily.slice().reverse().map(r => [dshort(r.day), nf.format(r.visits), nf.format(r.active), nf.format(r.signups), nf.format(r.matches)]), { caption: 'Números por dia' });
-    const f0 = (m.funnel[0] || {}).n || 0;
-    hbars($('#chFunnel'), m.funnel.map((s, i) => ({ label: STEP[s.step] || s.step, n: s.n, prev: i ? m.funnel[i - 1].n : null })), it => pct(it.n, f0) + '% do início' + (it.prev != null ? ' · ' + pct(it.n, it.prev) + '% da etapa' : ''));
-    hbars($('#chSports'), (m.sports || []).map(s => ({ label: SPORT[s.sport] || s.sport, n: s.n })), it => pct(it.n, m.kpi.matches) + '%');
-    table($('#tbSources'), ['Origem', 'Visitas', 'Contas', '%'], (m.sources || []).map(s => [s.source + (s.medium ? ' · ' + s.medium : ''), nf.format(s.visits), nf.format(s.signups), pct(s.signups, s.visits) + '%']), { caption: 'Origem das visitas' });
-    table($('#tbPlans'), ['Plano', 'Assinantes'], (m.plans || []).map(p => [PLAN[p.plan] || p.plan, nf.format(p.n)]), { caption: 'Assinantes por plano' });
-    $('#aiCost').textContent = 'Análises por IA no período: ' + nf.format(K.ai_runs) + ' · custo estimado ' + money.format(aiBRL) + '.';
+    $('#insights').replaceChildren(...insights().map(it => {
+      const inner = [el('span', { class: 'dot' }, [icon(it.icon)]), el('span', {}, [document.createTextNode(it.text), it.sub ? el('small', { text: it.sub }) : ''])];
+      if (it.sec) { const a = el('a', { href: '#' + it.sec }, inner); a.append(icon('chev', 'ic go')); return el('li', { class: it.tone || '' }, [a]); }
+      return el('li', { class: it.tone || '' }, [el('div', {}, inner)]);
+    }));
+  }
+  // frases curtas sobre o que mudou ou pede atenção, da mais urgente para a menos
+  function insights() {
+    const K = data.kpi, out = [], rv = revenue(K);
+    if (K.reports_open) out.push({ tone: 'bad', icon: 'flag', text: nf.format(K.reports_open) + (K.reports_open === 1 ? ' denúncia esperando resposta' : ' denúncias esperando resposta'), sub: 'Responder rápido evita que o problema cresça.', sec: 'moderacao' });
+    const dv = K.visits_prev ? Math.round((100 * (K.visits - K.visits_prev)) / K.visits_prev) : null;
+    if (dv != null && Math.abs(dv) >= 10) out.push({ tone: dv > 0 ? 'good' : 'warn', icon: 'trend', text: 'Visitas ' + (dv > 0 ? '+' : '') + dv + '% em relação aos ' + days + ' dias anteriores', sub: 'Veja de onde vieram em Crescimento.', sec: 'crescimento' });
+    const f = data.funnel || []; let worst = null;
+    for (let i = 1; i < f.length - 1; i++) { const r = f[i - 1].n ? f[i].n / f[i - 1].n : 1; if (!worst || r < worst.r) worst = { r, a: f[i - 1].step, b: f[i].step }; }
+    if (worst && f[0].n) out.push({ tone: worst.r < 0.5 ? 'warn' : '', icon: 'target', text: 'Maior perda do funil: só ' + Math.round(worst.r * 100) + '% passam de “' + (STEP[worst.a] || worst.a).toLowerCase() + '” para “' + (STEP[worst.b] || worst.b).toLowerCase() + '”', sec: 'crescimento' });
+    const full = (data.retention || []).filter(r => (Date.now() - Date.parse(r.week)) / 6048e5 >= 2 && r.size);
+    if (full.length) { const w1 = Math.round(full.reduce((a, r) => a + (100 * r.w1) / r.size, 0) / full.length); out.push({ tone: w1 >= 40 ? 'good' : w1 < 25 ? 'warn' : '', icon: 'users', text: w1 + '% voltam na semana seguinte à chegada', sub: w1 >= 40 ? 'Ótimo para um app de esporte.' : 'Lembretes e grupos ajudam a trazer de volta.', sec: 'crescimento' }); }
+    const vs = data.versions || []; const vt = vs.reduce((a, v) => a + v.n, 0);
+    if (vs.length > 1 && vt) { const old = vt - vs[0].n; if (old / vt >= 0.2) out.push({ tone: 'warn', icon: 'phone', text: Math.round((100 * old) / vt) + '% dos aparelhos ainda em versões antigas', sub: 'O app se atualiza ao reabrir; vale lembrar no Instagram.', sec: 'uso' }); }
+    const ai = aiCost(K);
+    if (K.ai_runs) out.push({ tone: K.mrr && ai / K.mrr > 0.1 ? 'warn' : '', icon: 'sparkle', text: 'IA: ' + nf.format(K.ai_runs) + ' análises, ' + money.format(ai) + ' no período', sub: K.mrr ? (ai / K.mrr * 100).toFixed(1).replace('.', ',') + '% da receita mensal' : '', sec: 'ia' });
+    if (K.pro_paying) out.push({ tone: '', icon: 'wallet', text: 'Cada assinante paga em média ' + money.format(rv.arpu) + ' por mês', sub: rv.ltv ? 'Valor estimado ao longo da assinatura: ' + money.format(rv.ltv) : '', sec: 'receita' });
+    if (!out.length) out.push({ icon: 'check', tone: 'good', text: 'Tudo tranquilo por aqui.' });
+    return out.slice(0, 6);
+  }
+  function renderCresc() {
+    const K = data.kpi, f = data.funnel || [], f0 = (f[0] || {}).n || 0, sg = (f.find(s => s.step === 'signup') || {}).n || 0;
+    $('#kpiCresc').replaceChildren(
+      kpi('users', 'Contas', nf.format(K.users), { note: '+' + nf.format(K.users_new) + ' no período' }),
+      kpi('user-plus', 'Novas contas', nf.format(K.users_new), { d: delta(K.users_new, K.users_new_prev), spark: series('signups') }),
+      kpi('target', 'Visita → conta', pct(sg, f0) + '%', { note: 'de quem tem estatísticas ligadas' }),
+      kpi('phone', 'Instalações', nf.format(K.installs), { note: 'pelo botão Instalar do app' }),
+      kpi('link', 'Convites enviados', nf.format(K.invites), { note: 'link com o código de quem convidou' }),
+      kpi('trash', 'Contas excluídas', nf.format(K.users_deleted), { note: 'no período' }));
+    if (data.daily.length) barChart($('#chSignups'), data.daily, 'signups', 'Novas contas', '--series-1');
+    hbars($('#chFunnel'), f.map((s, i) => ({ label: STEP[s.step] || s.step, n: s.n, prev: i ? f[i - 1].n : null })), it => pct(it.n, f0) + '% do início' + (it.prev != null ? ' · ' + pct(it.n, it.prev) + '% da etapa' : ''));
+    setCsv('funnel', 'funil', ['Etapa', 'Aparelhos'], f.map(s => [STEP[s.step] || s.step, s.n]));
+    const src = data.sources || [];
+    table($('#tbSources'), ['Origem', 'Visitas', 'Contas', 'Conversão'], src.map(s => [{ text: s.source, sub: s.medium || '' }, nf.format(s.visits), nf.format(s.signups), pct(s.signups, s.visits) + '%']), { caption: 'Origem das visitas' });
+    setCsv('sources', 'origem', ['Origem', 'Meio', 'Visitas', 'Contas'], src.map(s => [s.source, s.medium, s.visits, s.signups]));
     const seq = ['--seq-1', '--seq-2', '--seq-3', '--seq-4', '--seq-5', '--seq-6'].map(css);
-    // texto da célula: preto ou branco, o que tiver mais contraste com o fundo
-    const lum = hex => { const v = [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
-    const ink = bg => { const L = lum(bg); return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05) ? '#0b0b0b' : '#ffffff'; };
     const cell = (n, size, future) => { if (future) return { text: '', cls: 'cell' }; const p = pct(n, size), k = Math.min(5, Math.floor(p / 10)); return { text: p + '%', cls: 'cell', bg: seq[k], fg: ink(seq[k]) }; };
-    const nowWk = Date.now();
-    table($('#tbRetention'), ['Semana', 'Pessoas', '1ª sem.', '2ª sem.', '3ª sem.', '4ª sem.'], (m.retention || []).map(r => { const age = Math.floor((nowWk - Date.parse(r.week)) / 6048e5); return [dshort(r.week), nf.format(r.size), cell(r.w1, r.size, age < 1), cell(r.w2, r.size, age < 2), cell(r.w3, r.size, age < 3), cell(r.w4, r.size, age < 4)]; }), { caption: 'Retenção semanal' });
-    table($('#tbEvents'), ['Evento', 'Vezes'], (m.events || []).map(e => [e.name, nf.format(e.n)]), { caption: 'Eventos mais comuns' });
-    $('#stamp').textContent = 'Atualizado às ' + new Date(m.generated_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const ret = data.retention || [];
+    table($('#tbRetention'), ['Semana', 'Pessoas', '1ª sem.', '2ª sem.', '3ª sem.', '4ª sem.'], ret.map(r => { const age = Math.floor((Date.now() - Date.parse(r.week)) / 6048e5); return [dshort(r.week), nf.format(r.size), cell(r.w1, r.size, age < 1), cell(r.w2, r.size, age < 2), cell(r.w3, r.size, age < 3), cell(r.w4, r.size, age < 4)]; }), { caption: 'Retenção semanal' });
+    setCsv('retention', 'retencao', ['Semana', 'Pessoas', 'Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], ret.map(r => [r.week, r.size, r.w1, r.w2, r.w3, r.w4]));
+  }
+  // texto da célula: preto ou branco, o que tiver mais contraste com o fundo
+  const lum = hex => { const v = [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+  const ink = bg => { const L = lum(bg); return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05) ? '#0b0b0b' : '#ffffff'; };
+  function renderUso() {
+    const K = data.kpi;
+    $('#kpiUso').replaceChildren(
+      kpi('activity', 'Ativas hoje', nf.format(K.dau), { note: 'últimas 24 horas' }),
+      kpi('calendar', 'Ativas na semana', nf.format(K.wau), { note: 'últimos 7 dias' }),
+      kpi('users', 'Ativas no mês', nf.format(K.mau), { note: 'últimos 30 dias' }),
+      kpi('target', 'Frequência', pct(K.dau, K.mau) + '%', { note: 'ativas hoje ÷ no mês', title: 'DAU/MAU: quanto maior, mais gente usa todo dia' }),
+      kpi('ball', 'Partidas', nf.format(K.matches), { d: delta(K.matches, K.matches_prev), spark: series('matches') }),
+      kpi('mic', 'Pontos por voz', K.voice_pct + '%', { note: 'média por partida terminada' }),
+      kpi('phone', 'Usam o app instalado', K.standalone_pct + '%', { note: 'aberturas fora do navegador' }),
+      kpi('video', 'Gravações', nf.format(K.recs), { note: 'vezes que alguém começou a filmar' }),
+      kpi('share', 'Compartilhamentos', nf.format(K.shares), { note: K.matches ? Math.round((100 * K.shares) / K.matches) + ' a cada 100 partidas' : '' }),
+      kpi('message', 'Sugestões recebidas', nf.format(K.feedbacks), { note: 'pelo app (Ajustes → Enviar sugestão)' }));
+    if (data.daily.length) barChart($('#chMatches'), data.daily, 'matches', 'Partidas', '--series-1');
+    hbars($('#chSports'), (data.sports || []).map(s => ({ label: SPORT[s.sport] || s.sport, n: s.n })), it => pct(it.n, K.matches) + '%');
+    setCsv('sports', 'esportes', ['Esporte', 'Partidas'], (data.sports || []).map(s => [SPORT[s.sport] || s.sport, s.n]));
+    heat($('#heat'), data.hours || []);
+    const vs = data.versions || [], vt = vs.reduce((a, v) => a + v.n, 0);
+    hbars($('#chVersions'), vs.map((v, i) => ({ label: v.version, n: v.n })), it => pct(it.n, vt) + '%');
+    $('#verNote').textContent = vs.length ? 'Aparelhos que abriram o app no período, pela versão. A mais nova no topo é ' + vs[0].version + '.' : '';
+    setCsv('versions', 'versoes', ['Versão', 'Aparelhos'], vs.map(v => [v.version, v.n]));
+  }
+  const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], DOWL = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  function heat(box, hours) {
+    const m = {}; let max = 0, best = null, total = 0;
+    hours.forEach(x => { m[x.d + '-' + x.h] = x.n; total += x.n; if (x.n > max) { max = x.n; best = x; } });
+    if (!total) { box.replaceChildren(empty('Sem partidas no período.', 'ball')); return; }
+    const seq = ['--seq-1', '--seq-2', '--seq-3', '--seq-4', '--seq-5', '--seq-6'].map(css);
+    const g = el('div', { class: 'heat-g', role: 'img', 'aria-label': 'Partidas por dia e hora. Horário com mais partidas: ' + DOWL[best.d] + ', ' + best.h + 'h (' + best.n + '). Total ' + nf.format(total) + '.' });
+    [1, 2, 3, 4, 5, 6, 0].forEach(d => {
+      g.append(el('div', { class: 'hl', text: DOW[d] }));
+      for (let h = 0; h < 24; h++) {
+        const n = m[d + '-' + h] || 0, c = el('div', { class: 'c' });
+        if (n) c.style.background = seq[Math.min(5, Math.floor((n / max) * 6))];
+        c.addEventListener('pointermove', e => showTip(e.clientX, e.clientY, DOWL[d] + ', ' + h + 'h', [['partidas', nf.format(n)]]));
+        c.addEventListener('pointerleave', hideTip);
+        g.append(c);
+      }
+    });
+    g.append(el('div'));
+    for (let h = 0; h < 24; h++) g.append(el('div', { class: 'hh', text: h % 3 === 0 ? h + 'h' : '' }));
+    const key = el('div', { class: 'heat-k' }, [el('span', { text: 'menos' })].concat(seq.map(c => { const i = el('i'); i.style.background = c; return i; }), [el('span', { text: 'mais' })]));
+    box.replaceChildren(g, key);
+  }
+  function renderReceita() {
+    const K = data.kpi, rv = revenue(K), ai = aiCost(K) * (30 / days);
+    $('#kpiReceita').replaceChildren(
+      kpi('wallet', 'Receita mensal (MRR)', money.format(K.mrr), { note: 'pelos preços em plan_prices' }),
+      kpi('dollar', 'Receita anual (ARR)', money.format(K.mrr * 12), { note: 'MRR × 12' }),
+      kpi('crown', 'Assinantes pagando', nf.format(K.pro_paying), { note: (rv.conv * 100).toFixed(1).replace('.', ',') + '% das contas' }),
+      kpi('gift', 'Pro de cortesia', nf.format(K.pro - K.pro_paying), { note: 'dado pelo painel ou campanha' }),
+      kpi('tag', 'Ticket médio (ARPU)', money.format(rv.arpu), { note: 'por assinante, por mês' }),
+      kpi('user-plus', 'Novas assinaturas', nf.format(K.subs_new), { note: 'no período' }),
+      kpi('x', 'Cancelamentos', nf.format(K.subs_cancel), { note: 'cancelada ou encerrada no período' }),
+      kpi('percent', 'Cancelamento ao mês', (rv.churnM * 100).toFixed(1).replace('.', ',') + '%', { note: 'churn mensal estimado' }),
+      kpi('trend', 'Valor por assinante', rv.ltv ? money.format(rv.ltv) : '—', { note: 'LTV ≈ ticket ÷ churn' }),
+      kpi('sparkle', 'Custo de IA ao mês', money.format(ai), { note: K.mrr ? (ai / K.mrr * 100).toFixed(1).replace('.', ',') + '% do MRR' : '' }));
+    hbars($('#chPlans'), (data.plans || []).map(p => ({ label: PLAN[p.plan] || p.plan, n: p.n, color: p.plan === 'cortesia' ? css('--fg-3') : null })), it => pct(it.n, K.pro) + '%');
+    setCsv('plans', 'planos', ['Plano', 'Assinantes'], (data.plans || []).map(p => [PLAN[p.plan] || p.plan, p.n]));
+    const proj = $('#proj'), cur = Math.max(1, Math.ceil(rv.conv * 200) / 2 + 1);
+    const out = el('div', { class: 'big' }), sub = el('p', { class: 'muted small' }), lab = el('span', {});
+    const range = el('input', { type: 'range', min: '0.5', max: '15', step: '0.5', value: String(Math.min(15, cur)), id: 'convR', 'aria-describedby': 'convOut' });
+    const upd = () => { const c = Number(range.value) / 100, mrr = K.users * c * (rv.arpu || 24.9); lab.textContent = 'Se ' + range.value.replace('.', ',') + '% das contas assinarem'; out.textContent = money.format(mrr) + ' / mês'; sub.textContent = 'Hoje: ' + (rv.conv * 100).toFixed(1).replace('.', ',') + '% · com as ' + nf.format(K.users) + ' contas atuais e o ticket médio de ' + money.format(rv.arpu || 24.9) + '.'; };
+    range.addEventListener('input', upd);
+    out.id = 'convOut';
+    proj.replaceChildren(el('label', { class: 'row', for: 'convR' }, [lab, range]), out, sub);
+    upd();
+  }
+  const planPill = u => {
+    const until = u.pro_until && Date.parse(u.pro_until) > Date.now();
+    if (u.plan && ['trial', 'ativa'].includes(u.sub_status)) return el('span', { class: 'pill pro' }, [icon('crown'), document.createTextNode(PLAN[u.plan] || u.plan)]);
+    if (until) return el('span', { class: 'pill pro', title: 'até ' + fdate(u.pro_until) }, [icon('gift'), document.createTextNode('Cortesia até ' + fdate(u.pro_until).slice(0, 5))]);
+    return el('span', { class: 'pill', text: 'Grátis' });
+  };
+  function renderContas() {
+    const box = $('#tbUsers');
+    if (!users) { box.replaceChildren(el('span', { class: 'skel' })); return; }
+    table(box, ['Conta', { text: 'E-mail', cls: 'l' }, { text: 'Plano', cls: 'l' }, 'Partidas', 'Última partida', 'Desde', ''], users.map(u => {
+      const who = el('div', {}, [el('b', { text: u.name })]); who.append(el('span', { class: 'sub', text: (u.handle ? '@' + u.handle + ' · ' : '') + u.public_id + (u.city ? ' · ' + u.city : '') }));
+      if (u.is_admin) who.querySelector('b').after(document.createTextNode(' '), el('span', { class: 'pill', text: 'admin' }));
+      if (u.reported) who.querySelector('b').after(document.createTextNode(' '), el('span', { class: 'pill bad', title: 'denúncias contra esta conta' }, [icon('flag'), document.createTextNode(String(u.reported))]));
+      const b = el('button', { class: 'btn sm', type: 'button', 'data-grant': u.public_id, 'aria-label': 'Dar Pro de cortesia para ' + u.name }, [icon('gift'), document.createTextNode('Cortesia')]);
+      return [who, { text: u.email || '—', cls: 'l' }, { node: planPill(u), cls: 'l' }, nf.format(u.matches), ago(u.last_match), fdate(u.created_at), b];
+    }), { caption: 'Contas', empty: userQ ? 'Ninguém encontrado para “' + userQ + '”.' : 'Nenhuma conta ainda.' });
+    $('#usersNote').textContent = users.length >= 50 ? 'Mostrando as 50 primeiras. Refine a busca para achar alguém.' : nf.format(users.length) + (users.length === 1 ? ' conta' : ' contas') + (userQ ? ' encontradas' : ' mais recentes');
+    setCsv('users', 'contas', ['Nome', 'Usuário', 'Código', 'E-mail', 'Cidade', 'Plano', 'Pro até', 'Partidas', 'Última partida', 'Criada em'], users.map(u => [u.name, u.handle, u.public_id, u.email, u.city, u.plan || '', u.pro_until || '', u.matches, u.last_match || '', u.created_at]));
+  }
+  function grantDlg(pid) {
+    const u = (users || []).find(x => x.public_id === pid); if (!u) return;
+    const has = u.pro_until && Date.parse(u.pro_until) > Date.now();
+    const opts = el('div', { class: 'seg choice', role: 'radiogroup', 'aria-label': 'Quanto tempo' }, [7, 30, 90, 365].map(d => el('label', {}, [el('input', Object.assign({ type: 'radio', name: 'gdays', value: String(d) }, d === 30 ? { checked: '' } : {})), el('span', { text: d === 365 ? '1 ano' : d + ' dias' })])));
+    const acts = [{ label: 'Cancelar' }];
+    if (has) acts.push({ label: 'Tirar cortesia', kind: 'danger', act: async () => { await api.grant(pid, 0); toast('Cortesia retirada de ' + u.name); await loadUsers(); } });
+    acts.push({ label: 'Dar Pro', kind: 'brand', icon: 'gift', act: async () => { const d = Number((dlg.querySelector('input[name="gdays"]:checked') || {}).value || 30); await api.grant(pid, d); toast('Pro de cortesia para ' + u.name + ' por ' + (d === 365 ? '1 ano' : d + ' dias')); await loadUsers(); } });
+    openDlg({ icon: 'gift', title: 'Pro de cortesia', body: [el('p', { text: u.name + ' · ' + u.public_id }), el('p', { class: 'small', text: has ? 'Já tem cortesia até ' + fdate(u.pro_until) + '. Os dias se somam.' : u.plan ? 'Já assina o ' + (PLAN[u.plan] || u.plan) + '; a cortesia vale se a assinatura acabar.' : 'Libera todos os recursos Pro. Fica registrado em Moderação → Registro.' }), opts], actions: acts });
+  }
+  function renderGrupos() {
+    const K = data.kpi;
+    $('#kpiGrupos').replaceChildren(
+      kpi('layers', 'Grupos', nf.format(K.groups), { note: '+' + nf.format(K.groups_new) + ' no período' }),
+      kpi('message', 'Posts na resenha', nf.format(K.posts), { note: 'no período' }),
+      kpi('ball', 'Partidas no total', nf.format(K.matches_total), { note: 'desde o começo' }));
+    const box = $('#tbGroups');
+    if (!groups) { box.replaceChildren(el('span', { class: 'skel' })); return; }
+    table(box, ['Grupo', { text: 'Esporte', cls: 'l' }, 'Membros', 'Pedidos', 'Partidas', 'Posts', 'Criado'], groups.map(g => [{ text: g.name, sub: g.code + (g.open ? ' · aberto' : ' · fechado') }, { text: SPORT[g.sport] || g.sport, cls: 'l' }, nf.format(g.members), g.pending ? nf.format(g.pending) : '—', nf.format(g.matches), nf.format(g.posts), fdate(g.created_at)]), { caption: 'Grupos', empty: 'Nenhum grupo ainda.' });
+    setCsv('groups', 'grupos', ['Grupo', 'Código', 'Esporte', 'Membros', 'Pedidos', 'Partidas', 'Posts', 'Criado'], groups.map(g => [g.name, g.code, g.sport, g.members, g.pending, g.matches, g.posts, g.created_at]));
+  }
+  const KIND = { post: ['message', 'Post na resenha'], partida: ['ball', 'Partida'], grupo: ['layers', 'Grupo'], conta: ['users', 'Conta'] };
+  const RST = { aberta: 'Aberta', em_analise: 'Em análise', resolvida: 'Resolvida', descartada: 'Descartada' };
+  function renderModeracao() {
+    const box = $('#reports');
+    if (!reports) box.replaceChildren(el('span', { class: 'skel' }));
+    else if (!reports.length) box.replaceChildren(empty(rst === 'abertas' ? 'Nenhuma denúncia esperando. Tudo em dia.' : 'Nada por aqui.'));
+    else box.replaceChildren(...reports.map(r => {
+      const [ic, kl] = KIND[r.kind] || ['flag', r.kind];
+      const head = el('div', { class: 'rt' }, [el('span', { class: 'pill', text: kl }), el('q', { text: r.target || '(removido)' })]);
+      if (r.same_target > 1) head.append(el('span', { class: 'pill bad', text: r.same_target + ' denúncias' }));
+      const meta = el('div', { class: 'rm', text: 'Motivo: ' + r.reason + ' · por ' + (r.reporter || '—') + ' · ' + ago(r.created_at) + ' · ' + (RST[r.status] || r.status) + (r.removed ? ' · tirado do ar' : '') });
+      const acts = el('div', { class: 'ra' });
+      const btn = (label, ic2, kind, st, remove) => { const b = el('button', { class: 'btn sm ' + kind, type: 'button', 'data-rep': r.id, 'data-st': st }, [icon(ic2), document.createTextNode(label)]); if (remove) b.dataset.remove = '1'; acts.append(b); };
+      if (r.status === 'aberta') btn('Em análise', 'eye', '', 'em_analise');
+      if (r.status === 'aberta' || r.status === 'em_analise') { btn('Resolvida', 'check', '', 'resolvida'); if (r.kind !== 'conta' && !r.removed) btn('Tirar do ar', 'eye-off', 'danger', 'resolvida', true); btn('Descartar', 'x', '', 'descartada'); }
+      return el('div', { class: 'rep' }, [el('span', { class: 'ri' }, [icon(ic)]), head, meta, acts.childNodes.length ? acts : '']);
+    }));
+    const lb = $('#tbLog');
+    if (!log) { lb.replaceChildren(el('span', { class: 'skel' })); return; }
+    const ACT = { pro_grant: 'Deu Pro de cortesia', pro_revoke: 'Tirou a cortesia', report_em_analise: 'Denúncia em análise', report_resolvida: 'Resolveu denúncia', report_descartada: 'Descartou denúncia' };
+    table(lb, ['Quando', { text: 'Ação', cls: 'l' }, { text: 'Alvo', cls: 'l' }], log.map(x => [ago(x.created_at), { text: (ACT[x.action] || x.action) + (x.detail && x.detail.days ? ' · ' + x.detail.days + ' dias' : '') + (x.detail && x.detail.remove ? ' · tirou do ar' : ''), cls: 'l' }, { text: x.target || '', cls: 'l' }]), { caption: 'Registro de ações', empty: 'Nenhuma ação ainda.' });
+  }
+  function reportAct(id, st, remove) {
+    const run = async () => { await api.handle(id, st, remove); toast(remove ? 'Conteúdo tirado do ar' : st === 'descartada' ? 'Denúncia descartada' : st === 'em_analise' ? 'Marcada como em análise' : 'Denúncia resolvida'); await load(true); };
+    if (!remove) { run().catch(e => toast('Não deu: ' + e.message, 'alert')); return; }
+    openDlg({ icon: 'eye-off', title: 'Tirar do ar?', body: [el('p', { text: 'O conteúdo denunciado some do app para todo mundo e a denúncia fica como resolvida. Dá para restaurar só pelo banco.' })], actions: [{ label: 'Cancelar' }, { label: 'Tirar do ar', kind: 'brand', icon: 'eye-off', act: run }] });
+  }
+  function renderIA() {
+    const K = data.kpi, ai = aiCost(K), per = K.ai_runs ? ai / K.ai_runs : 0;
+    $('#kpiIA').replaceChildren(
+      kpi('sparkle', 'Análises por IA', nf.format(K.ai_runs), { note: 'no período' }),
+      kpi('users', 'Pessoas que usaram', nf.format(K.ai_users), { note: K.pro ? pct(K.ai_users, K.pro) + '% dos assinantes Pro' : '' }),
+      kpi('wallet', 'Custo estimado', money.format(ai), { note: 'no período' }),
+      kpi('tag', 'Custo por análise', money.format(per), { note: 'média' }),
+      kpi('trend', 'Projeção em 30 dias', money.format(ai * (30 / days)), { note: K.mrr ? ((ai * (30 / days)) / K.mrr * 100).toFixed(1).replace('.', ',') + '% do MRR' : '' }),
+      kpi('list', 'Tokens', nf.format(K.ai_tokens_in + K.ai_tokens_out), { note: nf.format(K.ai_tokens_in) + ' de entrada · ' + nf.format(K.ai_tokens_out) + ' de saída' }));
+    $('#aiNote').replaceChildren(
+      el('p', {}, [el('b', { text: 'Preço de referência: ' }), document.createTextNode('US$ ' + PRICE_IN + ' por milhão de tokens de entrada e US$ ' + PRICE_OUT + ' de saída (modelo rápido), dólar a R$ ' + USD_BRL.toFixed(2).replace('.', ',') + '.')]),
+      el('p', { text: 'Cada análise manda só números da partida (pontos, sequências, saques), nunca nomes. Limite de 60 análises por pessoa por mês, na função supabase/functions/analise.' }),
+      el('p', { text: 'Para mudar os preços, ajuste PRICE_IN, PRICE_OUT e USD_BRL no admin.js. Detalhes em docs/IA.md.' }));
+  }
+  function renderEventos() {
+    const ev = data.events || [];
+    table($('#tbEvents'), [{ text: 'Evento', cls: 'l' }, { text: 'O que é', cls: 'l' }, 'Vezes'], ev.map(e => [{ text: e.name, cls: 'l' }, { text: EVT[e.name] || '—', cls: 'l' }, nf.format(e.n)]), { caption: 'Eventos mais comuns' });
+    setCsv('events', 'eventos', ['Evento', 'Vezes'], ev.map(e => [e.name, e.n]));
+  }
+  const RENDER = { visao: renderVisao, crescimento: renderCresc, uso: renderUso, receita: renderReceita, contas: renderContas, grupos: renderGrupos, moderacao: renderModeracao, ia: renderIA, eventos: renderEventos };
+  function render() {
+    if (!data) return;
+    const K = data.kpi, bd = $('#navBadge');
+    bd.hidden = !K.reports_open; bd.textContent = K.reports_open > 99 ? '99+' : String(K.reports_open);
+    bd.setAttribute('aria-label', K.reports_open + ' abertas');
+    setCsv('daily', 'por-dia', ['Dia', 'Visitas', 'Pessoas ativas', 'Novas contas', 'Partidas'], (data.daily || []).map(r => [r.day, r.visits, r.active, r.signups, r.matches]));
+    RENDER[sec]();
+    $('#stamp').textContent = 'Atualizado às ' + new Date(data.generated_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' · ' + days + ' dias desde ' + (data.from ? dshort(data.from) : dshort(data.daily[0].day));
+  }
+  function show(s) {
+    if (!SECS[s]) s = 'visao';
+    sec = s;
+    document.querySelectorAll('.sec').forEach(p => { p.hidden = p.dataset.page !== s; });
+    document.querySelectorAll('.nav-i').forEach(a => { if (a.dataset.sec === s) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    $('#secTitle').textContent = SECS[s][0]; $('#secSub').textContent = SECS[s][1];
+    document.title = SECS[s][0] + ' · ULTRA PLAY Admin';
+    const cur = document.querySelector('.nav-i[aria-current]'); if (cur && cur.scrollIntoView && matchMedia('(max-width: 900px)').matches) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+    hideTip();
+    render();
+    if (s === 'contas' && !users) loadUsers();
+    if (s === 'grupos' && !groups) loadGroups();
+    if (s === 'moderacao' && (!reports || !log)) loadMod();
   }
 
-  async function load() {
-    $('#dash').classList.add('loading');
-    try { data = await fetchMetrics(days); render(); }
-    catch (e) {
-      if (e.code === 401) { saveSession(null); showLogin('Sua sessão expirou. Entre de novo.'); return; }
-      if (e.code === 403) { $('#notice').hidden = false; $('#notice').replaceChildren(el('b', { text: 'Esta conta não é administradora. ' }), document.createTextNode('Peça para incluir o seu usuário na tabela admins (ver supabase/README.md).')); }
-      else { $('#notice').hidden = false; $('#notice').textContent = 'Não consegui carregar os números (' + e.message + '). Tente Atualizar.'; }
-    }
-    $('#dash').classList.remove('loading');
+  function fail(e) {
+    if (e.code === 401) { saveSession(null); showLogin('Sua sessão expirou. Entre de novo.'); return true; }
+    $('#notice').hidden = false;
+    if (e.code === 403) $('#notice').replaceChildren(el('b', { text: 'Esta conta não é administradora. ' }), document.createTextNode('Peça para incluir o seu usuário na tabela admins (ver supabase/README.md).'));
+    else $('#notice').textContent = 'Não consegui carregar (' + e.message + '). Tente Atualizar.';
+    return false;
+  }
+  async function loadUsers() { try { users = await api.users(userQ); if (sec === 'contas') renderContas(); } catch (e) { fail(e); } }
+  async function loadGroups() { try { groups = await api.groups(days); if (sec === 'grupos') renderGrupos(); } catch (e) { fail(e); } }
+  async function loadMod() { try { [reports, log] = await Promise.all([api.reports(rst), api.log()]); if (sec === 'moderacao') renderModeracao(); } catch (e) { fail(e); } }
+  async function load(quiet) {
+    const app = $('#dash'), rb = $('#refresh');
+    if (!quiet) app.classList.add('loading');
+    rb.classList.add('spin');
+    try { data = await api.metrics(days); render(); if (sec === 'grupos') loadGroups(); if (quiet && sec === 'moderacao') loadMod(); }
+    catch (e) { fail(e); }
+    app.classList.remove('loading'); rb.classList.remove('spin');
   }
   function showLogin(msg) { $('#dash').hidden = true; $('#login').hidden = false; $('#loginMsg').textContent = msg || ''; $('#who').replaceChildren(); }
   async function showDash() {
     $('#login').hidden = true; $('#dash').hidden = false;
-    if (DEMO) { $('#notice').hidden = false; $('#notice').replaceChildren(el('b', { text: 'Demonstração: ' }), document.createTextNode(configured ? 'dados fictícios (tire o ?demo=1 do endereço para ver os de verdade).' : 'dados fictícios. Quando o servidor estiver ligado (config.js e supabase/admin.sql), entre com uma conta admin e os números passam a ser os reais.')); $('#who').replaceChildren(el('span', { text: 'modo demonstração' })); }
-    else {
+    if (DEMO) {
+      $('#notice').hidden = false;
+      $('#notice').replaceChildren(el('b', { text: 'Demonstração: ' }), document.createTextNode(configured ? 'dados fictícios (tire o ?demo=1 do endereço para ver os de verdade).' : 'dados fictícios; as ações (cortesia, denúncias) só valem nesta aba. Quando o servidor estiver ligado (config.js e supabase/admin.sql), entre com uma conta admin e tudo passa a ser real.'));
+      $('#who').replaceChildren(el('span', {}, [icon('eye'), document.createTextNode('Demonstração')]));
+    } else {
       const u = await me().catch(() => null);
-      const out = el('button', { class: 'btn', type: 'button', text: 'Sair' }); out.addEventListener('click', () => { saveSession(null); showLogin('Você saiu.'); });
-      $('#who').replaceChildren(el('span', { text: u && u.email ? u.email : '' }), out);
+      const out = el('button', { class: 'icon-btn sm', type: 'button', 'aria-label': 'Sair', title: 'Sair' }, [icon('logout')]);
+      out.addEventListener('click', () => { saveSession(null); showLogin('Você saiu.'); });
+      $('#who').replaceChildren(el('span', { title: u && u.email ? u.email : '' }, [icon('shield'), document.createTextNode(u && u.email ? u.email : 'admin')]), out);
     }
+    show(secFromHash());
     load();
   }
+  const secFromHash = () => { const h = location.hash.slice(1); return SECS[h] ? h : 'visao'; };
+
+  // ---------- tema e atualização automática ----------
+  const TKEY = 'ultra.admin.theme', AKEY = 'ultra.admin.auto';
+  const getLS = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const setLS = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem storage */ } };
+  function applyTheme(t) { if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+  applyTheme(getLS(TKEY));
+  const isDark = () => (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+  const syncThemeBtn = () => { const b = $('#theme'); b.setAttribute('aria-label', isDark() ? 'Usar tema claro' : 'Usar tema escuro'); b.title = b.getAttribute('aria-label'); };
+  syncThemeBtn();
+  $('#theme').addEventListener('click', () => { const t = isDark() ? 'light' : 'dark'; applyTheme(t); setLS(TKEY, t); syncThemeBtn(); render(); });
+  let autoT = 0;
+  function setAuto(on) { clearInterval(autoT); if (on) autoT = setInterval(() => { if (document.visibilityState === 'visible' && !dlg.open) load(true); }, 60000); }
+  $('#auto').checked = getLS(AKEY) === '1'; setAuto($('#auto').checked);
+  $('#auto').addEventListener('change', e => { setLS(AKEY, e.target.checked ? '1' : '0'); setAuto(e.target.checked); toast(e.target.checked ? 'Atualizando sozinho a cada minuto' : 'Atualização automática desligada', 'refresh'); });
+
   // ---------- eventos ----------
-  document.addEventListener('change', e => { if (e.target.name === 'days') { days = Number(e.target.value); load(); } });
-  $('#refresh').addEventListener('click', load);
-  document.addEventListener('click', e => { const b = e.target.closest('[data-table]'); if (!b) return; const t = $('#tbDaily'), c = $('#chDaily'); const on = t.hidden; t.hidden = !on; c.hidden = on; b.textContent = on ? 'Ver gráfico' : 'Ver tabela'; if (!on) render(); });
+  document.addEventListener('change', e => {
+    if (e.target.name === 'days') { days = Number(e.target.value); groups = null; load(); }
+    if (e.target.name === 'rst') { rst = e.target.value; reports = null; renderModeracao(); loadMod(); }
+  });
+  $('#refresh').addEventListener('click', () => { load(); if (sec === 'contas') loadUsers(); if (sec === 'moderacao') loadMod(); });
+  $('#exportAll').addEventListener('click', () => downloadCsv('daily'));
+  window.addEventListener('hashchange', () => show(secFromHash()));
+  document.addEventListener('click', e => {
+    const c = e.target.closest('[data-csv]'); if (c) { downloadCsv(c.dataset.csv); return; }
+    const g = e.target.closest('[data-grant]'); if (g) { grantDlg(g.dataset.grant); return; }
+    const rp = e.target.closest('[data-rep]'); if (rp) { reportAct(rp.dataset.rep, rp.dataset.st, rp.dataset.remove === '1'); return; }
+    const b = e.target.closest('[data-table]');
+    if (b) { const t = $('#tbDaily'), ch = $('#chDaily'); const on = t.hidden; t.hidden = !on; ch.hidden = on; b.textContent = on ? 'Ver gráfico' : 'Ver tabela'; if (!on) render(); }
+  });
+  let qT = 0;
+  $('#userQ').addEventListener('input', e => { clearTimeout(qT); qT = setTimeout(() => { userQ = e.target.value.trim().slice(0, 60); loadUsers(); }, 280); });
   $('#loginForm').addEventListener('submit', async e => {
     e.preventDefault();
     const email = $('#email').value.trim(); if (!email) return;
@@ -264,8 +645,10 @@
     $('#loginMsg').textContent = ok ? 'Pronto: abra o link que chegou no seu e-mail (neste mesmo navegador).' : 'Não consegui enviar. Confira o e-mail e se a conta existe.';
   });
   let rt = 0; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (data && !$('#dash').hidden) render(); }, 150); });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (data) render(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { syncThemeBtn(); if (data) render(); });
 
+  // tabelas largas rolam de lado: dá para rolar pelo teclado também
+  document.querySelectorAll('.tbl, .heat').forEach(b => { b.tabIndex = 0; if (!b.hasAttribute('aria-label')) { const h = b.closest('.card') && b.closest('.card').querySelector('h2'); if (h) b.setAttribute('aria-label', h.textContent); } b.setAttribute('role', 'region'); });
   takeHash();
   session = readSession();
   if (DEMO || session) showDash(); else showLogin();

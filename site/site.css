@@ -1,6 +1,6 @@
 @font-face { font-family: "Bricolage Grotesque"; src: url("../fonts/bricolage-grotesque-latin.woff2") format("woff2"); font-weight: 400 800; font-display: swap; }
 @font-face { font-family: "Archivo Condensed"; src: url("../fonts/archivo-condensed-latin.woff2") format("woff2"); font-weight: 600 900; font-display: swap; }
-:root { color-scheme: dark; --bg: #060708; --surface: #0E1011; --surface-2: #15181A; --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14); --fg: #F4F6F2; --fg-2: #A3A9A6; --fg-3: #6E7471; --brand: #AFFB48; --brand-ink: #0B1200; --orange: #FF5A1F; --green: #19D27A;
+:root { color-scheme: dark; --bg: #060708; --surface: #0E1011; --surface-2: #15181A; --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14); --fg: #F4F6F2; --fg-2: #A3A9A6; --fg-3: #858B88; --brand: #AFFB48; --brand-ink: #0B1200; --orange: #FF5A1F; --green: #19D27A;
   --font-ui: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --font-cond: "Archivo Condensed", "Bricolage Grotesque", system-ui, sans-serif; }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -100,3 +100,4 @@ footer .logo { width: 110px; height: 28px; color: var(--fg-2); }
 }
 @media (min-width: 861px) and (max-width: 1040px) { .grid { grid-template-columns: repeat(2, 1fr); } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn { transition: none; } }
+.help-hero .wrap { grid-template-columns: 1fr; max-width: 900px; } .help-hero .lead { max-width: 60ch; }

@@ -12,57 +12,197 @@
 <body>
 <svg width="0" height="0" class="sprite" aria-hidden="true"><defs>
   <symbol id="logo" viewBox="0 0 182 46"><path fill="currentColor" d="M0.595607 22.7648L13.3915 0.583801H26.1638L10.5924 27.5398H4.19444C0.689691 27.5398 -0.956837 25.3758 0.57208 22.7413L0.595607 22.7648Z"/><path fill="currentColor" d="M45.8045 23.0471L33.0087 45.2282H20.2363L35.8078 18.2722H42.2057C45.7105 18.2722 47.357 20.4362 45.8281 23.0706L45.8045 23.0471Z"/><path fill="currentColor" d="M26.1874 13.4737V0.583801H45.9928L35.7843 18.2722H32.5618C29.057 18.2722 26.1639 16.1082 26.1639 13.4737H26.1874Z"/><path fill="currentColor" d="M20.2128 32.3382V45.2282H0.407471L10.6159 27.5398H13.8384C17.3432 27.5398 20.2364 29.7038 20.2364 32.3382H20.2128Z"/><path fill="currentColor" d="M64.2158 44.7909C58.0965 44.7909 53.8067 40.6272 53.8067 34.4448V0H60.4938V34.4448C60.4938 37.0313 62.0709 32.96 64.2158 32.96C66.3608 32.96 67.9379 37.0313 67.9379 34.4448V0H74.4988V34.4448C74.4988 40.6272 70.3352 44.7909 64.2158 44.7909Z"/><path fill="currentColor" d="M79.0124 44.16V0H85.6995V37.8514H97.6227V44.16H79.0124Z"/><path fill="currentColor" d="M94.0583 6.30857L91.2001 3.15429L94.0583 0H115.381L112.4 3.15429L115.381 6.30857H108.063V44.16H101.376V6.30857H94.0583Z"/><path fill="currentColor" d="M139.968 44.16H133.029L128.171 25.9282H124.702V44.16H118.015V0H128.487C134.859 0 138.959 4.16366 138.959 10.5353V15.3929C138.959 19.4935 137.256 22.6478 134.354 24.4142L139.968 44.16ZM124.702 6.30857V19.6197H128.171C130.758 19.6197 132.272 18.1056 132.272 15.5191V10.4091C132.272 7.82263 130.758 6.30857 128.171 6.30857H124.702Z"/><path fill="currentColor" d="M157.542 44.16L156.091 34.3817L152.495 32.16L148.9 34.3817L147.449 44.16H140.761L148.079 0H157.038L164.356 44.16H157.542ZM149.783 27.947H155.208L152.495 9.46286L149.783 27.947Z"/><path fill="currentColor" d="M161.007 38.4H179.407L175.8 44.156L161.007 44.1564V38.4Z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 8.5V7a2 2 0 0 1 2-2h11"/><rect x="3" y="8" width="18" height="12" rx="2.5"/><path d="M16 14h2"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M15.5 4.7a3.5 3.5 0 0 1 0 6.6"/><path d="M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z"/><path d="M3.5 12.5l8.5 4.5 8.5-4.5"/><path d="M3.5 16.5l8.5 4.5 8.5-4.5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2.2 4 2.2 4h-11"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M11 3.5l1.7 4.8 4.8 1.7-4.8 1.7L11 16.5l-1.7-4.8L4.5 10l4.8-1.7z"/><path d="M18 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="2.6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9.5 8l-4 4 4 4"/><path d="M5.5 12H15"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-user-plus" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20c.8-3.6 3.4-5.5 6.5-5.5 1.5 0 2.9.4 4 1.2"/><path d="M18.5 14v6M15.5 17h6"/></symbol>
+  <symbol id="i-ball" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M5.2 6.8c2.9 2.2 4 6.3 2.6 10.6"/><path d="M18.8 6.8c-2.9 2.2-4 6.3-2.6 10.6"/></symbol>
+  <symbol id="i-crown" viewBox="0 0 24 24"><path d="M3.5 8l4.5 4 4-6.5 4 6.5 4.5-4-1.8 10.5H5.3z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4"/><path d="M12 17.3h.01" stroke-width="2.4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="17.5" cy="5.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><circle cx="17.5" cy="18.5" r="2.5"/><path d="M8.7 10.8l6.6-4M8.7 13.2l6.6 4"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/></symbol>
+  <symbol id="i-percent" viewBox="0 0 24 24"><path d="M18.5 5.5l-13 13"/><circle cx="7" cy="7" r="2.3"/><circle cx="17" cy="17" r="2.3"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M4 5h16v11H9.5L4 20z"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3.5" y="8.5" width="17" height="4" rx="1"/><path d="M5 12.5V20h14v-7.5M12 8.5V20"/><path d="M12 8.5C9.8 8.5 7.5 8 7.5 6.2S10.5 4.3 12 8.5c1.5-4.2 4.5-4 4.5-2.3S14.2 8.5 12 8.5z"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12h.01" stroke-width="2.6"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.6A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.8 3.5M6.6 6.7C3.9 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-dollar" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M16.5 7.5c-.6-1.5-2.3-2.5-4.5-2.5-2.6 0-4.5 1.4-4.5 3.4 0 4.6 9.5 2.5 9.5 7.2 0 2-2 3.4-4.8 3.4-2.4 0-4.2-1-4.8-2.8"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.5V4h8.5l8.5 8.5-8.5 8.5z"/><circle cx="8" cy="8.5" r="1.3"/></symbol>
 </defs></svg>
 
-<header class="top">
-  <div class="wrap top-in">
-    <span class="brand"><svg class="logo" viewBox="0 0 182 46" aria-label="ULTRA PLAY" role="img"><use href="#logo"/></svg><span class="chip">Admin</span></span>
-    <span class="who" id="who"></span>
-  </div>
-</header>
-
-<main class="wrap" id="main">
-  <section class="login card" id="login" hidden>
-    <h1>Entrar no painel</h1>
-    <p class="muted">Só contas cadastradas como administradoras. Você recebe um link de acesso no e-mail.</p>
+<section class="login" id="login" hidden>
+  <div class="login-card">
+    <svg class="logo" viewBox="0 0 182 46" aria-label="ULTRA PLAY" role="img"><use href="#logo"/></svg>
+    <h1>Painel de admin</h1>
+    <p class="muted">Só para contas administradoras. Você recebe um link de acesso no e-mail.</p>
     <form id="loginForm"><label class="field"><span>E-mail</span><input type="email" id="email" required autocomplete="email" placeholder="voce@exemplo.com"></label><button class="btn brand" type="submit">Enviar link de acesso</button></form>
     <p class="msg" id="loginMsg" role="status"></p>
     <p class="muted small">Ainda sem servidor? <a href="?demo=1">Ver o painel com dados de demonstração</a>.</p>
-  </section>
+  </div>
+</section>
 
-  <section id="dash" hidden>
-    <div class="notice" id="notice" hidden></div>
-    <div class="filters" role="toolbar" aria-label="Filtros">
-      <div class="seg" role="radiogroup" aria-label="Período">
-        <label><input type="radio" name="days" value="7"><span>7 dias</span></label>
-        <label><input type="radio" name="days" value="30" checked><span>30 dias</span></label>
-        <label><input type="radio" name="days" value="90"><span>90 dias</span></label>
+<div class="app" id="dash" hidden>
+  <aside class="side" aria-label="Seções">
+    <div class="side-top"><svg class="logo" viewBox="0 0 182 46" aria-label="ULTRA PLAY" role="img"><use href="#logo"/></svg><span class="chip">Admin</span></div>
+    <nav class="nav" id="nav">
+      <a class="nav-i" href="#visao" data-sec="visao"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>Visão geral</span></a>
+      <a class="nav-i" href="#crescimento" data-sec="crescimento"><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span>Crescimento</span></a>
+      <a class="nav-i" href="#uso" data-sec="uso"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg><span>Uso do app</span></a>
+      <a class="nav-i" href="#receita" data-sec="receita"><svg class="ic" aria-hidden="true"><use href="#i-wallet"/></svg><span>Receita</span></a>
+      <a class="nav-i" href="#contas" data-sec="contas"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg><span>Contas</span></a>
+      <a class="nav-i" href="#grupos" data-sec="grupos"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg><span>Grupos</span></a>
+      <a class="nav-i" href="#moderacao" data-sec="moderacao"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><span>Moderação</span><b class="badge" id="navBadge" hidden></b></a>
+      <a class="nav-i" href="#ia" data-sec="ia"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg><span>IA</span></a>
+      <a class="nav-i" href="#eventos" data-sec="eventos"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span>Eventos</span></a>
+    </nav>
+    <div class="side-foot">
+      <div class="who" id="who"></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="bar">
+      <div class="bar-t"><h1 id="secTitle">Visão geral</h1><p class="muted small" id="secSub"></p></div>
+      <div class="bar-a" role="toolbar" aria-label="Filtros e ações">
+        <div class="seg" role="radiogroup" aria-label="Período">
+          <label><input type="radio" name="days" value="7"><span>7d</span></label>
+          <label><input type="radio" name="days" value="30" checked><span>30d</span></label>
+          <label><input type="radio" name="days" value="90"><span>90d</span></label>
+        </div>
+        <button class="icon-btn" type="button" id="refresh" aria-label="Atualizar agora" title="Atualizar agora"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+        <label class="auto" title="Atualizar sozinho a cada minuto"><input type="checkbox" id="auto"><span class="sw" aria-hidden="true"></span><span>Auto</span></label>
+        <button class="icon-btn" type="button" id="exportAll" aria-label="Baixar números por dia em CSV" title="Baixar números por dia (CSV)"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button>
+        <button class="icon-btn" type="button" id="theme" aria-label="Trocar tema" title="Trocar tema"><svg class="ic t-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic t-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
       </div>
-      <button class="btn" type="button" id="refresh">Atualizar</button>
-      <span class="muted small" id="stamp"></span>
-    </div>
+    </header>
+    <div class="notice" id="notice" hidden></div>
+    <p class="stamp muted small" id="stamp" aria-live="polite"></p>
 
-    <h2 class="sr-only">Indicadores</h2>
-    <div class="kpis" id="kpis"></div>
+    <main id="main">
+      <!-- VISÃO GERAL -->
+      <section class="sec" data-page="visao">
+        <div class="live" id="live"></div>
+        <div class="kpis k4" id="kpiVisao"></div>
+        <div class="grid two-one">
+          <article class="card"><header class="card-h"><h2>Visitas e pessoas ativas por dia</h2><div class="card-a"><button class="link" type="button" data-table="daily">Ver tabela</button><button class="icon-btn sm" type="button" data-csv="daily" aria-label="Baixar Visitas e pessoas ativas por dia em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div class="legend" id="lgDaily"></div><div class="chart" id="chDaily"></div><div class="tbl" id="tbDaily" hidden></div></article>
+          <article class="card"><header class="card-h"><h2>O que olhar agora</h2><div class="card-a"></div></header><ul class="ins" id="insights"></ul></article>
+        </div>
+      </section>
 
-    <div class="grid two">
-      <article class="card"><header class="card-h"><h2>Visitas e pessoas ativas por dia</h2><button class="link" type="button" data-table="daily">Ver tabela</button></header><div class="legend" id="lgDaily"></div><div class="chart" id="chDaily"></div><div class="tbl" id="tbDaily" hidden></div></article>
-      <article class="card"><header class="card-h"><h2>Funil do período</h2></header><p class="muted small">Aparelhos com estatísticas ligadas que chegaram a cada etapa.</p><div id="chFunnel"></div></article>
-    </div>
-    <div class="grid two">
-      <article class="card"><header class="card-h"><h2>Novas contas por dia</h2></header><div class="chart short" id="chSignups"></div></article>
-      <article class="card"><header class="card-h"><h2>Partidas por dia</h2></header><div class="chart short" id="chMatches"></div></article>
-    </div>
-    <div class="grid three">
-      <article class="card"><header class="card-h"><h2>Partidas por esporte</h2></header><div id="chSports"></div></article>
-      <article class="card"><header class="card-h"><h2>De onde vêm as pessoas</h2></header><div class="tbl" id="tbSources"></div></article>
-      <article class="card"><header class="card-h"><h2>Assinantes por plano</h2></header><div class="tbl" id="tbPlans"></div><p class="muted small" id="aiCost"></p></article>
-    </div>
-    <article class="card"><header class="card-h"><h2>Retenção por semana de chegada</h2></header><p class="muted small">De quem abriu o app pela 1ª vez em cada semana, quantos % voltaram nas semanas seguintes.</p><div class="tbl" id="tbRetention"></div></article>
-    <article class="card"><header class="card-h"><h2>Eventos mais comuns</h2></header><div class="tbl" id="tbEvents"></div></article>
-    <p class="muted small foot">Sem consentimento, cada visita conta uma vez (id da visita, apagado ao fechar). Funil, ativos e retenção só contam quem ligou as estatísticas de uso. Detalhes em <code>supabase/admin.sql</code>.</p>
-  </section>
-</main>
+      <!-- CRESCIMENTO -->
+      <section class="sec" data-page="crescimento" hidden>
+        <div class="kpis k3" id="kpiCresc"></div>
+        <div class="grid two">
+          <article class="card"><header class="card-h"><h2>Novas contas por dia</h2><div class="card-a"></div></header><div class="chart short" id="chSignups"></div></article>
+          <article class="card"><header class="card-h"><h2>Funil do período</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="funnel" aria-label="Baixar Funil do período em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><p class="muted small">Aparelhos com estatísticas ligadas que chegaram a cada etapa.</p><div id="chFunnel"></div></article>
+        </div>
+        <div class="grid two">
+          <article class="card"><header class="card-h"><h2>De onde vêm as pessoas</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="sources" aria-label="Baixar De onde vêm as pessoas em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div class="tbl" id="tbSources"></div></article>
+          <article class="card"><header class="card-h"><h2>Retenção por semana de chegada</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="retention" aria-label="Baixar Retenção por semana de chegada em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><p class="muted small">De quem abriu o app pela 1ª vez em cada semana, quantos % voltaram nas semanas seguintes.</p><div class="tbl" id="tbRetention"></div></article>
+        </div>
+      </section>
+
+      <!-- USO -->
+      <section class="sec" data-page="uso" hidden>
+        <div class="kpis" id="kpiUso"></div>
+        <div class="grid two">
+          <article class="card"><header class="card-h"><h2>Partidas por dia</h2><div class="card-a"></div></header><div class="chart short" id="chMatches"></div></article>
+          <article class="card"><header class="card-h"><h2>Partidas por esporte</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="sports" aria-label="Baixar Partidas por esporte em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div id="chSports"></div></article>
+        </div>
+        <div class="grid two-one">
+          <article class="card"><header class="card-h"><h2>Quando se joga</h2><div class="card-a"></div></header><p class="muted small">Partidas por dia da semana e hora (horário de Brasília).</p><div class="heat" id="heat"></div></article>
+          <article class="card"><header class="card-h"><h2>Versões do app em uso</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="versions" aria-label="Baixar Versões do app em uso em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div id="chVersions"></div><p class="muted small" id="verNote"></p></article>
+        </div>
+      </section>
+
+      <!-- RECEITA -->
+      <section class="sec" data-page="receita" hidden>
+        <div class="kpis" id="kpiReceita"></div>
+        <div class="grid two">
+          <article class="card"><header class="card-h"><h2>Assinantes por plano</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="plans" aria-label="Baixar Assinantes por plano em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div id="chPlans"></div></article>
+          <article class="card"><header class="card-h"><h2>Projeção</h2><div class="card-a"></div></header><div class="proj" id="proj"></div></article>
+        </div>
+      </section>
+
+      <!-- CONTAS -->
+      <section class="sec" data-page="contas" hidden>
+        <article class="card">
+          <header class="card-h"><h2>Contas</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="users" aria-label="Baixar contas em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header>
+          <label class="search"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Buscar conta</span><input type="search" id="userQ" placeholder="Nome, @usuário, código UP-… ou e-mail" autocomplete="off"></label>
+          <div class="tbl" id="tbUsers"></div>
+          <p class="muted small" id="usersNote"></p>
+        </article>
+      </section>
+
+      <!-- GRUPOS -->
+      <section class="sec" data-page="grupos" hidden>
+        <div class="kpis k3" id="kpiGrupos"></div>
+        <article class="card"><header class="card-h"><h2>Grupos mais movimentados no período</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="groups" aria-label="Baixar Grupos mais movimentados no período em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div class="tbl" id="tbGroups"></div></article>
+      </section>
+
+      <!-- MODERAÇÃO -->
+      <section class="sec" data-page="moderacao" hidden>
+        <article class="card">
+          <header class="card-h"><h2>Denúncias</h2>
+            <div class="seg sm" role="radiogroup" aria-label="Situação">
+              <label><input type="radio" name="rst" value="abertas" checked><span>Abertas</span></label>
+              <label><input type="radio" name="rst" value="resolvida"><span>Resolvidas</span></label>
+              <label><input type="radio" name="rst" value="descartada"><span>Descartadas</span></label>
+              <label><input type="radio" name="rst" value="todas"><span>Todas</span></label>
+            </div>
+          </header>
+          <div class="reports" id="reports"></div>
+        </article>
+        <article class="card"><header class="card-h"><h2>Registro de ações</h2><div class="card-a"></div></header><p class="muted small">Tudo o que um admin fez por aqui fica registrado.</p><div class="tbl" id="tbLog"></div></article>
+      </section>
+
+      <!-- IA -->
+      <section class="sec" data-page="ia" hidden>
+        <div class="kpis k3" id="kpiIA"></div>
+        <article class="card"><header class="card-h"><h2>Como o custo é calculado</h2><div class="card-a"></div></header><div class="prose" id="aiNote"></div></article>
+      </section>
+
+      <!-- EVENTOS -->
+      <section class="sec" data-page="eventos" hidden>
+        <article class="card"><header class="card-h"><h2>Eventos mais comuns no período</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="events" aria-label="Baixar Eventos mais comuns no período em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div class="tbl" id="tbEvents"></div></article>
+        <p class="muted small foot">Sem consentimento, cada visita conta uma vez (id da visita, apagado ao fechar). Funil, ativos e retenção só contam quem ligou as estatísticas de uso. Nenhum evento leva nome, e-mail ou conteúdo das partidas. Detalhes em <code>supabase/admin.sql</code>.</p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlgT">
+  <div class="dlg-in">
+    <div class="dlg-ic" id="dlgIc" aria-hidden="true"></div>
+    <h2 id="dlgT"></h2>
+    <div class="dlg-b" id="dlgB"></div>
+    <div class="dlg-a" id="dlgA"></div>
+  </div>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 <script src="../config.js"></script>
 <script src="admin.js"></script>

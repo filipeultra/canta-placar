@@ -2634,3 +2634,51 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .rec-mini video { background: #000; }
 .rec-dock.mini-off.o-h .rec-mini, .rec-dock.mini-off .rec-mini { width: auto; aspect-ratio: auto; }
 body .toast.top, body[data-view] .toast.top { top: calc(72px + env(safe-area-inset-top, 0px)); bottom: auto; }
+
+/* ===== v24 · tutorial (tour) e central de ajuda ===== */
+.tour { position: fixed; inset: 0; z-index: 70; opacity: 0; transition: opacity 0.2s ease; }
+.tour.show { opacity: 1; }
+.tour-hole { position: fixed; border-radius: 18px; box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.7), 0 0 0 2px var(--brand), 0 0 26px 4px color-mix(in srgb, var(--brand) 45%, transparent); transition: left 0.32s cubic-bezier(0.3, 0.9, 0.3, 1), top 0.32s cubic-bezier(0.3, 0.9, 0.3, 1), width 0.32s cubic-bezier(0.3, 0.9, 0.3, 1), height 0.32s cubic-bezier(0.3, 0.9, 0.3, 1), border-radius 0.32s; pointer-events: none; }
+.tour.center .tour-hole { box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.7); }
+.tour-card { position: fixed; width: min(340px, calc(100vw - 24px)); display: grid; gap: 8px; padding: 16px 16px 14px; border-radius: 22px; background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--hair-strong), 0 24px 60px -16px rgba(0, 0, 0, 0.55); transition: top 0.32s cubic-bezier(0.3, 0.9, 0.3, 1), left 0.32s cubic-bezier(0.3, 0.9, 0.3, 1); }
+.tour.center .tour-card { top: 50% !important; left: 50% !important; transform: translate(-50%, -50%); padding: 22px 20px 16px; }
+.tour.show .tour-card { animation: tourIn 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes tourIn { from { opacity: 0; scale: 0.94; } }
+.tour-top { display: flex; align-items: center; justify-content: space-between; }
+.tour-step { font: 700 12px/1 var(--font); letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand-ink); }
+.tour-top .linkish { color: var(--fg-2); font-size: 14px; padding: 6px 2px; }
+.tour-card h2 { margin: 0; font: 800 20px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.tour-text p { margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.45; }
+.tour-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+.tour-list li { display: flex; align-items: center; gap: 12px; font-size: 15px; line-height: 1.35; }
+.tour-list .ic { width: 34px; height: 34px; padding: 8px; flex: none; border-radius: 11px; background: var(--brand-soft); color: var(--brand-ink); }
+.tour-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.tour-foot .btn { height: 42px; border-radius: 13px; padding: 0 16px; }
+.tour-dots { display: flex; gap: 5px; margin-right: auto; }
+.tour-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--fill-strong); transition: width 0.25s, background 0.25s; }
+.tour-dots i.past { background: color-mix(in srgb, var(--brand-ink) 45%, var(--fill-strong)); }
+.tour-dots i.on { width: 18px; background: var(--brand-ink); }
+body.tour-on { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .tour, .tour-hole, .tour-card { transition: none; } .tour.show .tour-card { animation: none; } }
+.help-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 0 16px; }
+.help-acts .btn-brand { grid-column: 1 / -1; height: 48px; }
+.help-acts .btn { justify-content: center; }
+.help-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.help-steps li { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; line-height: 1.45; color: var(--fg-2); }
+.help-steps b, .help-tip b { display: block; color: var(--fg); font-size: 15px; margin-bottom: 1px; }
+.help-steps .n { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--brand); color: var(--on-brand); font: 800 14px/1 var(--font-num); }
+.help-tips { display: grid; gap: 8px; }
+.help-tip { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 16px; background: var(--fill); font-size: 14px; line-height: 1.45; color: var(--fg-2); }
+.help-tip .row-ic { flex: none; }
+.faq { display: grid; border-radius: 16px; background: var(--fill); overflow: hidden; }
+.faq details + details { border-top: 1px solid var(--hair); }
+.faq summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; font-weight: 650; font-size: 15px; cursor: pointer; list-style: none; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary .ic { width: 16px; height: 16px; flex: none; color: var(--fg-3); transform: rotate(90deg); transition: transform 0.2s; }
+.faq details[open] summary .ic { transform: rotate(-90deg); }
+.faq summary:focus-visible { outline: 2px solid var(--fg); outline-offset: -2px; border-radius: 12px; }
+.faq p { margin: 0; padding: 0 14px 14px; color: var(--fg-2); font-size: 14.5px; line-height: 1.5; }
+.help-foot { margin-top: 18px; }
+.help-foot a { color: var(--brand-ink); font-weight: 600; }
+/* espaços de aviso vazios no Início não somam o espaçamento da página */
+#view-inicio .page > div:empty { display: none; }

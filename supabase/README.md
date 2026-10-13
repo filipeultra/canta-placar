@@ -8,7 +8,7 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 | `storage.sql` | Pastas de arquivos: fotos de perfil (públicas) e vídeos (privados, Pro). |
 | `tests/regras.sql` | 28 verificações das regras, rodadas num Postgres 16 local em 13/10/2026: todas passaram. |
 | `admin.sql` | Estatísticas de uso e painel de admin (ver abaixo). |
-| `tests/admin.sql` | Verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê o painel. |
+| `tests/admin.sql` | 21 verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê nem age; busca, cortesia, denúncias (tirar do ar) e registro de ações. |
 | `tests/supabase-stub.sql` | Simula o que o Supabase já traz (`auth.users`, `auth.uid()`), para rodar os testes fora dele. |
 
 ## O que as regras garantem (testado)
@@ -25,15 +25,17 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkado no app e o Google não indexa.
 - **Sem servidor:** mostra **dados de demonstração** (fictícios), para ver o painel funcionando. Com o servidor ligado, `?demo=1` no endereço volta à demonstração.
 - **Com servidor:** entra com o e-mail de uma conta admin (link mágico do Supabase). Só lê os números quem estiver na tabela `admins`; para os outros, a função `admin_metrics` recusa.
-- **O que mostra (7, 30 ou 90 dias, comparando com o período anterior):**
-  - visitas, pessoas ativas, contas e novas contas;
-  - assinantes Pro (pagando e cortesia) e receita mensal (MRR, pelos preços de `plan_prices`);
-  - partidas, grupos e denúncias abertas;
-  - gráficos por dia: visitas, ativos, novas contas e partidas;
-  - funil (abriu → criou conta → começou partida → terminou → compartilhou → Pro);
-  - partidas por esporte, de onde vêm as pessoas (utm, convite `?ref=`, direto) e assinantes por plano;
-  - custo estimado da IA, retenção por semana de chegada e eventos mais comuns.
-- **De onde vêm os números:** `admin.sql` (tabelas `app_events`, `admins`, `plan_prices` e a função `admin_metrics`), testado em `tests/admin.sql`.
+- **Seções** (menu ao lado no computador, faixa no topo no celular; período de 7, 30 ou 90 dias comparando com o anterior):
+  - **Visão geral:** quem está usando agora (últimos 15 min), ativos no dia/semana/mês, 8 indicadores com mini gráfico, visitas e ativos por dia e **“O que olhar agora”** (denúncias, variação das visitas, maior perda do funil, retenção, versões antigas, custo da IA).
+  - **Crescimento:** contas, novas contas, conversão visita → conta, instalações, convites, contas excluídas, funil, origem (utm, convite `?ref=`, direto) e retenção por semana.
+  - **Uso do app:** ativos (DAU/WAU/MAU) e frequência, partidas, % de pontos por voz, % que usa o app instalado, gravações, compartilhamentos, sugestões, partidas por esporte, **mapa de calor de quando se joga** (dia × hora) e versões do app em uso.
+  - **Receita:** MRR, ARR, assinantes pagando e de cortesia, ticket médio, novas assinaturas, cancelamentos, churn mensal, valor por assinante (LTV), custo da IA no mês, planos e um simulador de projeção.
+  - **Contas:** busca por nome, @, código UP-… ou e-mail, e **Pro de cortesia** (7, 30, 90 dias ou 1 ano; ou tirar).
+  - **Grupos:** os mais movimentados (membros, pedidos, partidas, posts).
+  - **Moderação:** fila de denúncias (abertas, resolvidas, descartadas) com **Em análise, Resolvida, Tirar do ar e Descartar**, e o **registro de ações** de todos os admins.
+  - **IA:** análises, quem usou, custo, custo por análise, projeção e tokens. **Eventos:** o que o app registra.
+  - Tema claro/escuro, atualização automática a cada minuto e **CSV** de cada tabela.
+- **De onde vêm os números:** `admin.sql` (tabelas `app_events`, `admins`, `plan_prices`, `admin_log` e as funções `admin_metrics`, `admin_users`, `admin_grant_pro`, `admin_reports`, `admin_handle_report`, `admin_groups`), testado em `tests/admin.sql` (21 verificações, todas passando em 13/10/2026).
   - O app e o site mandam eventos por `telemetry.js`, mas só quando `config.js` estiver preenchido.
   - **Sem consentimento**, só a visita, com um id que some ao fechar.
   - **Com consentimento** (o app pergunta uma vez, depois da 1ª partida; e em Ajustes → Estatísticas de uso), os eventos de uso, com um id sorteado do aparelho.

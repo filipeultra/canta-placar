@@ -601,6 +601,8 @@
       <section class="group">
         <h3>Ajuda e novidades</h3>
         <div class="list">
+          <div class="row"><span class="row-ic"><svg><use href="#i-help"/></svg></span><span>Central de ajuda<small>Primeiros passos, dicas e perguntas frequentes</small></span><button class="btn" type="button" data-action="helpcenter">Abrir</button></div>
+          <div class="row"><span class="row-ic"><svg><use href="#i-play"/></svg></span><span>Tutorial<small>O tour rápido pelo app e pelo placar</small></span><button class="btn" type="button" data-action="tour">Ver</button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-sparkles"/></svg></span><span>Novidades<small>O que mudou nas últimas versões</small></span><button class="btn" type="button" data-action="news">Ver</button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-help"/></svg></span><span>Enviar sugestão ou problema<small>Fale direto com a equipe do ULTRA PLAY</small></span><button class="btn" type="button" data-action="feedback">Escrever</button></div>
           <label class="row" id="analyticsRow" hidden><span class="row-ic"><svg><use href="#i-chart"/></svg></span><span>Estatísticas de uso anônimas<small>Ajuda a equipe a ver o que funciona: telas e recursos usados, sem nomes nem partidas</small></span><input class="switch" type="checkbox" id="pAnalytics"></label>
@@ -879,6 +881,16 @@
 </section>
 
 <!-- Lista de pessoas (zaps, seguidores, seguindo) -->
+<!-- tutorial: destaca uma parte da tela por vez -->
+<div class="tour" id="tour" role="dialog" aria-modal="true" aria-labelledby="tourTitle" aria-describedby="tourText" hidden>
+  <div class="tour-hole" id="tourHole" aria-hidden="true"></div>
+  <div class="tour-card" id="tourCard">
+    <div class="tour-top"><span class="tour-step" id="tourStep"></span><button class="linkish" type="button" id="tourSkip">Pular</button></div>
+    <h2 id="tourTitle"></h2>
+    <div class="tour-text" id="tourText" aria-live="polite"></div>
+    <div class="tour-foot"><div class="tour-dots" id="tourDots" aria-hidden="true"></div><button class="btn" type="button" id="tourPrev">Voltar</button><button class="btn btn-brand" type="button" id="tourNext">Próximo</button></div>
+  </div>
+</div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalText" hidden>
   <div class="modal-card">
     <button class="icon-btn modal-x" type="button" data-modal-close title="Fechar"><svg><use href="#i-x"/></svg></button>
@@ -957,6 +969,7 @@
 <script src="video.js"></script>
 <script src="social.js"></script>
 <script src="voice.js"></script>
+<script src="help.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
