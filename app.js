@@ -1750,7 +1750,7 @@
     const T = st.teams;
     let h = '<div class="sum">';
     if (!embed) h += '<div class="panel"><div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) +
-      '</b><span>' + esc(fmtWhen(m.endedAt || m.createdAt)) + ' · ' + esc(formatSummary(st.cfg)) + '</span></span></div>' +
+      '</b><span>' + esc((fmtWhen(m.endedAt || m.createdAt) + ' · ' + formatSummary(st.cfg)).replace(/ (\S+)$/, '\u00a0$1')) + '</span></span></div>' +   // sem palavra sozinha na 2ª linha
       '<h2 class="card-title">' + titleFor(m, st) + ' ' + (live ? '<span class="badge">Ao vivo</span>' : st.winner == null ? '<span class="badge muted">Encerrada</span>' : '') + '</h2>' +
       resultHTML(m, st) + fixedNoteHTML(st) +
       (live ? '' : '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button>') + '</div>';
