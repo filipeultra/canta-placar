@@ -1322,6 +1322,7 @@
       ['Placar', placarText(st), m.teams.map(t => t.name)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
       ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
     ], true) + '</div>';
+    if (!live) h += analysisHTML(m, embed);
     const mid = live && !embed ? 'live' : esc(m.id);
     h += '<div class="panel">' + ph('i-activity', 'Momento', '<span class="ph-btns">' + (canReplay(m) ? '<button class="btn btn-sm" type="button" data-replay="' + mid + '"' + (embed || live ? '' : ' data-own="1"') + '>' + ic('i-replay') + 'Replay</button>' : '') +
       '<button class="btn btn-sm" type="button" data-action="moment" data-mid="' + mid + '">' + ic('i-expand') + 'Ponto a ponto' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button></span>') + momentumSvgFor(st, m.teams) + '</div>';
@@ -2757,7 +2758,7 @@
 
   // ---------- ULTRA Pro (simulado: sem cobrança, só para demonstrar) ----------
   const isPro = () => !!prefs.pro;
-  const PRO_FEATURES = {
+  const PRO_FEATURES = { analise: 'a análise do jogo por IA',
     momento: 'Momento ponto a ponto',
     exportar: 'Exportar planilha (CSV) e dados (JSON)',
     video: 'Vídeo animado da partida (MP4 e GIF)',
@@ -4267,6 +4268,119 @@
     const hint = $('#camOrientHint'); if (hint) hint.hidden = !(o === 'h' && tall);
   }
 
+  // ---------- Análise do jogo (automática, no aparelho; com servidor, a versão por IA usa os mesmos fatos) ----------
+  const pctOf = (a, b) => (b ? Math.round(100 * a / b) : 0);
+  const plural = (n, um, varios) => n + ' ' + (n === 1 ? um : varios);
+  function matchFacts(m) {
+    const d = momentData(m), st = d.st, T = st.teams, kind = st.cfg.kind;
+    const n = d.pts.length;
+    if (n < 10 || st.manual) return null;
+    const names = m.teams.map(t => t.name);
+    const meKey = S.fold(myName());
+    const mine = [0, 1].find(t => (m.teams[t].players || []).some(p => S.fold(p) === meKey));
+    const w = st.winner, l = w == null ? null : 1 - w;
+    // virada: o vencedor esteve 3 pontos ou mais atrás no placar de pontos
+    let worst = 0;
+    if (w != null) d.pts.forEach(r => { const v = w === 0 ? r.diff : -r.diff; if (v < worst) worst = v; });
+    const k = Math.max(4, Math.round(n / 4));
+    const tail = d.pts.slice(-k), close = [0, 1].map(t => tail.filter(r => r.ev.team === t).length);
+    const err = [0, 1].map(t => T[t].errors + T[t].df);
+    const topShot = [0, 1].map(t => { const e = Object.entries(T[t].shots).sort((a, b) => b[1] - a[1])[0]; return e && e[1] >= 2 ? { shot: e[0], n: e[1] } : null; });
+    const serve = kind === 'games' ? [0, 1].map(t => (T[t].servePlayed >= 4 ? pctOf(T[t].serveWon, T[t].servePlayed) : null)) : [null, null];
+    const need = Math.max(4, Math.round(n * 0.08)); // virada de verdade, não um 0-3 no começo
+    return { d, st, T, kind, n, names, mine, w, l, comeback: worst <= -need ? -worst : 0, close, k, err, topShot, serve, key: d.key, changes: d.changes, maxLead: d.maxLead, mvp: st.mvp };
+  }
+  function analysisFor(m) {
+    const f = matchFacts(m); if (!f) return null;
+    const { T, names, w, l, n } = f;
+    const out = [];
+    let head;
+    if (w == null) head = 'Partida encerrada sem vencedor';
+    else {
+      const ptsW = T[w].pts, ptsL = T[l].pts;
+      const how = f.comeback ? 'de virada' : Math.abs(ptsW - ptsL) <= 3 ? 'no detalhe' : pctOf(ptsW, n) >= 60 && f.maxLead[l] <= 2 ? 'sem dar chance' : '';
+      const sc = w === 0 ? placarText(f.st) : placarText(f.st).replace(/(\d+)-(\d+)/g, '$2-$1'); // placar do lado de quem venceu
+      head = names[w] + ' venceu ' + names[l] + (how ? ' ' + how : '') + ', ' + sc;
+      if (ptsW < ptsL) out.push('Mesmo com menos pontos (' + ptsW + ' a ' + ptsL + '), ' + names[w] + ' ganhou nos momentos certos.');
+      else out.push(names[w] + ' fez ' + ptsW + ' dos ' + n + ' pontos (' + pctOf(ptsW, n) + '%).');
+      if (f.comeback) out.push(names[w] + ' chegou a estar ' + plural(f.comeback, 'ponto', 'pontos') + ' atrás e virou.');
+    }
+    // pontos importantes
+    const kp = f.kind === 'games' ? 'break' : 'set';
+    const kv = f.key[kp];
+    if (kv[0][1] + kv[1][1] >= 2) out.push('Nos ' + (kp === 'break' ? 'break points' : 'set points') + ', ' + [0, 1].filter(t => kv[t][1]).map(t => names[t] + ' converteu ' + kv[t][0] + ' de ' + kv[t][1]).join('; ') + '.');
+    // erros e winners
+    const eT = f.err[0] >= f.err[1] ? 0 : 1;
+    if (f.err[eT] >= 3) {
+      const parts = [T[eT].rede && T[eT].rede + ' na rede', T[eT].fora && T[eT].fora + ' pra fora', T[eT].df && plural(T[eT].df, 'dupla falta', 'duplas faltas')].filter(Boolean);
+      out.push(names[eT] + ' entregou ' + plural(f.err[eT], 'ponto', 'pontos') + ' em erros' + (parts.length ? ' (' + parts.join(', ') + ')' : '') + '.');
+    }
+    const winT = T[0].winners + T[0].aces >= T[1].winners + T[1].aces ? 0 : 1;
+    if (T[winT].winners + T[winT].aces >= 3) out.push(names[winT] + ' decidiu ' + plural(T[winT].winners, 'ponto', 'pontos') + ' com winners' + (T[winT].aces ? ' e ' + plural(T[winT].aces, 'ace', 'aces') : '') + '.');
+    if (f.serve[0] != null && f.serve[1] != null) out.push('No saque: ' + names[0] + ' ganhou ' + f.serve[0] + '% dos pontos; ' + names[1] + ', ' + f.serve[1] + '%.');
+    // ritmo do jogo
+    const sT = T[0].maxStreak >= T[1].maxStreak ? 0 : 1;
+    if (T[sT].maxStreak >= 4) out.push('Maior sequência: ' + T[sT].maxStreak + ' pontos seguidos de ' + names[sT] + (f.changes ? ', num jogo com ' + plural(f.changes, 'troca', 'trocas') + ' de liderança' : '') + '.');
+    if (f.close[0] !== f.close[1]) { const c = f.close[0] > f.close[1] ? 0 : 1; out.push('Na reta final (últimos ' + f.k + ' pontos), ' + names[c] + ' fez ' + f.close[c] + ' a ' + f.close[1 - c] + '.'); }
+    if (f.mvp) out.push('Destaque: ' + f.mvp.name + ' (' + plural(f.mvp.pts, 'ponto', 'pontos') + (f.mvp.aces ? ', ' + plural(f.mvp.aces, 'ace', 'aces') : '') + ').');
+    // dica para o seu time (ou para quem perdeu)
+    const me = f.mine != null ? f.mine : l != null ? l : 0, op = 1 - me, you = f.mine != null ? 'você' : names[me];
+    let tip = '';
+    const errShare = pctOf(f.err[me], T[op].pts);
+    if (f.err[me] >= 4 && errShare >= 40) tip = errShare + '% dos pontos do adversário vieram de erros ' + (f.mine != null ? 'seus' : 'de ' + names[me]) + '. ' + (T[me].rede > T[me].fora ? 'Mais altura na bola tira da rede.' : T[me].fora > T[me].rede ? 'Uma bola mais pra dentro da quadra já muda o jogo.' : 'Menos risco nos pontos neutros já muda o jogo.');
+    else if (f.serve[me] != null && f.serve[me] < 50) tip = 'No saque, ' + you + ' ganhou só ' + f.serve[me] + '% dos pontos. Priorize colocar o saque em jogo e começar o ponto no controle.';
+    else if (kv[me][1] >= 3 && pctOf(kv[me][0], kv[me][1]) < 40) tip = kv[me][0] + ' de ' + kv[me][1] + ' ' + (kp === 'break' ? 'break points' : 'set points') + ' convertidos. Nos pontos importantes, a bola mais segura costuma render mais.';
+    else if (f.close[me] < f.close[op]) tip = 'O fim do jogo foi de ' + names[op] + '. Segurar o ritmo nos últimos pontos é onde ' + you + ' mais pode ganhar.';
+    else if (f.topShot[me]) tip = 'Repita a receita: o ' + (G.SHOT_LABEL[f.topShot[me].shot] || f.topShot[me].shot).toLowerCase() + ' rendeu ' + plural(f.topShot[me].n, 'ponto', 'pontos') + ' para ' + (f.mine != null ? 'você' : names[me]) + '.';
+    const detail = T[0].errors + T[1].errors + T[0].winners + T[1].winners + T[0].aces + T[1].aces;
+    return { head, items: out.slice(0, 6), tip, thin: detail < 4 };
+  }
+  function analysisHTML(m, embed) {
+    let a = null;
+    try { a = analysisFor(m); } catch (e) { console.info('[análise] sem dados suficientes', e); }
+    if (!a) return '';
+    return '<div class="panel coach">' + ph('i-sparkles', 'Análise do jogo', '<span class="sec-meta">automática</span>') +
+      '<p class="coach-head">' + esc(a.head) + '</p><ul class="coach-list">' + a.items.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+      (a.tip ? '<div class="coach-tip">' + ic('i-target') + '<span><b>Dica</b>' + esc(a.tip) + '</span></div>' : '') +
+      (a.thin ? '<p class="hint small">Para uma análise mais completa, fale o tipo do lance: “ace verde”, “erro na rede laranja”, “ponto smash verde”.</p>' : '') +
+      (AI_URL && !embed ? '<button class="btn btn-sm" type="button" data-aicoach="' + esc(m.id) + '">' + ic('i-sparkles') + 'Análise com IA' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button><div class="coach-ai" id="coachAi-' + esc(m.id) + '" hidden></div>' : '') +
+      '</div>';
+  }
+  // ---- análise por IA (servidor: supabase/functions/analise). Desligada enquanto AI_URL estiver vazio. ----
+  // Nomes viram apelidos (J1, J2… e T1/T2) antes de sair do aparelho; a resposta volta com os nomes de verdade.
+  const AI_URL = '';
+  const aiAuth = () => ({}); // com a conta na nuvem: { Authorization: 'Bearer ' + sessão.access_token }
+  function aiPayload(m) {
+    const f = matchFacts(m); if (!f) return null;
+    const alias = new Map(); let nJ = 0;
+    const al = nm => { const k = S.fold(nm); if (!alias.has(k)) alias.set(k, { tok: 'J' + (++nJ), name: nm }); return alias.get(k).tok; };
+    const teamTok = ['T1', 'T2'];
+    const T = f.T;
+    const facts = {
+      esporte: sportLabel(f.st.cfg.sport), formato: formatSummary(f.st.cfg), placar: placarText(f.st), vencedor: f.w == null ? null : teamTok[f.w], meu_time: f.mine == null ? null : teamTok[f.mine],
+      times: [0, 1].map(t => ({ id: teamTok[t], jogadores: (m.teams[t].players || []).map(al), pontos: T[t].pts, aces: T[t].aces, winners: T[t].winners, erros: T[t].errors, rede: T[t].rede, fora: T[t].fora, duplas_faltas: T[t].df,
+        quebras: T[t].breaks, maior_sequencia: T[t].maxStreak, saque: f.serve[t], golpes: T[t].shots, reta_final: f.close[t] })),
+      pontos_importantes: f.key, trocas_de_lideranca: f.changes, maior_vantagem: f.maxLead, virada_de: f.comeback || 0, total_pontos: f.n,
+      jogadores: f.st.players.filter(p => p.pts + p.errors + p.df > 0).map(p => ({ id: al(p.name), time: teamTok[p.team], pontos: p.pts, aces: p.aces, winners: p.winners, erros: p.errors + p.df })),
+      duracao_min: Math.round(f.st.durationMs / 60000),
+    };
+    const back = text => { let s = String(text || ''); alias.forEach(v => { s = s.split(v.tok).join(v.name); }); return s.split('T1').join(m.teams[0].name).split('T2').join(m.teams[1].name); };
+    return { facts, back };
+  }
+  async function aiCoach(id, btn) {
+    const m = findMatch(id); if (!m) return;
+    if (!isPro()) { openPro('analise', () => aiCoach(id)); return; }
+    const box = $('#coachAi-' + id); const pl = aiPayload(m); if (!box || !pl) return;
+    box.hidden = false; box.innerHTML = '<p class="hint">Analisando…</p>'; if (btn) btn.disabled = true;
+    try {
+      const r = await fetch(AI_URL, { method: 'POST', headers: Object.assign({ 'content-type': 'application/json' }, aiAuth()), body: JSON.stringify({ facts: pl.facts, match_id: m.id }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      box.innerHTML = String(pl.back(j.text || '')).split(/\n+/).filter(Boolean).map(p => '<p>' + esc(p) + '</p>').join('');
+    } catch (e) { box.innerHTML = '<p class="hint">Não consegui falar com a análise agora. A análise automática acima continua valendo.</p>'; }
+    if (btn) btn.disabled = false;
+  }
+
   function deleteMatch(id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
@@ -4469,6 +4583,8 @@
       if (rs) { closeSheet('#sheetReplay'); openShare(rs.dataset.replayShare, 'video'); return; }
       const sh = e.target.closest('[data-share]');
       if (sh) { e.stopPropagation(); openShare(sh.dataset.share); return; }
+      const aic = e.target.closest('[data-aicoach]');
+      if (aic) { aiCoach(aic.dataset.aicoach, aic); return; }
       const ac = e.target.closest('[data-ach]');
       if (ac) { openAch(ac.dataset.ach); return; }
       const op = e.target.closest('[data-open]');

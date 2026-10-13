@@ -2568,3 +2568,13 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .cam-orient-hint[hidden] { display: none; }
 .cam-orient-hint .ic { width: 18px; height: 18px; }
 .view-camera.recording .cam-flags { opacity: 0.85; }
+
+/* ===== v21 · análise do jogo ===== */
+.coach { gap: 10px; }
+.coach-head { margin: 0; font: 800 19px/1.3 var(--font-display); }
+.coach-list { margin: 0; padding: 0 0 0 18px; display: grid; gap: 6px; color: var(--fg-2); font-size: 14.5px; line-height: 1.45; }
+.coach-list li::marker { color: var(--brand-ink, var(--brand)); }
+.coach-tip { display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--brand) 12%, var(--surface-2, var(--surface))); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent); font-size: 14.5px; line-height: 1.45; }
+.coach-tip .ic { flex: none; width: 20px; height: 20px; margin-top: 1px; color: var(--brand-ink, var(--brand)); }
+.coach-tip b { display: block; font: 800 12px/1.4 var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: var(--brand-ink, var(--brand)); }
+.coach-ai p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.5; }

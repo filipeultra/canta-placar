@@ -272,6 +272,18 @@ create table public.subscriptions (
   updated_at          timestamptz not null default now()
 );
 
+-- uso da análise por IA (cota mensal e custo): escrito só pela Edge Function "analise" (service role)
+create table public.ai_usage (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references public.profiles(id) on delete cascade,
+  match_id       text,
+  model          text not null,
+  input_tokens   integer not null default 0,
+  output_tokens  integer not null default 0,
+  created_at     timestamptz not null default now()
+);
+create index ai_usage_user_month on public.ai_usage (user_id, created_at);
+
 create table public.reports (
   id               uuid primary key default gen_random_uuid(),
   reporter_id      uuid not null references public.profiles(id) on delete cascade,
@@ -443,6 +455,7 @@ alter table public.notifications enable row level security;
 alter table public.video_segments enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.reports enable row level security;
+alter table public.ai_usage enable row level security;
 
 -- perfis: nome, cidade e foto são públicos (quem bloqueou não vê); cada um edita o seu
 create policy profiles_read on public.profiles for select using (deleted_at is null and (auth.uid() is null or not public.is_blocked_between(id, auth.uid())));
@@ -536,6 +549,9 @@ create policy videos_own on public.video_segments for all using (owner_id = auth
 -- assinatura: cada um lê a sua; escrita só pela service role (webhook do pagamento)
 create policy subs_read on public.subscriptions for select using (user_id = auth.uid());
 
+-- análise por IA: cada um vê o próprio uso (para mostrar "x de 60 no mês"); só o servidor grava
+create policy ai_usage_read on public.ai_usage for select using (user_id = auth.uid());
+
 -- denúncias: cada um cria e vê as suas; a equipe lê pelo painel com a service role
 create policy reports_insert on public.reports for insert with check (reporter_id = auth.uid());
 create policy reports_read on public.reports for select using (reporter_id = auth.uid());
@@ -590,6 +606,7 @@ grant update (group_id, sport, source, cfg, played_at, duration_ms, type, title,
 revoke insert, update, delete on public.notifications from authenticated;
 grant update (read_at) on public.notifications to authenticated;
 revoke insert, update, delete on public.subscriptions from authenticated;
+revoke insert, update, delete on public.ai_usage from authenticated;
 -- denúncias: ninguém edita depois de enviar
 revoke update, delete on public.reports from authenticated;
 -- grupo: código do convite não muda
