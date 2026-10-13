@@ -57,6 +57,24 @@
     { id: 'carol', name: 'Carol Mendes', city: CITY, place: 'Quadra do Ibituruna', sports: ['volei', 'beach'], color: '#2FD5C7', bio: '', followers: 66, following: 74 },
     { id: 'davi', name: 'Davi Rocha', city: 'Belo Horizonte, MG', place: 'Arena Pampulha', sports: ['beach', 'padel'], color: '#9D5CFF', bio: 'BH. Beach todo dia.', followers: 420, following: 210 },
   ];
+  // Grupos (turmas, clubes, times): a turma fixa que joga junto. Membros com papel (organizador, moderador, membro).
+  // wd: dias da semana em que a turma joga (0 = domingo); h: hora. Um deles tem você como organizador, para ver o lado de quem administra.
+  const GROUPS = [
+    { id: 'g-peteca', name: 'Peteca de segunda', sport: 'peteca', place: 'Praça de Esportes', when: 'Segundas, 19h', wd: [1], h: 19, color: '#FFD84D', open: true, desc: 'Peteca de dupla toda segunda. Chegou, entra na fila. Perdeu, sai.',
+      members: [['mari', 'admin'], ['nina', 'mod'], ['ju'], ['rafa'], ['lu'], ['carol'], ['me']] },
+    { id: 'g-beach', name: 'Beach todo domingo', sport: 'beach', place: 'Arena Beach MOC', when: 'Domingos, 8h', wd: [0], h: 8, color: '#AFFB48', open: false, desc: 'Domingo cedo na Arena. Duplas sorteadas, um set de 6, quem perde paga a água.',
+      members: [['me', 'admin'], ['lu', 'mod'], ['rafa'], ['duda'], ['brenda'], ['teo'], ['biel'], ['gui']] },
+    { id: 'g-padel', name: 'Padel terça e quinta', sport: 'padel', place: 'Padel Point', when: 'Terças e quintas, 20h', wd: [2, 4], h: 20, color: '#4DA6FF', open: false, desc: 'Turma fixa do Padel Point. Peça para entrar e o Caio aprova.',
+      members: [['caio', 'admin'], ['biel', 'mod'], ['gui'], ['leo'], ['bia']] },
+    { id: 'g-fute', name: 'Futevôlei de sábado', sport: 'futevolei', place: 'Arena Sol Nascente', when: 'Sábados, 16h', wd: [6], h: 16, color: '#FF5E3A', open: true, desc: 'Organizado pelo Pedro. Aberto para quem quiser chegar.',
+      members: [['pedro', 'admin'], ['teo', 'mod'], ['brenda'], ['duda']] },
+  ];
+  const WALL = {
+    'g-peteca': [['mari', 6, 21, 40, 'Segunda que vem tem peteca nova, a amarela furou 😅'], ['nina', 6, 21, 52, 'Eu levo! E a revanche com a Ju tá marcada'], ['ju', 1, 7, 15, 'Aquele 25 a 23 de ontem foi o jogo do ano'], ['rafa', 0, 9, 5, 'Hoje não vou, joelho pedindo descanso. Semana que vem volto']],
+    'g-beach': [['lu', 7, 11, 0, 'Bora fechar 8 de novo? Já reservei as quadras 2 e 3'], ['duda', 7, 11, 20, 'Tô dentro'], ['rafa', 2, 18, 30, 'Autorizei o placar pra quem for lançar domingo, me põe na dupla com a Brenda'], ['brenda', 1, 20, 10, 'Fechou! Levo as bolas novas']],
+    'g-padel': [['caio', 3, 22, 10, 'Quinta tem desafio: perdedores pagam o próximo horário'], ['leo', 3, 22, 30, 'Aceito. Vou com a Bia']],
+    'g-fute': [['pedro', 5, 12, 0, 'Sábado com sol, chega cedo pra montar a rede']],
+  };
   const EXTRA_NAMES = ['Zé Neto', 'Paulinha', 'Tio Beto', 'Fê Ramos', 'Juninho', 'Lari'];
   const SEED_FOLLOWS = ['rafa', 'lu', 'biel', 'mari', 'caio', 'nina', 'teo'];
   const SEED_FOLLOWERS = ['rafa', 'lu', 'biel', 'teo', 'ju', 'mari', 'gui', 'duda'];
@@ -109,7 +127,7 @@
     const now = () => (o.now ? o.now() : Date.now());
     let me = { id: 'me', name: 'Você', city: CITY, place: '', color: '#AFFB48', privacy: PRIVACY_OPEN() };
     let store = Object.assign(blankStore(), load() || {});
-    function blankStore() { return { v: 1, follows: SEED_FOLLOWS.slice(), myZaps: { 'tag-lu-old': 1 }, tagResp: {}, claims: {}, claimResp: {}, followReq: {}, blocked: [], readUntil: now() - 30 * HOUR }; }
+    function blankStore() { return { v: 1, follows: SEED_FOLLOWS.slice(), myZaps: { 'tag-lu-old': 1 }, tagResp: {}, claims: {}, claimResp: {}, followReq: {}, blocked: [], readUntil: now() - 30 * HOUR, g: null }; }
     store.claims = store.claims || {}; store.claimResp = store.claimResp || {}; store.followReq = store.followReq || {}; store.blocked = store.blocked || [];
     const persist = () => save(store);
 
@@ -177,6 +195,31 @@
       T('tag-lu-old', 'lu', at(11, 18, 0), 'beach', 'treino', 'Arena Beach MOC', [{ userId: 'lu' }, { userId: 'me' }], [{ userId: 'brenda' }, { userId: 'teo' }],
         { sets: [[4, 6]], final: null, winner: 1 }, { caption: 'Treino de saque e devolução', durationMs: 70 * MIN,
           tagged: [{ userId: 'me', status: 'aceito', at: at(11, 19, 30) }], zaps: ['rafa', 'mari'].map((u, k) => ({ userId: u, t: at(11, 20, 0) + k * 30 * MIN })) });
+      // partidas das turmas: toda semana, no dia e no horário do grupo, duplas sorteadas entre os membros
+      const gr = rng(20261013);
+      for (const g of GROUPS) {
+        const ids = g.members.map(m => m[0]).filter(id => id !== 'me');
+        const today = new Date(dayStart).getDay();
+        for (let wk = 0; wk < 6; wk++) for (const wd of g.wd) {
+          const back = ((today - wd + 7) % 7) + 7 * wk;
+          const games = 1 + Math.floor(gr() * 2);
+          for (let k = 0; k < games; k++) {
+            const four = shuffle(gr, ids).slice(0, 4);
+            if (four.length < 4) continue;
+            const won = gr() < 0.5 ? 0 : 1;
+            const sets = fakeResult(gr, g.sport, won);
+            const when = at(back, g.h, 5 + k * 35 + Math.floor(gr() * 10));
+            list.push({
+              id: g.id + '-' + wk + '-' + wd + '-' + k, ownerId: four[0], playedAt: when, sport: g.sport, source: gr() < 0.7 ? 'live' : 'manual', type: 'resenha', groupId: g.id,
+              title: '', caption: k === 0 && gr() < 0.4 ? pick(gr, CAPTIONS.resenha) : '', visibility: 'todos', place: g.place, city: CITY,
+              teams: [{ name: '', color: 'verde', players: [{ userId: four[0] }, { userId: four[1] }] }, { name: '', color: 'laranja', players: [{ userId: four[2] }, { userId: four[3] }] }],
+              result: { sets, final: null, winner: won }, durationMs: Math.round((25 + gr() * 30) / 5) * 5 * MIN, stats: null, timeline: null,
+              tagged: four.slice(1).map(u => ({ userId: u, status: 'aceito', at: when })),
+              zaps: shuffle(gr, ids.filter(u => u !== four[0])).slice(0, Math.floor(gr() * 5)).map((u, z) => ({ userId: u, t: when + (40 + z * 13) * MIN })),
+            });
+          }
+        }
+      }
       return list;
     }
     function allOthers() {
@@ -342,6 +385,103 @@
     }
     function respondClaim(c, status) { store.claimResp[c.id] = { status, matchId: c.activity.id, guest: c.guest, userId: c.userId, t: c.t, team: c.team }; persist(); }
 
+    // ---------- grupos ----------
+    // Tudo o que você muda num grupo fica em store.g; os grupos de exemplo vêm da semente. No servidor, cada coisa daqui
+    // vira uma tabela (groups, group_members, group_delegations, group_posts; ver supabase/schema.sql).
+    function gs() {
+      if (!store.g) store.g = { created: [], state: {}, reqAt: {}, roles: {}, removed: {}, added: {}, deleg: {}, wall: {}, seedDeleg: null };
+      const g = store.g;
+      // quem autorizou você (organizador do "Beach todo domingo") a lançar partidas por eles: Rafa por 3 h, Lu até o fim do dia
+      if (!g.seedDeleg) { const eod = new Date(now()); eod.setHours(23, 59, 0, 0); g.seedDeleg = { 'g-beach': { rafa: now() + 3 * HOUR, lu: eod.getTime() } }; }
+      return g;
+    }
+    const groupBase = id => GROUPS.find(x => x.id === id) || gs().created.find(x => x.id === id) || null;
+    const ROLE_RANK = { admin: 0, mod: 1, membro: 2 };
+    function groupView(b) {
+      const g = gs();
+      if (g.state[b.id] === 'pedido' && now() - (g.reqAt[b.id] || 0) > MIN) { g.state[b.id] = 'membro'; persist(); } // simulação: o organizador aprova em 1 min
+      const st = g.state[b.id], roles = g.roles[b.id] || {}, removed = g.removed[b.id] || [];
+      let members = b.members.map(m => (Array.isArray(m) ? { userId: m[0], role: m[1] || 'membro' } : Object.assign({ role: 'membro' }, m)))
+        .concat(g.added[b.id] || [])
+        .filter(m => !(m.userId && removed.includes(m.userId)))
+        .map(m => Object.assign({}, m, { role: (m.userId && roles[m.userId]) || m.role }));
+      if (st === 'saiu') members = members.filter(m => m.userId !== 'me');
+      if (st === 'membro' && !members.some(m => m.userId === 'me')) members.push({ userId: 'me', role: 'membro' });
+      members.sort((x, y) => ROLE_RANK[x.role] - ROLE_RANK[y.role]);
+      const mine = members.find(m => m.userId === 'me');
+      return Object.assign({}, b, { members, myRole: mine ? mine.role : null, pending: st === 'pedido', local: !GROUPS.includes(b) });
+    }
+    const groups = () => GROUPS.concat(gs().created).map(groupView);
+    const group = id => { const b = groupBase(id); return b ? groupView(b) : null; };
+    const myGroups = () => groups().filter(x => x.myRole);
+    const groupsNear = () => groups().filter(x => !x.myRole && !x.local);
+    const canManage = gr => !!gr && (gr.myRole === 'admin' || gr.myRole === 'mod');
+    function createGroup(d) {
+      const id = 'g' + Math.random().toString(36).slice(2, 10);
+      gs().created.push({ id, name: d.name, sport: d.sport, place: d.place || '', when: d.when || '', color: d.color || '#AFFB48', open: !!d.open, desc: d.desc || '', createdAt: now(), members: [{ userId: 'me', role: 'admin' }].concat(d.members || []) });
+      persist();
+      return id;
+    }
+    function updateGroup(id, d) { const b = gs().created.find(x => x.id === id); if (!b) return false; Object.assign(b, d); persist(); return true; }
+    // convite aberto em outro aparelho: o grupo passa a existir aqui, com você como membro e quem convidou como organizador
+    function importGroup(d) {
+      const g = gs();
+      if (groupBase(d.id)) { g.state[d.id] = 'membro'; persist(); return d.id; }
+      g.created.push({ id: d.id, name: d.name, sport: d.sport, place: d.place || '', when: d.when || '', color: d.color || '#AFFB48', open: true, desc: d.desc || '', createdAt: now(), invitedBy: d.by || '',
+        members: (d.by ? [{ name: d.by, role: 'admin' }] : []).concat({ userId: 'me', role: 'membro' }) });
+      persist();
+      return d.id;
+    }
+    function joinGroup(id) {
+      const gr = group(id); if (!gr || gr.myRole) return null;
+      const g = gs();
+      g.state[id] = gr.open || gr.local ? 'membro' : 'pedido'; g.reqAt[id] = now();
+      persist();
+      return g.state[id];
+    }
+    function leaveGroup(id) {
+      const gr = group(id); if (!gr) return;
+      const g = gs();
+      if (gr.local && gr.myRole === 'admin' && !gr.invitedBy) { g.created = g.created.filter(x => x.id !== id); }  // grupo criado aqui: sair apaga (não há outro organizador)
+      else { g.state[id] = 'saiu'; delete g.deleg[id]; }
+      persist();
+    }
+    function cancelJoin(id) { const g = gs(); if (g.state[id] === 'pedido') { delete g.state[id]; persist(); } }
+    function setRole(id, userId, role) { const g = gs(); (g.roles[id] = g.roles[id] || {})[userId] = role; persist(); }
+    function removeMember(id, userId) { const g = gs(); g.removed[id] = (g.removed[id] || []).concat(userId); if (g.added[id]) g.added[id] = g.added[id].filter(m => m.userId !== userId); persist(); }
+    function addMember(id, userId) {
+      const g = gs();
+      g.removed[id] = (g.removed[id] || []).filter(x => x !== userId);
+      const gr = group(id);
+      if (gr && !gr.members.some(m => m.userId === userId)) (g.added[id] = g.added[id] || []).push({ userId, role: 'membro' });
+      persist();
+    }
+    // Autorização: você deixa o organizador e os moderadores do grupo lançarem partidas com você por um tempo.
+    // Partidas lançadas por eles nesse período entram no seu perfil sem precisar aceitar a marcação.
+    function delegate(id, ms) { const g = gs(); if (ms > 0) g.deleg[id] = now() + ms; else delete g.deleg[id]; persist(); }
+    const myDelegation = id => { const t = gs().deleg[id]; return t && t > now() ? t : 0; };
+    // quem autorizou você (só vale se você organiza ou modera o grupo)
+    function delegatesToMe(id) {
+      const gr = group(id); if (!canManage(gr)) return [];
+      const d = (gs().seedDeleg || {})[id] || {};
+      return Object.entries(d).filter(([u, t]) => t > now() && gr.members.some(m => m.userId === u)).map(([userId, until]) => ({ userId, until }));
+    }
+    const delegatedToMe = (id, userId, t) => delegatesToMe(id).some(d => d.userId === userId && d.until >= (t || now()));
+    // partidas do grupo: as dos membros marcadas no grupo e as suas (mine: atividades do aparelho)
+    const groupActs = (id, mine) => allOthers().filter(a => a.groupId === id && canSee(a)).concat((mine || []).filter(a => a.groupId === id && a.visibility !== 'so-eu')).sort((x, y) => y.playedAt - x.playedAt);
+    // resenha: o mural do grupo
+    function wall(id) {
+      const seed = (WALL[id] || []).map(([userId, d, h, m, text], i) => ({ id: id + '-w' + i, userId, t: at(d, h, m), text }));
+      return seed.concat(gs().wall[id] || []).filter(x => x.t <= now() && !(x.userId && isBlocked(x.userId))).sort((x, y) => x.t - y.t);
+    }
+    function postWall(id, text) {
+      const t = String(text || '').trim().slice(0, 280); if (!t) return null;
+      const g = gs(); const msg = { id: 'w' + now().toString(36), userId: 'me', t: now(), text: t };
+      (g.wall[id] = g.wall[id] || []).push(msg); persist();
+      return msg;
+    }
+    function deleteWall(id, msgId) { const g = gs(); g.wall[id] = (g.wall[id] || []).filter(x => x.id !== msgId); persist(); }
+
     function reset() { store = blankStore(); others = null; persist(); }
 
     return {
@@ -356,8 +496,10 @@
       zaps, hasZapped, toggleZap,
       feed, byUser, activity, suggestions,
       notifications, unread, markRead, reset,
+      groups, group, myGroups, groupsNear, canManage, createGroup, updateGroup, importGroup, joinGroup, leaveGroup, cancelJoin, setRole, removeMember, addMember,
+      delegate, myDelegation, delegatesToMe, delegatedToMe, groupActs, wall, postWall, deleteWall,
     };
   }
 
-  return { create, TYPES, VISIBILITY, PLACES, CITY, USERS, userCode, matchCode, PRIVACY_ITEMS, PRIVACY_OPEN };
+  return { create, TYPES, VISIBILITY, PLACES, CITY, USERS, GROUPS, userCode, matchCode, PRIVACY_ITEMS, PRIVACY_OPEN };
 });

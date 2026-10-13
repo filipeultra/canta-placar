@@ -122,6 +122,7 @@
       type: pickIn(p.type, SO.TYPES.map(x => x.id)), title: cTxt(p.title, 60) || undefined, caption: cTxt(p.caption, 140) || undefined, place: cTxt(p.place, 60) || undefined,
       visibility: pickIn(p.visibility, SO.VISIBILITY.map(x => x.id)), video: p.video && typeof p.video === 'object' ? lookOfSafe(p.video) : undefined,
       sourceOrig: pickIn(p.sourceOrig, ['live', 'manual']), claimed: cTxt(p.claimed, 40) || undefined, linkId: typeof p.linkId === 'string' && /^link-[a-z0-9]{1,16}$/.test(p.linkId) ? p.linkId : undefined, fromLinkBy: cTxt(p.fromLinkBy, 40) || undefined,
+      groupId: typeof p.groupId === 'string' && /^g[-a-z0-9]{1,40}$/.test(p.groupId) ? p.groupId : undefined,
     };
     Object.keys(post).forEach(k => post[k] === undefined && delete post[k]);
     const mn = raw.manual && typeof raw.manual === 'object' ? raw.manual : null;
@@ -133,6 +134,7 @@
     const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
     const m = { id: typeof raw.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw.id) ? raw.id : uid(), createdAt: num(raw.createdAt) || Date.now(), endedAt: num(raw.endedAt), cfgInput: cfg, teams, events, redo: [], finished: true, post };
     if (manual) m.manual = manual;
+    if (typeof raw.groupId === 'string' && /^g[-a-z0-9]{1,40}$/.test(raw.groupId)) m.groupId = raw.groupId;
     const vk = raw.vid || raw.oid;
     if (typeof vk === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(vk)) m.vid = vk; // vídeo gravado com o id original da partida
     return validMatch(m);
@@ -878,6 +880,7 @@
 
   function openNew(prefill) {
     const src = prefill || match;
+    newGroupId = null; renderNewGroup();
     const c = E.makeConfig(src.cfgInput);
     fillFormat(c.sport, src.cfgInput);
     [0, 1].forEach(t => {
@@ -1158,7 +1161,7 @@
 
   let currentView = 'inicio', currentMatchId = null;
   const navStack = []; // telas anteriores, para o botão voltar (a rota usa replaceState, sem histórico do navegador)
-  const ID_VIEWS = ['partida', 'atividade', 'perfil', 'camera'];
+  const ID_VIEWS = ['partida', 'atividade', 'perfil', 'camera', 'grupo'];
   const OPT_ID_VIEWS = ['entrar'];
   function go(view, id, back) {
     if (SCREEN) view = 'jogar';
@@ -1170,7 +1173,7 @@
     document.body.dataset.view = view;
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
     const sc0 = $('#view-' + view + ' .scroll'); if (sc0 && !back) sc0.scrollTop = 0; // antes de desenhar: depois forçaria recalcular a tela inteira
-    const tab = ['partida', 'atividade', 'perfil', 'notificacoes', 'entrar'].includes(view) ? 'inicio' : view;
+    const tab = ['partida', 'atividade', 'perfil', 'notificacoes', 'entrar', 'grupo', 'grupos'].includes(view) ? 'inicio' : view;
     $$('.tabbar .tab').forEach(b => b.classList.toggle('on', b.dataset.go === tab));
     if (view === 'inicio') renderHome();
     if (view === 'partida') renderMatchView(id);
@@ -1178,6 +1181,8 @@
     if (view === 'perfil') renderPerfil(id);
     if (view === 'notificacoes') renderNotifs();
     if (view === 'entrar') renderEntrar(id);
+    if (view === 'grupo') renderGrupo(id);
+    if (view === 'grupos') renderGrupos();
     if (view === 'camera') renderCamera(id); else if (typeof camRelease === 'function' && !(cam.r && cam.r.state.recording)) camRelease();
     if (view === 'voce') renderMe();
     if (view === 'jogar') { render(); renderVoice(); }
@@ -1199,7 +1204,8 @@
     if (h === 'entrar' || h.startsWith('entrar-')) return go('entrar', h.slice(7) || null);
     if (h.startsWith('ver-')) return openStatLink(h.slice(4));
     if (h.startsWith('camera-')) return go('camera', h.slice(7));
-    if (['inicio', 'jogar', 'voce', 'notificacoes'].includes(h)) return go(h);
+    if (h.startsWith('grupo-')) return go('grupo', h.slice(6));
+    if (['inicio', 'jogar', 'voce', 'notificacoes', 'grupos'].includes(h)) return go(h);
     go('inicio');
   }
 
@@ -1355,6 +1361,7 @@
         '<button class="btn-light" type="button" data-go="jogar"><svg><use href="#i-play"/></svg>Continuar</button></div>';
     } else $('#liveCard').innerHTML = '';
     renderDrafts();
+    renderGroupStripNow();
     renderFeed();
   }
 
@@ -1457,7 +1464,7 @@
   const actCache = new Map();
   function toActivity(m, ownerId) {
     const p = m.post || {};
-    const key = m.id + '|' + ownerId + '|' + (m.endedAt || 0) + '|' + m.events.length + '|' + JSON.stringify(p) + '|' + JSON.stringify(m.manual || null) + '|' + myName();
+    const key = m.id + '|' + ownerId + '|' + (m.groupId || '') + '|' + (m.endedAt || 0) + '|' + m.events.length + '|' + JSON.stringify(p) + '|' + JSON.stringify(m.manual || null) + '|' + myName();
     if (actCache.has(key)) return actCache.get(key);
     const st = S.matchStats(m);
     const mine = ownerId === 'me';
@@ -1482,7 +1489,7 @@
       teams: m.teams.map(t => ({ name: t.name, color: t.color, players: (t.players || []).map(asPlayer) })),
       result: { sets: st.state.sets.length ? st.state.sets.map(x => (x.matchTb && x.tb ? x.tb : x.games)) : null, final: st.manual ? st.manual.final : null, winner: st.winner },
       durationMs: st.durationMs, stats: m.manual ? null : { pts: [st.teams[0].pts, st.teams[1].pts], aces: [st.teams[0].aces, st.teams[1].aces] },
-      timeline: m.manual ? null : st.timeline, tagged: p.tagged || [], fromActivity: p.fromActivity || null, draft: p.status === 'rascunho',
+      timeline: m.manual ? null : st.timeline, tagged: p.tagged || [], groupId: (p.groupId !== undefined ? p.groupId : m.groupId) || null, fromActivity: p.fromActivity || null, draft: p.status === 'rascunho',
       // replay animado publicado no post (nas partidas fictícias de outras pessoas, parte delas tem)
       video: m.manual ? null : p.video || (m.demo && !mine && r % 3 !== 2 ? { speed: 'rapido' } : null),
     };
@@ -1550,7 +1557,7 @@
     const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
     return '<article class="act" data-act="' + esc(a.id) + '">' +
       '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' +
-      '<span>' + ic('s-' + a.sport) + esc(fmtWhen(a.playedAt)) + (a.place ? ' · ' + esc(a.place) : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
+      '<span>' + ic('s-' + a.sport) + esc(fmtWhen(a.playedAt)) + (a.place ? ' · ' + esc(a.place) : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + (a.groupId && SO.group(a.groupId) ? '<button class="mtag gtag" type="button" data-group="' + esc(a.groupId) + '">' + ic('i-users') + esc(SO.group(a.groupId).name) + '</button>' : typeBadge(a)) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h3 class="act-title">' + esc(actTitle(a)) + '</h3>' +
       (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       actResultHTML(a) +
@@ -1901,6 +1908,7 @@
       '<label class="field"><span>Título</span><input type="text" id="' + o.prefix + 'Title" maxlength="60" value="' + esc(p.title || '') + '" placeholder="' + esc(o.titlePh || 'Ex.: Final do Open de Verão') + '"></label>' +
       '<label class="field"><span>Legenda curta</span><textarea id="' + o.prefix + 'Caption" maxlength="140" rows="2" placeholder="Como foi o jogo?">' + esc(p.caption || '') + '</textarea><small class="count" data-count="' + o.prefix + 'Caption">' + (p.caption || '').length + '/140</small></label>' +
       '<label class="field"><span>Local</span><input type="text" id="' + o.prefix + 'Place" maxlength="60" list="placeList" value="' + esc(p.place || '') + '" placeholder="Arena, clube ou quadra"></label>' +
+      (SO.myGroups().length ? '<label class="field"><span>Grupo</span><select id="' + o.prefix + 'Group"><option value="">Nenhum</option>' + SO.myGroups().map(g => '<option value="' + esc(g.id) + '"' + (p.groupId === g.id ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('') + '</select></label>' : '') +
       '</div><datalist id="placeList">' + SO.PLACES.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist></section>' +
       (o.tags ? '<section class="group"><h3>Marcar pessoas</h3>' + pickerHTML(o.prefix + 'Tags', 'Quem jogou com você ou contra você', 8, false, o.tags, 'Buscar pessoa para marcar') + '<p class="hint">Quem for marcado recebe uma notificação para confirmar. Ao aceitar, a partida entra no perfil dela também.</p></section>' : '') +
       '<section class="group"><h3>Quem pode ver</h3><div class="seg seg-wide" role="radiogroup" aria-label="Quem pode ver">' +
@@ -1914,6 +1922,7 @@
     return Object.assign({}, base || {}, {
       type: getRadio(prefix + 'Type') || 'amistoso', title: val('Title'), caption: val('Caption').slice(0, 140), place: val('Place'),
       visibility: getRadio(prefix + 'Vis') || defaultVis(),
+      groupId: $('#' + prefix + 'Group') ? val('Group') || null : (base && base.groupId) || undefined,
       tagged: tags.map(t => old.find(x => x.userId === t.userId) || { userId: t.userId, status: 'pendente', at: Date.now() }),
     });
   }
@@ -1943,7 +1952,7 @@
     $('#saveBody').innerHTML =
       '<div class="save-sum"><div class="save-sum-top">' + ic('s-' + st.cfg.sport) + '<b>' + esc(sportLabel(st.cfg.sport)) + '</b><span>' + esc(fmtWhen(m.endedAt)) + '</span></div>' + actResultHTML(a) +
       kpiHTML([['Placar', actScore(a) || '–', m.teams.map(t => t.name)], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], m.manual ? ['Tipo', 'Lançada'] : ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts]]) + '</div>' +
-      postFieldsHTML(p, { prefix: 'sv', tags, titlePh: actTitle(a) }) +
+      postFieldsHTML(Object.assign({}, p, { groupId: p.groupId !== undefined ? p.groupId : m.groupId }), { prefix: 'sv', tags, titlePh: actTitle(a) }) +
       '<button class="btn-primary" type="submit">' + ic('i-check') + (saveCtx.draft ? 'Concluir e publicar' : 'Salvar alterações') + '</button>' +
       (saveCtx.draft ? '<p class="hint center">Ao concluir, a partida aparece na timeline e no seu perfil, conforme “Quem pode ver”.</p><button class="danger-link" type="button" id="saveDiscard">Descartar partida</button>' : '');
     openSheet('#sheetSave');
@@ -1952,7 +1961,7 @@
     const hist = readHist();
     const m = hist.find(x => x.id === saveCtx.id);
     if (!m) return;
-    m.post = Object.assign(readPost('sv', m.post), { status: 'publicada' });
+    m.post = applyDeleg(Object.assign(readPost('sv', m.post), { status: 'publicada' }), m.endedAt);
     if (!writeHist(hist)) return;
     closeSheet('#sheetSave');
     toast(saveCtx.draft ? 'Partida publicada' : 'Alterações salvas');
@@ -2051,6 +2060,7 @@
     const post = readPost('ln', null);
     post.tagged = partner.concat(opp).filter(it => it.userId).map(it => ({ userId: it.userId, status: 'pendente', at: Date.now() }));
     post.status = 'publicada';
+    applyDeleg(post, when);
     const m = { id: 'man-' + Date.now().toString(36), createdAt: when - durMin * 60000, endedAt: when, cfgInput: Object.assign({ sport: sp }, E.SPORTS[sp].defaults), teams, events: [], redo: [], finished: true,
       manual: { sets: sets.length ? sets : null, final, winner, durationMs: durMin ? durMin * 60000 : undefined }, post };
     const hist = readHist(); hist.push(m); hist.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0));
@@ -2496,7 +2506,7 @@
       hideWelcome('Conta criada. Bem-vindo, ' + firstName(n) + '!');
     });
     const h = location.hash || '';
-    if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar') && !h.startsWith('#ver-') && !h.startsWith('#partida-link-') && !h.startsWith('#camera-')) showWelcome();
+    if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar') && !h.startsWith('#ver-') && !h.startsWith('#partida-link-') && !h.startsWith('#camera-') && !h.startsWith('#grupo-convite-')) showWelcome();
   }
 
   // ---------- Partida salva ----------
@@ -3857,6 +3867,309 @@
     el.textContent = linkC.ended ? 'Partida encerrada no placar' : on ? 'Conectada ao placar' : 'Esperando o placar';
   }
 
+  // ---------- Grupos (turmas, clubes, times) ----------
+  // A turma que joga junto: ranking e partidas do grupo, resenha (mural), membros com papel e convite por link.
+  // Organizador e moderadores lançam partidas pelos membros que autorizarem (1 h, 3 h, até o fim do dia).
+  const GROUP_ID = /^g[-a-z0-9]{1,40}$/;
+  const GROUP_COLORS = ['#AFFB48', '#FFD84D', '#4DA6FF', '#FF5E3A', '#FF5CA8', '#45E0D2', '#B78AFF', '#FF8A3D'];
+  const ROLE_LBL = { admin: 'Organizador', mod: 'Moderador', membro: 'Membro' };
+  const gUI = { tab: 'ranking', per: 'sempre', id: null };
+  const hhmm = t => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const untilLbl = t => (new Date(t).toDateString() === new Date().toDateString() ? 'até ' : 'até ' + new Date(t).toLocaleDateString('pt-BR', { weekday: 'short' }) + ' ') + hhmm(t);
+  const memberName = m => (m.userId === 'me' ? 'Você' : m.userId ? (SO.user(m.userId) || {}).name || '?' : m.name || '?');
+  const memberAv = (m, size) => (m.userId ? avatarHTML(m.userId, size) : '<span class="av' + (size ? ' av-' + size : '') + '" style="--av:' + nameColor(m.name) + '">' + esc(initials(m.name)) + '</span>');
+  const gColor = c => (GROUP_COLORS.includes(c) ? c : GROUP_COLORS[0]);
+  const groupBadge = (gr, size) => '<span class="gbadge' + (size ? ' ' + size : '') + '" style="--gc:' + gColor(gr.color) + '">' + ic('s-' + gr.sport) + '</span>';
+  const endOfDay = () => { const d = new Date(); d.setHours(23, 59, 0, 0); return d.getTime(); };
+
+  function groupStripHTML() {
+    const mine = SO.myGroups();
+    return '<section class="gstrip"><div class="sec-head"><h2>Seus grupos</h2><button class="linkish" type="button" data-go="grupos">Ver todos</button></div><div class="gstrip-row" role="list">' +
+      mine.map(gr => '<button class="gpill" type="button" role="listitem" data-group="' + esc(gr.id) + '">' + groupBadge(gr) + '<span><b>' + esc(gr.name) + '</b><small>' + esc(gr.when || sportLabel(gr.sport)) + '</small></span></button>').join('') +
+      '<button class="gpill add" type="button" role="listitem" data-gcreate><span class="gbadge plus">' + ic('i-plus') + '</span><span><b>Criar grupo</b><small>Sua turma ou clube</small></span></button></div></section>';
+  }
+  function groupRowHTML(gr) {
+    const n = gr.members.length;
+    const act = gr.myRole ? '<span class="sec-meta">' + esc(ROLE_LBL[gr.myRole]) + '</span>' : gr.pending ? '<span class="sec-meta">pedido enviado</span>' : '<button class="btn btn-sm btn-brand" type="button" data-gjoin="' + esc(gr.id) + '">' + (gr.open ? 'Entrar' : 'Pedir') + '</button>';
+    return '<div class="grow" data-group="' + esc(gr.id) + '">' + groupBadge(gr, 'lg') + '<span class="grow-txt"><b>' + esc(gr.name) + '</b><small>' + esc([sportLabel(gr.sport), gr.place, gr.when].filter(Boolean).join(' · ')) + '</small><small>' + n + (n === 1 ? ' membro' : ' membros') + (gr.open ? '' : ' · com aprovação') + '</small></span>' + act + '</div>';
+  }
+  function renderGrupos() {
+    syncMe();
+    const mine = SO.myGroups(), near = SO.groupsNear();
+    let h = '<div class="gintro"><button class="btn-primary" type="button" data-gcreate>' + ic('i-plus') + 'Criar grupo</button><p class="hint center">Para a turma que joga junto: “Peteca de segunda”, “Beach todo domingo”. Ranking, partidas e resenha do grupo num lugar só.</p></div>';
+    h += '<section class="block"><div class="sec-head"><h2>Seus grupos</h2><span class="sec-meta">' + mine.length + '</span></div>' + (mine.length ? '<div class="glist">' + mine.map(groupRowHTML).join('') + '</div>' : '<div class="empty-state"><b>Nenhum grupo ainda</b><span>Crie o da sua turma ou entre pelo link de convite.</span></div>') + '</section>';
+    if (near.length) h += '<section class="block"><div class="sec-head"><h2>Grupos perto de você</h2><span class="sec-meta">' + esc(SO.me().city.split(',')[0]) + '</span></div><div class="glist">' + near.map(groupRowHTML).join('') + '</div></section>';
+    $('#gruposBody').innerHTML = h;
+  }
+
+  // ranking do período: só membros (convidados aparecem nas partidas, mas não entram na classificação)
+  const PER_MS = { mes: 30 * 864e5, '3m': 91 * 864e5, sempre: 0 };
+  function groupRank(gr, acts) {
+    const from = PER_MS[gUI.per] ? Date.now() - PER_MS[gUI.per] : 0;
+    const list = acts.filter(a => a.playedAt >= from && a.result && a.result.winner != null).sort((x, y) => x.playedAt - y.playedAt);
+    const meKey = S.fold(myName());
+    const pk = p => (p.userId ? p.userId : p.name ? (S.fold(p.name) === meKey ? 'me' : 'n:' + S.fold(p.name)) : null);
+    const keys = new Set(gr.members.map(m => m.userId || 'n:' + S.fold(m.name)));
+    const rows = new Map(), pairs = new Map();
+    for (const a of list) a.teams.forEach((t, ti) => {
+      const won = a.result.winner === ti;
+      const ks = t.players.map(p => [pk(p), p]).filter(x => x[0] && keys.has(x[0]));
+      ks.forEach(([k, p]) => {
+        const r = rows.get(k) || { k, p: k === 'me' ? { userId: 'me' } : p, j: 0, v: 0, run: 0, best: 0 };
+        r.j++; if (won) { r.v++; r.run++; r.best = Math.max(r.best, r.run); } else r.run = 0;
+        rows.set(k, r);
+      });
+      if (ks.length === 2) { const key = ks.map(x => x[0]).sort().join('|'); const pr = pairs.get(key) || { ps: ks.map(x => (x[0] === 'me' ? { userId: 'me' } : x[1])), j: 0, v: 0 }; pr.j++; if (won) pr.v++; pairs.set(key, pr); }
+    });
+    const pct = r => r.v / r.j;
+    return { n: list.length, rows: [...rows.values()].sort((a, b) => b.v - a.v || pct(b) - pct(a) || b.j - a.j), pairs: [...pairs.values()].filter(p => p.j >= 2).sort((a, b) => b.v - a.v || pct(b) - pct(a)) };
+  }
+  const plName = p => (p.userId === 'me' ? 'Você' : p.userId ? SO.nameOf(p) : p.name || '?');
+  const plAv = (p, size) => memberAv(p.userId ? { userId: p.userId } : { name: p.name }, size);
+  function groupRankHTML(gr, acts) {
+    const R = groupRank(gr, acts);
+    const per = '<div class="gper"><div class="seg seg-sm" role="radiogroup" aria-label="Período">' + [['mes', '30 dias'], ['3m', '3 meses'], ['sempre', 'Sempre']].map(([k, l]) => '<label><input type="radio" name="gper" value="' + k + '"' + (gUI.per === k ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div></div>';
+    if (!R.rows.length) return per + '<div class="empty-state">' + ic('i-trophy') + '<b>Sem partidas no período</b><span>Comece uma partida do grupo: o ranking aparece aqui.</span></div>';
+    const top = R.rows[0];
+    const best = R.rows.filter(r => r.j >= 3).sort((a, b) => b.v / b.j - a.v / a.j)[0];
+    const streak = R.rows.slice().sort((a, b) => b.best - a.best)[0];
+    const most = R.rows.slice().sort((a, b) => b.j - a.j)[0];
+    const hi = [['i-trophy', 'Mais vitórias', top, top.v + (top.v === 1 ? ' vitória' : ' vitórias')], best ? ['i-target', 'Aproveitamento', best, Math.round(100 * best.v / best.j) + '%'] : null,
+      streak.best > 1 ? ['i-flame', 'Maior sequência', streak, streak.best + ' seguidas'] : null, ['i-activity', 'Mais partidas', most, most.j + ' partidas']].filter(Boolean);
+    let h = per + '<div class="ghi">' + hi.map(([i, l, r, v]) => '<div class="ghi-c">' + ic(i) + '<small>' + esc(l) + '</small>' + plAv(r.p, 'xs') + '<b>' + esc(firstName(plName(r.p))) + '</b><span>' + esc(v) + '</span></div>').join('') + '</div>';
+    const dp = R.pairs[0];
+    if (dp) h += '<div class="panel gduo">' + ph('i-users', 'Dupla do período', '<span class="sec-meta">' + dp.v + ' de ' + dp.j + ' vitórias</span>') + '<div class="gduo-p">' + dp.ps.map(p => plAv(p) + '<b>' + esc(plName(p)) + '</b>').join('<em>+</em>') + '</div></div>';
+    h += '<div class="panel">' + ph('i-chart', 'Classificação', '<span class="sec-meta">' + R.n + (R.n === 1 ? ' partida' : ' partidas') + '</span>') + '<ol class="grank">' +
+      R.rows.map((r, i) => '<li class="' + (r.k === 'me' ? 'me' : '') + '"><span class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '">' + (i + 1) + '</span>' + plAv(r.p) + '<span class="grank-n"><b' + (r.p.userId && r.p.userId !== 'me' ? ' data-user="' + esc(r.p.userId) + '"' : '') + '>' + esc(plName(r.p)) + '</b><small>' + r.j + (r.j === 1 ? ' jogo' : ' jogos') + (r.run > 1 ? ' · ' + r.run + ' vitórias seguidas' : '') + '</small></span><span class="grank-v"><b>' + r.v + '–' + (r.j - r.v) + '</b><small>' + Math.round(100 * r.v / r.j) + '%</small></span></li>').join('') + '</ol></div>';
+    return h;
+  }
+  function delegHTML(gr) {
+    if (SO.canManage(gr)) {
+      const ds = SO.delegatesToMe(gr.id);
+      return '<div class="panel gdeleg">' + ph('i-lock', 'Quem autorizou você', ds.length ? '<span class="sec-meta">' + ds.length + '</span>' : '') +
+        (ds.length ? '<div class="plist">' + ds.map(d => '<div class="prow">' + avatarHTML(d.userId) + '<span class="prow-txt"><b data-user="' + esc(d.userId) + '">' + esc(SO.user(d.userId).name) + '</b><small>' + esc(untilLbl(d.until)) + '</small></span><span class="gok">' + ic('i-check') + 'autorizou</span></div>').join('') + '</div>' : '') +
+        '<p class="hint">' + (ds.length ? 'Partidas que você lançar com essas pessoas entram direto no perfil delas, sem precisar aceitar.' : 'Ninguém agora. Quando um membro autorizar, as partidas que você lançar com ele entram direto no perfil dele.') + '</p></div>';
+    }
+    const t = SO.myDelegation(gr.id);
+    const adm = gr.members.find(m => m.role === 'admin');
+    const who = adm ? firstName(memberName(adm)) : 'o organizador';
+    if (t) return '<div class="panel gdeleg on"><div class="gdeleg-row">' + ic('i-check') + '<span><b>' + esc(who) + ' e os moderadores podem lançar suas partidas</b><small>' + esc(untilLbl(t)) + ' · entram direto no seu perfil</small></span><button class="btn btn-sm" type="button" data-gdeleg="0">Cancelar</button></div></div>';
+    return '<div class="panel gdeleg"><div class="gdeleg-row">' + ic('i-lock') + '<span><b>Deixar ' + esc(who) + ' lançar suas partidas</b><small>Um celular marca o placar de todo mundo, e as partidas entram no seu perfil sem você aceitar uma por uma.</small></span></div>' +
+      '<div class="actions">' + [['Por 1 hora', 3600e3], ['Por 3 horas', 3 * 3600e3], ['Até o fim do dia', 'eod']].map(([l, v]) => '<button class="btn btn-sm" type="button" data-gdeleg="' + v + '">' + l + '</button>').join('') + '</div></div>';
+  }
+  function groupMembersHTML(gr) {
+    const isAdmin = gr.myRole === 'admin';
+    const ds = SO.canManage(gr) ? SO.delegatesToMe(gr.id) : [];
+    let h = '<div class="panel"><div class="plist gmembers">' + gr.members.map(m => {
+      const d = m.userId && ds.find(x => x.userId === m.userId);
+      const tools = isAdmin && m.userId && m.userId !== 'me' ? '<span class="prow-act"><button class="btn btn-sm" type="button" data-grole="' + esc(m.userId) + '" data-to="' + (m.role === 'mod' ? 'membro' : 'mod') + '">' + (m.role === 'mod' ? 'Só membro' : 'Moderador') + '</button><button class="icon-btn sm" type="button" data-gremove="' + esc(m.userId) + '" title="Tirar do grupo" aria-label="Tirar ' + esc(memberName(m)) + ' do grupo">' + ic('i-x') + '</button></span>' : '';
+      return '<div class="prow">' + memberAv(m) + '<span class="prow-txt"><b' + (m.userId && m.userId !== 'me' ? ' data-user="' + esc(m.userId) + '"' : '') + '>' + esc(memberName(m)) + '</b><small' + (m.role !== 'membro' ? ' class="st-aceito"' : '') + '>' + esc(ROLE_LBL[m.role] + (d ? ' · autorizou você ' + untilLbl(d.until) : '') + (!m.userId ? ' · sem conta no app' : '')) + '</small></span>' + tools + '</div>';
+    }).join('') + '</div></div>';
+    if (SO.canManage(gr)) {
+      const cand = SO.following().filter(u => !gr.members.some(m => m.userId === u.id)).slice(0, 12);
+      if (cand.length) h += '<div class="panel">' + ph('i-user-plus', 'Adicionar quem você segue') + '<div class="chips-pick">' + cand.map(u => '<button class="gm-chip" type="button" data-gadd="' + esc(u.id) + '">' + ic('i-plus') + esc(u.name) + '</button>').join('') + '</div><p class="hint">Ou mande o link de convite: quem abrir entra direto.</p></div>';
+    }
+    const own = gr.local && gr.myRole === 'admin' && !gr.invitedBy;
+    if (gr.myRole) h += '<div class="perfil-safety">' + (own ? '<button class="linkish" type="button" data-gedit="' + esc(gr.id) + '">Editar grupo</button><span>·</span>' : '') + '<button class="linkish" type="button" data-gleave="' + esc(gr.id) + '">' + (own ? 'Apagar grupo' : 'Sair do grupo') + '</button></div>';
+    return h;
+  }
+  function groupWallHTML(gr) {
+    const w = SO.wall(gr.id);
+    let h = '<div class="gwall">' + (w.length ? w.map(x => '<div class="gmsg' + (x.userId === 'me' ? ' mine' : '') + '">' + avatarHTML(x.userId, 'xs') + '<div class="gmsg-b"><span class="gmsg-h"><b' + (x.userId !== 'me' ? ' data-user="' + esc(x.userId) + '"' : '') + '>' + esc(x.userId === 'me' ? 'Você' : (SO.user(x.userId) || {}).name || '?') + '</b><small>' + esc(fmtWhen(x.t)) + '</small></span><p>' + esc(x.text) + '</p></div>' +
+      (x.userId === 'me' ? '<button class="icon-btn sm" type="button" data-gwdel="' + esc(x.id) + '" title="Apagar mensagem" aria-label="Apagar mensagem">' + ic('i-trash') + '</button>' : '') + '</div>').join('') : '<div class="empty-state"><b>Nenhuma resenha ainda</b><span>Comente o jogo, combine o próximo, provoque o adversário.</span></div>') + '</div>';
+    if (gr.myRole) h += '<form class="gwall-form" id="gwallForm"><textarea id="gwallText" maxlength="280" rows="2" placeholder="Escreva para o grupo…" aria-label="Mensagem para o grupo"></textarea><button class="btn btn-brand" type="submit">Enviar</button></form>';
+    return h;
+  }
+  function renderGrupo(id) {
+    syncMe();
+    if (id && id.startsWith('convite-')) { renderGroupInvite(id.slice(8)); return; }
+    const gr = SO.group(id);
+    $('#grupoTitle').textContent = 'Grupo';
+    if (!gr) { $('#grupoBody').innerHTML = '<div class="empty-state"><b>Grupo não encontrado</b><span>O link pode estar incompleto. Peça um novo convite a quem organiza.</span></div>'; return; }
+    if (gUI.id !== id) { gUI.id = id; gUI.tab = 'ranking'; }
+    const mem = !!gr.myRole, see = mem || gr.open;
+    const acts = see ? SO.groupActs(id, myActivities()) : [];
+    let h = '<div class="panel ghead"><div class="ghead-top">' + groupBadge(gr, 'xl') + '<div class="ghead-id"><h2>' + esc(gr.name) + '</h2><div class="me-meta"><span>' + ic('s-' + gr.sport) + esc(sportLabel(gr.sport)) + '</span>' + (gr.place ? '<span>' + ic('i-pin') + esc(gr.place) + '</span>' : '') + (gr.when ? '<span>' + ic('i-calendar') + esc(gr.when) + '</span>' : '') + '</div></div></div>' +
+      (gr.desc ? '<p class="me-bio">' + esc(gr.desc) + '</p>' : '') +
+      '<div class="me-counts"><div><b>' + gr.members.length + '</b><span>Membros</span></div><div><b>' + (see ? acts.length : '–') + '</b><span>Partidas</span></div><div><b>' + (gr.open ? 'Aberto' : 'Fechado') + '</b><span>' + (gr.open ? 'entra quem quiser' : 'com aprovação') + '</span></div></div>' +
+      '<div class="perfil-actions">' + (mem ? '<button class="btn btn-brand" type="button" data-gnew="' + esc(id) + '">' + ic('i-play') + 'Nova partida</button><button class="btn" type="button" data-ginvite="' + esc(id) + '">' + ic('i-user-plus') + 'Convidar</button>'
+        : gr.pending ? '<button class="btn" type="button" data-gcancel="' + esc(id) + '">' + ic('i-clock') + 'Pedido enviado · cancelar</button>' : '<button class="btn btn-brand" type="button" data-gjoin="' + esc(id) + '">' + ic('i-user-plus') + (gr.open ? 'Entrar no grupo' : 'Pedir para entrar') + '</button>') +
+      (mem ? '<span class="sec-meta">' + esc(ROLE_LBL[gr.myRole]) + '</span>' : '') + '</div></div>';
+    if (!see) { h += '<div class="empty-state lock-state">' + ic('i-lock') + '<b>Grupo com aprovação</b><span>' + (gr.pending ? 'Quando o organizador aprovar, você vê o ranking, as partidas e a resenha.' : 'Peça para entrar: ranking, partidas e resenha são só para os membros.') + '</span></div>'; $('#grupoBody').innerHTML = h; return; }
+    if (mem) h += delegHTML(gr);
+    const tabs = [['ranking', 'Ranking'], ['partidas', 'Partidas'], ['resenha', 'Resenha'], ['membros', 'Membros']];
+    h += '<div class="seg seg-wide gtabs" role="radiogroup" aria-label="Seções do grupo">' + tabs.map(([k, l]) => '<label><input type="radio" name="gtab" value="' + k + '"' + (gUI.tab === k ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div><div id="gtabBody">' + groupTabHTML(gr, acts) + '</div>';
+    $('#grupoBody').innerHTML = h;
+  }
+  function groupTabHTML(gr, acts) {
+    if (gUI.tab === 'partidas') return acts.length ? '<div class="feed">' + acts.slice(0, 30).map(actCardHTML).join('') + '</div>' : '<div class="empty-state"><b>Nenhuma partida ainda</b><span>Toque em Nova partida: o placar fica marcado como do grupo.</span></div>';
+    if (gUI.tab === 'resenha') return groupWallHTML(gr);
+    if (gUI.tab === 'membros') return groupMembersHTML(gr);
+    return groupRankHTML(gr, acts);
+  }
+  function refreshGroupTab() {
+    const gr = SO.group(gUI.id); const box = $('#gtabBody');
+    if (!gr || !box) { renderGrupo(gUI.id); return; }
+    box.innerHTML = groupTabHTML(gr, SO.groupActs(gr.id, myActivities()));
+  }
+
+  // convite: o link leva o essencial do grupo (o outro aparelho não tem o grupo ainda, enquanto não há servidor)
+  function groupInviteLink(gr) {
+    const d = { v: 1, id: gr.id, n: gr.name, sp: gr.sport, pl: gr.place, w: gr.when, c: gColor(gr.color), by: prefs.myName || '' };
+    return location.origin + location.pathname + '#grupo-convite-' + b64url(new TextEncoder().encode(JSON.stringify(d)));
+  }
+  async function shareGroupInvite(id) {
+    const gr = SO.group(id); if (!gr) return;
+    const url = groupInviteLink(gr);
+    if (navigator.share) { try { await navigator.share({ title: gr.name, text: 'Entra no grupo ' + gr.name + ' no ULTRA PLAY: ranking, partidas e resenha da turma.', url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(url); toast('Link de convite copiado. Mande no grupo do WhatsApp.'); } catch (e) { toast(url); }
+  }
+  function parseGroupInvite(code) {
+    try {
+      const d = JSON.parse(new TextDecoder().decode(unb64url(code)));
+      if (!d || typeof d.id !== 'string' || !GROUP_ID.test(d.id)) return null;
+      return { id: d.id, name: cTxt(d.n, 40) || 'Grupo', sport: pickIn(d.sp, Object.keys(E.SPORTS)) || 'beach', place: cTxt(d.pl, 60), when: cTxt(d.w, 40), color: gColor(d.c), by: cTxt(d.by, 40) };
+    } catch (e) { return null; }
+  }
+  function renderGroupInvite(code) {
+    const d = parseGroupInvite(code);
+    $('#grupoTitle').textContent = 'Convite';
+    if (!$('#welcome').hidden) { $('#welcome').hidden = true; document.body.classList.remove('welcome-on'); clearInterval(wlTimer); }
+    if (!d) { $('#grupoBody').innerHTML = '<div class="empty-state"><b>Convite incompleto</b><span>Peça o link de novo a quem organiza o grupo.</span></div>'; return; }
+    const ex = SO.group(d.id);
+    if (ex && ex.myRole) { go('grupo', d.id, true); return; }
+    $('#grupoBody').innerHTML = '<div class="panel ginvite">' + groupBadge(d, 'xl') + '<h2>' + esc(d.name) + '</h2><p class="hint">' + esc([sportLabel(d.sport), d.place, d.when].filter(Boolean).join(' · ')) + '</p>' +
+      (d.by ? '<p>' + esc(firstName(d.by)) + ' convidou você para o grupo.</p>' : '') + '<button class="btn-primary" type="button" data-gaccept="' + esc(code) + '">' + ic('i-user-plus') + 'Entrar no grupo</button></div>';
+  }
+
+  // criar / editar
+  let gEdit = null;
+  function openGroupForm(id) {
+    const gr = id ? SO.group(id) : null; gEdit = gr ? gr.id : null;
+    const sp = gr ? gr.sport : (prefs.mySports && prefs.mySports[0]) || 'beach';
+    const col = gr ? gColor(gr.color) : GROUP_COLORS[0];
+    $('#groupSheetTitle').textContent = gr ? 'Editar grupo' : 'Criar grupo';
+    $('#groupSheetBody').innerHTML =
+      '<section class="group"><div class="list fields"><label class="field"><span>Nome do grupo</span><input type="text" id="gfName" maxlength="40" value="' + esc(gr ? gr.name : '') + '" placeholder="Ex.: Peteca de segunda" autocomplete="off"></label></div></section>' +
+      '<section class="group"><h3>Esporte</h3><div class="chips-pick" role="radiogroup" aria-label="Esporte">' + Object.keys(E.SPORTS).map(k => '<label class="cpick"><input type="radio" name="gfSport" value="' + k + '"' + (k === sp ? ' checked' : '') + '><span>' + ic('s-' + k) + esc(sportLabel(k)) + '</span></label>').join('') + '</div></section>' +
+      '<section class="group"><h3>Onde e quando</h3><div class="list fields"><label class="field"><span>Local</span><input type="text" id="gfPlace" maxlength="60" list="gPlaceList" value="' + esc(gr ? gr.place : '') + '" placeholder="Arena, clube ou quadra"></label><label class="field"><span>Dia e horário</span><input type="text" id="gfWhen" maxlength="40" value="' + esc(gr ? gr.when : '') + '" placeholder="Ex.: Segundas, 19h"></label></div><datalist id="gPlaceList">' + SO.PLACES.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist></section>' +
+      '<section class="group"><h3>Combinados</h3><div class="list fields"><label class="field"><span>Descrição (opcional)</span><textarea id="gfDesc" maxlength="160" rows="2" placeholder="Ex.: duplas sorteadas, quem perde sai">' + esc(gr ? gr.desc : '') + '</textarea></label></div></section>' +
+      '<section class="group"><h3>Cor</h3><div class="gcolors" role="radiogroup" aria-label="Cor do grupo">' + GROUP_COLORS.map((c, i) => '<label class="gcolor" style="--gc:' + c + '"><input type="radio" name="gfColor" value="' + c + '"' + (c === col ? ' checked' : '') + ' aria-label="Cor ' + (i + 1) + '"><span></span></label>').join('') + '</div></section>' +
+      '<section class="group"><h3>Quem pode entrar</h3><div class="seg seg-wide" role="radiogroup" aria-label="Quem pode entrar"><label><input type="radio" name="gfOpen" value="1"' + (gr && gr.open ? ' checked' : '') + '><span>Qualquer pessoa</span></label><label><input type="radio" name="gfOpen" value="0"' + (gr && gr.open ? '' : ' checked') + '><span>Com aprovação</span></label></div><p class="hint">Quem recebe o link de convite entra direto, nos dois casos.</p></section>' +
+      '<p class="form-error" id="gfErr" role="alert" hidden></p><button class="btn-primary" type="submit">' + (gr ? 'Salvar' : 'Criar grupo') + '</button>';
+    openSheet('#sheetGroup');
+  }
+  function submitGroupForm() {
+    const name = $('#gfName').value.trim().slice(0, 40);
+    if (!name) { const er = $('#gfErr'); er.textContent = 'Dê um nome ao grupo.'; er.hidden = false; return; }
+    const d = { name, sport: getRadio('gfSport') || 'beach', place: $('#gfPlace').value.trim().slice(0, 60), when: $('#gfWhen').value.trim().slice(0, 40), desc: $('#gfDesc').value.trim().slice(0, 160), color: gColor(getRadio('gfColor')), open: getRadio('gfOpen') === '1' };
+    let id = gEdit;
+    if (id) SO.updateGroup(id, d); else id = SO.createGroup(d);
+    closeSheet('#sheetGroup');
+    gUI.id = null; gUI.tab = gEdit ? 'membros' : 'membros';
+    go('grupo', id);
+    toast(gEdit ? 'Grupo salvo' : 'Grupo criado. Convide a turma pelo link.');
+  }
+
+  // partida do grupo: o formulário de nova partida ganha os membros como sugestão (e convidados digitados)
+  let newGroupId = null, newFocusTeam = null;
+  function openGroupMatch(id) {
+    const gr = SO.group(id); if (!gr) return;
+    const same = E.makeConfig(match.cfgInput).sport === gr.sport;
+    openNew({ cfgInput: same ? match.cfgInput : { sport: gr.sport }, teams: [{ name: colorName('verde'), color: 'verde', players: [] }, { name: colorName('laranja'), color: 'laranja', players: [] }] });
+    newGroupId = id; newFocusTeam = null;
+    renderNewGroup();
+  }
+  function renderNewGroup() {
+    const box = $('#newGroupBox'); if (!box) return;
+    const gr = newGroupId && SO.group(newGroupId);
+    box.hidden = !gr;
+    if (!gr) { box.innerHTML = ''; return; }
+    const ds = SO.delegatesToMe(gr.id);
+    const inTeam = n => [0, 1].find(t => splitPlayers($('#t' + t + 'players').value).some(x => S.fold(x) === S.fold(n)));
+    box.innerHTML = '<div class="gnew-head">' + groupBadge(gr) + '<span><b>Partida do grupo</b><small>' + esc(gr.name) + '</small></span><button class="linkish" type="button" data-gnone>Tirar do grupo</button></div>' +
+      '<p class="hint">Toque nos membros para pôr nos times (vão para o campo de jogadores selecionado). Quem é de fora: digite o nome, entra como convidado.' + (ds.length ? ' ' + ic('i-check', 'ic ok') + ' autorizou você a lançar por ele.' : '') + '</p>' +
+      '<div class="chips-pick gmem-pick">' + gr.members.map(m => {
+        const n = m.userId === 'me' ? myName() : memberName(m);
+        const t = inTeam(n);
+        const ok = m.userId && ds.some(x => x.userId === m.userId);
+        return '<button type="button" class="gm-chip' + (t != null ? ' on' : '') + '" data-gmadd="' + esc(n) + '" aria-pressed="' + (t != null) + '">' + (t != null ? '<i class="tdot" style="--tc:' + colorVar(getRadio('color' + t) || (t ? 'laranja' : 'verde')) + '"></i>' : '') + esc(m.userId === 'me' ? 'Você' : n) + (ok ? ic('i-check', 'ic ok') : '') + '</button>';
+      }).join('') + '</div>';
+  }
+  function toggleGroupPlayer(n) {
+    const per = E.SPORTS[getRadio('sport') || 'beach'] && getRadio('sport') === 'tenis' ? 1 : 2;
+    const lists = [0, 1].map(t => splitPlayers($('#t' + t + 'players').value));
+    const at = lists.findIndex(l => l.some(x => S.fold(x) === S.fold(n)));
+    if (at >= 0) lists[at] = lists[at].filter(x => S.fold(x) !== S.fold(n));
+    else {
+      let t = newFocusTeam != null ? newFocusTeam : lists[0].length < per ? 0 : 1;
+      if (newFocusTeam == null && lists[1].length >= per && lists[0].length >= per) t = 0;
+      lists[t].push(n);
+      if (newFocusTeam != null && lists[t].length >= per) newFocusTeam = null;
+    }
+    [0, 1].forEach(t => { $('#t' + t + 'players').value = lists[t].join(', '); });
+    updateTeamForm(); renderNewGroup();
+  }
+  // partidas lançadas por quem organiza o grupo: quem autorizou já entra confirmado
+  function applyDeleg(post, t) {
+    if (!post || !post.groupId || !post.tagged) return post;
+    post.tagged = post.tagged.map(x => (x.status === 'pendente' && SO.delegatedToMe(post.groupId, x.userId, t) ? Object.assign({}, x, { status: 'aceito', auto: true }) : x));
+    return post;
+  }
+
+  function wireGroups() {
+    // antes do clique geral (os cartões de partida também reagem ao clique)
+    document.addEventListener('click', e => {
+      const t = e.target;
+      const hit = sel => t.closest(sel);
+      let el;
+      if ((el = hit('[data-gcreate]'))) { e.stopPropagation(); closeAllSheets(); openGroupForm(); return; }
+      if ((el = hit('[data-gjoin]'))) { e.stopPropagation(); const st = SO.joinGroup(el.dataset.gjoin); toast(st === 'membro' ? 'Você entrou no grupo' : 'Pedido enviado ao organizador'); if (currentView === 'grupos') renderGrupos(); else renderGrupo(el.dataset.gjoin); renderGroupStripNow(); return; }
+      if ((el = hit('[data-gcancel]'))) { e.stopPropagation(); SO.cancelJoin(el.dataset.gcancel); renderGrupo(el.dataset.gcancel); return; }
+      if ((el = hit('[data-gaccept]'))) { e.stopPropagation(); const d = parseGroupInvite(el.dataset.gaccept); if (!d) return; const id = SO.importGroup(d); toast('Você entrou no grupo ' + d.name); go('grupo', id, true); if (!prefs.onboarded) setTimeout(showWelcome, 900); return; }
+      if ((el = hit('[data-gnew]'))) { e.stopPropagation(); openGroupMatch(el.dataset.gnew); return; }
+      if ((el = hit('[data-ginvite]'))) { e.stopPropagation(); shareGroupInvite(el.dataset.ginvite); return; }
+      if ((el = hit('[data-gdeleg]'))) {
+        e.stopPropagation();
+        const v = el.dataset.gdeleg, ms = v === 'eod' ? endOfDay() - Date.now() : Number(v);
+        SO.delegate(gUI.id, ms);
+        toast(ms > 0 ? 'Autorizado ' + untilLbl(Date.now() + ms) + '. Pode cancelar quando quiser.' : 'Autorização cancelada');
+        renderGrupo(gUI.id); return;
+      }
+      if ((el = hit('[data-grole]'))) { e.stopPropagation(); SO.setRole(gUI.id, el.dataset.grole, el.dataset.to); refreshGroupTab(); return; }
+      if ((el = hit('[data-gremove]'))) {
+        e.stopPropagation();
+        if (el.dataset.armed !== '1') { el.dataset.armed = '1'; el.classList.add('armed'); el.title = 'Toque de novo para tirar'; setTimeout(() => { el.dataset.armed = ''; el.classList.remove('armed'); }, 3000); toast('Toque de novo para tirar do grupo'); return; }
+        SO.removeMember(gUI.id, el.dataset.gremove); renderGrupo(gUI.id); return;
+      }
+      if ((el = hit('[data-gadd]'))) { e.stopPropagation(); SO.addMember(gUI.id, el.dataset.gadd); toast('Adicionado ao grupo'); renderGrupo(gUI.id); return; }
+      if ((el = hit('[data-gedit]'))) { e.stopPropagation(); openGroupForm(el.dataset.gedit); return; }
+      if ((el = hit('[data-gleave]'))) {
+        e.stopPropagation();
+        const gr = SO.group(el.dataset.gleave); if (!gr) return;
+        const own = gr.local && gr.myRole === 'admin' && !gr.invitedBy;
+        if (!confirm(own ? 'Apagar o grupo ' + gr.name + '? As partidas continuam no perfil de cada um.' : 'Sair do grupo ' + gr.name + '?')) return;
+        SO.leaveGroup(gr.id); toast(own ? 'Grupo apagado' : 'Você saiu do grupo'); go('grupos'); return;
+      }
+      if ((el = hit('[data-gwdel]'))) { e.stopPropagation(); SO.deleteWall(gUI.id, el.dataset.gwdel); refreshGroupTab(); return; }
+      if ((el = hit('[data-gmadd]'))) { e.stopPropagation(); toggleGroupPlayer(el.dataset.gmadd); return; }
+      if ((el = hit('[data-gnone]'))) { e.stopPropagation(); newGroupId = null; renderNewGroup(); return; }
+      if ((el = hit('[data-group]')) && !hit('button:not([data-group]), a, input')) { e.stopPropagation(); closeAllSheets(); go('grupo', el.dataset.group); return; }
+    }, true);
+    $('#grupoBody').addEventListener('change', e => {
+      if (e.target.name === 'gtab') { gUI.tab = e.target.value; refreshGroupTab(); }
+      if (e.target.name === 'gper') { gUI.per = e.target.value; refreshGroupTab(); }
+    });
+    $('#grupoBody').addEventListener('submit', e => {
+      if (e.target.id !== 'gwallForm') return;
+      e.preventDefault();
+      if (SO.postWall(gUI.id, $('#gwallText').value)) { refreshGroupTab(); const w = $('.gwall'); if (w) w.lastElementChild && w.lastElementChild.scrollIntoView({ block: 'nearest' }); }
+    });
+    $('#formGroup').addEventListener('submit', e => { e.preventDefault(); submitGroupForm(); });
+    ['t0players', 't1players'].forEach((id, t) => { $('#' + id).addEventListener('focus', () => { newFocusTeam = t; }); $('#' + id).addEventListener('input', () => { if (newGroupId) renderNewGroup(); }); });
+  }
+  function renderGroupStripNow() { const el = $('#groupStrip'); if (el) el.innerHTML = groupStripHTML(); }
+
   function deleteMatch(id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
@@ -4100,6 +4413,7 @@
     wireSocial();
     wireLinks();
     wireCam();
+    wireGroups();
     if (match && match.camTopic && match.events.length) linkOpenPlacar(); // partida em andamento com câmera conectada: volta a ouvir
     wireClips();
     wireRemote();
@@ -4130,8 +4444,10 @@
       const box = $('#newError');
       if (err) { box.textContent = err; box.hidden = false; return; }
       box.hidden = true;
+      const gid = newGroupId;
       closeSheet('#sheetNew');
       startMatch(ci, teams);
+      if (gid && SO.group(gid)) { match.groupId = gid; save(); toast('Partida do grupo ' + SO.group(gid).name); }
     });
 
     // Ajustes

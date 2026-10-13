@@ -131,6 +131,7 @@
       <div class="page">
         <div id="liveCard"></div>
         <div id="draftCard"></div>
+        <div id="groupStrip"></div>
         <div class="feed-bar">
           <div class="seg seg-wide feed-tabs" role="radiogroup" aria-label="Timeline">
             <label><input type="radio" name="feedKind" value="seguindo" checked><span>Seguindo</span></label>
@@ -180,6 +181,26 @@
       <span class="hdr-spacer"></span>
     </header>
     <div class="scroll"><div class="page" id="perfilBody"></div></div>
+  </section>
+
+  <!-- GRUPO: turma, clube ou time (ranking, partidas, resenha, membros) -->
+  <section class="view" id="view-grupo" data-tab="inicio">
+    <header class="hdr">
+      <button class="icon-btn" type="button" data-action="back" title="Voltar"><svg><use href="#i-back"/></svg></button>
+      <h1 class="hdr-title" id="grupoTitle">Grupo</h1>
+      <span class="hdr-spacer"></span>
+    </header>
+    <div class="scroll"><div class="page" id="grupoBody"></div></div>
+  </section>
+
+  <!-- GRUPOS: os seus e os que jogam perto -->
+  <section class="view" id="view-grupos" data-tab="inicio">
+    <header class="hdr">
+      <button class="icon-btn" type="button" data-action="back" title="Voltar"><svg><use href="#i-back"/></svg></button>
+      <h1 class="hdr-title">Grupos</h1>
+      <span class="hdr-spacer"></span>
+    </header>
+    <div class="scroll"><div class="page" id="gruposBody"></div></div>
   </section>
 
   <!-- JOGAR: placar ao vivo -->
@@ -357,6 +378,16 @@
 </div>
 
 <!-- Nova partida -->
+<section class="sheet" id="sheetGroup" role="dialog" aria-modal="true" aria-labelledby="groupSheetTitle" hidden>
+  <form class="sheet-form" id="formGroup" novalidate>
+    <header class="sheet-head">
+      <h2 id="groupSheetTitle" tabindex="-1">Criar grupo</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="groupSheetBody"></div>
+  </form>
+</section>
+
 <section class="sheet" id="sheetNew" role="dialog" aria-modal="true" aria-labelledby="newTitle" hidden>
   <form class="sheet-form" id="formNew" novalidate>
     <header class="sheet-head">
@@ -437,6 +468,8 @@
         </div>
         <p class="hint" id="formatHint"></p>
       </section>
+
+      <section class="group gnew" id="newGroupBox" hidden></section>
 
       <section class="group">
         <h3>Times</h3>
