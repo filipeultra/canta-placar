@@ -360,7 +360,7 @@
   }
 
   function afterChange(ev) {
-    if (ev && ev.type === 'point') videoAfterPoint();
+    if (ev && ev.type === 'point') { notePlayForVideo(ev); videoAfterPoint(); }
     const L = state.last;
     if (!L) return;
     if (ev.type === 'point') flashTeam(ev.team);
@@ -550,6 +550,7 @@
     if (isOpen('#sheetLog')) renderLog();
     if (isOpen('#sheetStats')) renderStats();
     rendered = true;
+    if (typeof sendOverlayToCam === 'function' && linkP.ch) sendOverlayToCam();
   }
 
   function setsLabel(c) { return c.setsToWin === 1 ? '1 set' : 'Melhor de ' + (c.setsToWin * 2 - 1); }
@@ -720,10 +721,15 @@
     $('#bannerSub').textContent = sub;
     $('#bannerSide').hidden = !(L.sideSwitch && title !== 'Troca de lado');
     const b = $('#banner');
+    // enquanto o aviso está na tela, um toque fecha o aviso (não marca ponto no time de trás); some sozinho no fim da barra
+    const ms = L.type === 'match' ? 4500 : L.sideSwitch ? 4000 : 3000;
     b.classList.add('show');
+    const bar = $('#bannerBar');
+    bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = 'bannerBar ' + ms + 'ms linear forwards';
     clearTimeout(bannerTimer);
-    bannerTimer = setTimeout(() => b.classList.remove('show'), L.type === 'match' ? 3800 : 2400);
+    bannerTimer = setTimeout(hideBanner, ms);
   }
+  function hideBanner() { clearTimeout(bannerTimer); $('#banner').classList.remove('show'); }
 
   // ---------- folhas ----------
   // Folhas desenhadas pelo proprio app, sem <dialog> nativo: no iPad o fundo desfocado do modal nativo
@@ -1169,7 +1175,7 @@
     if (!back && (view !== currentView || (id || null) !== currentMatchId) && currentView !== 'jogar') { navStack.push([currentView, currentMatchId]); if (navStack.length > 30) navStack.shift(); }
     currentView = view;
     currentMatchId = id || null;
-    if (view !== 'jogar') $('#banner').classList.remove('show'); // aviso de game/set e so do placar
+    if (view !== 'jogar') hideBanner(); // aviso de game/set e so do placar
     document.body.dataset.view = view;
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
     const sc0 = $('#view-' + view + ' .scroll'); if (sc0 && !back) sc0.scrollTop = 0; // antes de desenhar: depois forçaria recalcular a tela inteira
@@ -3460,7 +3466,7 @@
     if (!(await roomForVideo())) return;
     closeSheet('#sheetCam');
     recState.matchId = match.id;
-    recState.r = CVd.createRecorder({ matchId: match.id, label: match.teams[0].name + ' × ' + match.teams[1].name, device: 'placar', preview: $('#recPreview'),
+    recState.r = CVd.createRecorder({ matchId: match.id, label: match.teams[0].name + ' × ' + match.teams[1].name, device: 'placar', preview: $('#recPreview'), orient: vidOrient(), flags: vidFlags(), overlay: () => overlayNow(false),
       onState: s => { if (s.error) toast(s.error); renderRecDock(); } });
     try { await recState.r.start(); } catch (e) { recState.r = null; renderRecDock(); return; }
     recState.startedAt = Date.now();
@@ -3510,10 +3516,11 @@
     }
     h = (match.camTopic ? '<div id="camLinkBox">' + camLinkHTML() + '</div>' : '') + (on ? '<div class="cam-now"><i class="rec-dot"></i><span><b>Gravando neste celular</b><small>' + fmtClock(Date.now() - recState.startedAt) + ' · a imagem fica guardada só aqui</small></span></div>' +
         '<div class="actions"><button class="btn" type="button" id="camMiniToggle">' + ic('i-camera') + (recState.mini ? 'Esconder a imagem' : 'Mostrar a imagem') + '</button><button class="btn" type="button" id="camFlipHere">' + ic('i-flip') + 'Trocar câmera</button></div>' +
-        '<button class="btn-primary danger-fill" type="button" id="camStop">Parar gravação</button>'
+        '<button class="btn-primary danger-fill" type="button" id="camStop">Parar gravação</button>' + vidOptsHTML(true)
       : '<p class="hint">Grave a partida e veja depois o vídeo de cada ponto: o horário de cada lance marcado acha o momento certo no vídeo.' + (isPro() ? '' : ' <span class="pro-badge">PRO</span>') + '</p>' +
         '<button class="cam-opt" type="button" id="camHere"><span class="choose-ic">' + ic('i-camera') + '</span><span><b>Gravar com este celular</b><small>Fica uma miniatura no canto; você continua marcando os pontos. Apoie o celular mostrando a quadra.</small></span>' + ic('i-chev', 'ic chev') + '</button>' +
         '<button class="cam-opt" type="button" data-camstep="outro"><span class="choose-ic alt">' + ic('i-qr') + '</span><span><b>Usar outro aparelho como câmera</b><small>Outro celular ou notebook grava em tela cheia pelo QR Code ou link. Este continua no placar.</small></span>' + ic('i-chev', 'ic chev') + '</button>') +
+      (on ? '' : vidOptsHTML(false)) +
       '<p class="hint small">Só imagem, sem som (o microfone fica livre para a voz). Cerca de 9 MB por minuto' + (used ? ' · ' + CVd.fmtMB(used) + ' em vídeos neste aparelho' : '') + '. Os vídeos ficam no aparelho que gravou; na conta Pro na nuvem, vão para a sua conta.</p>';
     $('#camBody').innerHTML = h;
     openSheet('#sheetCam');
@@ -3525,6 +3532,10 @@
       if (s && s.interrupted && !s.recording) { recState.r.start().then(() => { requestWakeLock(); toast('Gravando de novo'); }).catch(() => {}); return; }
       clearTimeout(recState.miniT); recState.mini = !recState.mini; renderRecDock();
     });
+    $('#camBody').addEventListener('change', e => onVidOpt(e.target));
+    $('#view-camera').addEventListener('change', e => onVidOpt(e.target));
+    $('#camOrient').addEventListener('click', () => { const t = { name: 'vidOrient', value: vidOrient() === 'h' ? 'v' : 'h' }; onVidOpt(t); toast(t.value === 'h' ? 'Vídeo na horizontal' : 'Vídeo na vertical'); });
+    window.addEventListener('resize', () => { if (currentView === 'camera') renderCamOrient(); });
     $('#camBody').addEventListener('click', e => {
       const cmd = e.target.closest('[data-camcmd]'); if (cmd) { if (linkP.ch) { linkP.ch.send({ t: 'cmd', do: cmd.dataset.camcmd }); toast(cmd.dataset.camcmd === 'start' ? 'Pedido enviado: a câmera começa a gravar' : 'Pedido enviado: a câmera para de gravar'); } return; }
       if (e.target.closest('#camHere')) { startRecHere(); return; }
@@ -3572,10 +3583,18 @@
   }
   async function camPreview() {
     camRelease();
-    try { cam.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: cam.facing }, width: { ideal: 1280 }, height: { ideal: 720 } } }); const v = $('#camVideo'); v.srcObject = cam.stream; v.play().catch(() => {}); }
+    try {
+      cam.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: cam.facing }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const v = $('#camVideo');
+      // a prévia já mostra o vídeo como vai sair: formato escolhido, marca, placar e lances
+      if (CVd.canCompose()) { cam.pcomp = CVd.compose(cam.stream, { orient: vidOrient(), overlay: () => linkC.ov, flags: vidFlags() }); v.srcObject = cam.pcomp.stream; v.style.objectFit = 'contain'; }
+      else v.srcObject = cam.stream;
+      v.play().catch(() => {});
+      renderCamOrient();
+    }
     catch (e) { $('#camHint').textContent = e && e.name === 'NotAllowedError' ? 'Permita o uso da câmera para gravar (no cadeado da barra de endereço).' : 'Não consegui abrir a câmera neste aparelho.'; }
   }
-  function camRelease() { if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; } }
+  function camRelease() { if (cam.pcomp) { cam.pcomp.stop(); cam.pcomp = null; } if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; } }
   function renderCamera(code) {
     const info = parseCamCode(code || '');
     cam.info = info;
@@ -3585,6 +3604,8 @@
     $('#camInfo').innerHTML = '<div class="cam-card"><span class="cam-match"><i class="tdot" style="--tc:' + colorVar(info.colors[0]) + '"></i>' + esc(info.names[0]) + ' <em>×</em> ' + esc(info.names[1]) + '<i class="tdot" style="--tc:' + colorVar(info.colors[1]) + '"></i></span><small>' + ic('s-' + info.sport) + esc(sportLabel(info.sport)) + (info.by ? ' · placar com ' + esc(firstName(info.by)) : '') + '</small></div>';
     if (!CVd.supported()) $('#camHint').textContent = 'Este navegador não grava vídeo. No iPhone, abra no Safari.';
     if (info.k) linkOpenCamera(info.k); else linkCloseCamera();
+    { const f = vidFlags(); $$('#view-camera input[name="vidScore"]').forEach(x => { x.checked = f.score; }); $$('#view-camera input[name="vidPlays"]').forEach(x => { x.checked = f.plays; }); }
+    renderCamOrient();
     renderCamPlacar();
     renderCamState();
     if (!cam.r) camPreview();
@@ -3608,7 +3629,8 @@
     if (!cam.info) return;
     if (!(await roomForVideo())) return;
     camRelease();
-    cam.r = CVd.createRecorder({ matchId: cam.info.id, label: cam.info.names.join(' × '), device: 'camera', facing: cam.facing, preview: $('#camVideo'), onState: st => { if (st.error) toast(st.error); renderCamState(); } });
+    if (cam.pcomp) { cam.pcomp.stop(); cam.pcomp = null; }
+    cam.r = CVd.createRecorder({ matchId: cam.info.id, label: cam.info.names.join(' × '), device: 'camera', facing: cam.facing, preview: $('#camVideo'), orient: vidOrient(), flags: vidFlags(), overlay: () => linkC.ov, onState: st => { if (st.error) toast(st.error); renderCamState(); } });
     try { await cam.r.start(); } catch (e) { cam.r = null; renderCamState(); return; }
     requestWakeLock();
     clearInterval(cam.timer); cam.timer = setInterval(renderCamState, 1000);
@@ -3820,6 +3842,7 @@
       if (s === 'stop' && before === 'rec') toast(who + ' parou de gravar');
       if (s === 'cut') toast('A gravação no ' + who + ' parou (o app saiu da tela lá). Peça para tocar em gravar.');
     }
+    if (s !== before) sendOverlayToCam(true);
     renderCamLink();
   }
   // pontos marcados aqui: a câmera conectada corta o trecho no tempo morto (só quando o trecho dela já está maduro)
@@ -3840,7 +3863,7 @@
   }
 
   // Câmera: manda o status ao placar a cada mudança e a cada minuto; obedece iniciar/parar; corta no tempo morto.
-  const linkC = { ch: null, hb: 0, last: '', placarAt: 0 };
+  const linkC = { ch: null, hb: 0, last: '', placarAt: 0, ov: null };
   function camStatus(force) {
     if (!linkC.ch) return;
     const s = cam.r ? cam.r.state : null;
@@ -3858,6 +3881,7 @@
       if (meta && meta.old && m.t !== 'hello') return; // pedido de gravar/parar de antes de abrir aqui: ignora
       linkC.placarAt = Date.now(); renderCamPlacar();
       if (m.t === 'hello') camStatus(true);
+      if (m.t === 'sc' && !(meta && meta.old)) linkC.ov = cleanOverlay(m.o);
       if (m.t === 'pt' && cam.r && cam.r.state.recording) { cam.r.safeCut(); setTimeout(() => camStatus(true), 500); }
       if (m.t === 'cmd' && m.do === 'start' && !(cam.r && cam.r.state.recording)) { if (cam.r && cam.r.state.interrupted) cam.r.start().then(() => renderCamState()).catch(() => {}); else camStart(); }
       if (m.t === 'cmd' && m.do === 'stop' && cam.r && cam.r.state.recording) camStop();
@@ -4178,6 +4202,71 @@
   }
   function renderGroupStripNow() { const el = $('#groupStrip'); if (el) el.innerHTML = groupStripHTML(); }
 
+  // ----- gravação com a marca, o placar e os lances na tela (video.js desenha; aqui sai o que desenhar) -----
+  const vidOrient = () => (prefs.vidOrient === 'v' ? 'v' : 'h');
+  const vidFlags = () => Object.assign({ score: true, plays: true }, prefs.vidFlags || {});
+  const cssColor = id => HEX[id] || (getComputedStyle(document.documentElement).getPropertyValue('--c-' + (PALETTE.some(p => p.id === id) ? id : 'verde')).trim() || '#AFFB48');
+  let lastPlayOv = null; // último lance, para aparecer uns segundos no vídeo
+  const playText = (ev, nm) => 'Ponto ' + nm + (ev.tag ? ' · ' + TAGS[ev.tag] : ev.shot ? ' · ' + (G.SHOT_LABEL[ev.shot] || ev.shot) : '');
+  function notePlayForVideo(ev) { if (ev && ev.type === 'point') lastPlayOv = { text: playText(ev, name(ev.team)), color: cssColor(match.teams[ev.team].color), at: Date.now(), team: ev.team, tag: ev.tag || '', shot: ev.shot || '' }; }
+  function overlayNow(anon) {
+    if (!match || !state) return null;
+    const lbl = t => (anon ? colorName(match.teams[t].color) : match.teams[t].name);
+    return {
+      teams: [0, 1].map(t => ({ label: lbl(t), color: cssColor(match.teams[t].color) })),
+      cols: setColumns().map(c => [c.vals[0], c.vals[1]]),
+      pts: state.done ? null : E.pointLabels(state, cfg).map(String),
+      server: state.done ? null : state.server,
+      ev: lastPlayOv && (anon ? { text: playText({ tag: lastPlayOv.tag, shot: lastPlayOv.shot }, lbl(lastPlayOv.team)), color: lastPlayOv.color, at: lastPlayOv.at } : lastPlayOv),
+    };
+  }
+  // placar para a câmera conectada: só cores e números (sem nomes de jogadores), a cada mudança
+  let ovSent = '', ovTimer = 0;
+  function sendOverlayToCam(force) {
+    if (!linkP.ch || !camOnline()) return;
+    clearTimeout(ovTimer);
+    ovTimer = setTimeout(() => {
+      const o = overlayNow(true); if (!o) return;
+      const key = JSON.stringify([o.cols, o.pts, o.server, o.ev && o.ev.at]);
+      if (!force && key === ovSent) return;
+      ovSent = key;
+      linkP.ch.send({ t: 'sc', o: Object.assign({}, o, { ev: o.ev ? { text: o.ev.text, color: o.ev.color, age: Date.now() - o.ev.at } : null }) });
+    }, 250);
+  }
+  const HEX6 = /^#[0-9A-Fa-f]{6}$/;
+  function cleanOverlay(o) {
+    if (!o || typeof o !== 'object' || !Array.isArray(o.teams) || o.teams.length !== 2) return null;
+    const num = v => (Number.isFinite(Number(v)) ? Math.max(0, Math.min(999, Math.round(Number(v)))) : 0);
+    return {
+      teams: o.teams.map(t => ({ label: cTxt(t && t.label, 16), color: t && HEX6.test(t.color) ? t.color : '#AFFB48' })),
+      cols: Array.isArray(o.cols) ? o.cols.slice(0, 7).filter(c => Array.isArray(c) && c.length === 2).map(c => [num(c[0]), num(c[1])]) : [],
+      pts: Array.isArray(o.pts) && o.pts.length === 2 ? o.pts.map(x => cTxt(String(x), 4)) : null,
+      server: o.server === 0 || o.server === 1 ? o.server : null,
+      ev: o.ev && typeof o.ev === 'object' && o.ev.text ? { text: cTxt(o.ev.text, 40), color: HEX6.test(o.ev.color) ? o.ev.color : '#AFFB48', at: Date.now() - Math.max(0, Math.min(5000, Number(o.ev.age) || 0)) } : null,
+    };
+  }
+  // opções da gravação (folha da câmera e modo câmera)
+  function vidOptsHTML(live) {
+    const f = vidFlags(), o = vidOrient();
+    return '<div class="vid-opts"><div class="seg seg-sm" role="radiogroup" aria-label="Formato do vídeo"><label><input type="radio" name="vidOrient" value="h"' + (o === 'h' ? ' checked' : '') + '><span>' + ic('i-orient-h') + 'Horizontal</span></label><label><input type="radio" name="vidOrient" value="v"' + (o === 'v' ? ' checked' : '') + '><span>' + ic('i-orient-v') + 'Vertical</span></label></div>' +
+      '<label class="vid-flag"><input type="checkbox" name="vidScore"' + (f.score ? ' checked' : '') + '><span>Placar no vídeo</span></label><label class="vid-flag"><input type="checkbox" name="vidPlays"' + (f.plays ? ' checked' : '') + '><span>Lances no vídeo</span></label></div>' +
+      '<p class="hint small">A marca ULTRA PLAY vai no canto do vídeo.' + (live ? '' : ' O formato não muda ao girar o celular: só por aqui.') + '</p>';
+  }
+  function onVidOpt(t) {
+    if (t.name === 'vidOrient') { prefs.vidOrient = t.value; savePrefs(); [recState.r, cam.r].forEach(r => { if (r) r.setOrient(t.value); }); if (!cam.r && cam.pcomp) camPreview(); renderCamOrient(); return true; }
+    if (t.name === 'vidScore' || t.name === 'vidPlays') { prefs.vidFlags = Object.assign(vidFlags(), { [t.name === 'vidScore' ? 'score' : 'plays']: t.checked }); savePrefs(); [recState.r, cam.r].forEach(r => { if (r) r.setFlags(vidFlags()); }); if (cam.pcomp) camPreview(); return true; }
+    return false;
+  }
+  function renderCamOrient() {
+    const b = $('#camOrient'); if (!b) return;
+    const o = vidOrient();
+    b.innerHTML = ic(o === 'h' ? 'i-orient-h' : 'i-orient-v');
+    b.title = o === 'h' ? 'Vídeo na horizontal (toque para vertical)' : 'Vídeo na vertical (toque para horizontal)';
+    $$('input[name="vidOrient"]').forEach(x => { x.checked = x.value === o; });
+    const tall = window.innerHeight > window.innerWidth;
+    const hint = $('#camOrientHint'); if (hint) hint.hidden = !(o === 'h' && tall);
+  }
+
   function deleteMatch(id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
@@ -4420,6 +4509,8 @@
 
     wireSocial();
     wireLinks();
+    // aviso de game/set/troca de lado: qualquer toque só fecha o aviso
+    ['pointerdown', 'click'].forEach(ev => $('#banner').addEventListener(ev, e => { if (!$('#banner').classList.contains('show')) return; e.preventDefault(); e.stopPropagation(); if (ev === 'click') hideBanner(); }));
     wireCam();
     wireGroups();
     if (match && match.camTopic && match.events.length) linkOpenPlacar(); // partida em andamento com câmera conectada: volta a ouvir

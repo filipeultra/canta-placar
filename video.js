@@ -58,6 +58,83 @@
   }
   const supported = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && mimeType() && root.indexedDB);
 
+
+  // ---------- composição: o vídeo salvo sai com a marca e, se quiser, o placar e os lances na tela ----------
+  // A câmera é desenhada num canvas (horizontal 1280×720 por padrão, ou vertical 720×1280 pelo botão de girar,
+  // sem depender de como o celular está), e o gravador grava o canvas. Sem suporte a canvas, grava a câmera pura.
+  const LOGO_D = ["M0.595607 22.7648L13.3915 0.583801H26.1638L10.5924 27.5398H4.19444C0.689691 27.5398 -0.956837 25.3758 0.57208 22.7413L0.595607 22.7648Z", "M45.8045 23.0471L33.0087 45.2282H20.2363L35.8078 18.2722H42.2057C45.7105 18.2722 47.357 20.4362 45.8281 23.0706L45.8045 23.0471Z", "M26.1874 13.4737V0.583801H45.9928L35.7843 18.2722H32.5618C29.057 18.2722 26.1639 16.1082 26.1639 13.4737H26.1874Z", "M20.2128 32.3382V45.2282H0.407471L10.6159 27.5398H13.8384C17.3432 27.5398 20.2364 29.7038 20.2364 32.3382H20.2128Z", "M64.2158 44.7909C58.0965 44.7909 53.8067 40.6272 53.8067 34.4448V0H60.4938V34.4448C60.4938 37.0313 62.0709 32.96 64.2158 32.96C66.3608 32.96 67.9379 37.0313 67.9379 34.4448V0H74.4988V34.4448C74.4988 40.6272 70.3352 44.7909 64.2158 44.7909Z", "M79.0124 44.16V0H85.6995V37.8514H97.6227V44.16H79.0124Z", "M94.0583 6.30857L91.2001 3.15429L94.0583 0H115.381L112.4 3.15429L115.381 6.30857H108.063V44.16H101.376V6.30857H94.0583Z", "M139.968 44.16H133.029L128.171 25.9282H124.702V44.16H118.015V0H128.487C134.859 0 138.959 4.16366 138.959 10.5353V15.3929C138.959 19.4935 137.256 22.6478 134.354 24.4142L139.968 44.16ZM124.702 6.30857V19.6197H128.171C130.758 19.6197 132.272 18.1056 132.272 15.5191V10.4091C132.272 7.82263 130.758 6.30857 128.171 6.30857H124.702Z", "M157.542 44.16L156.091 34.3817L152.495 32.16L148.9 34.3817L147.449 44.16H140.761L148.079 0H157.038L164.356 44.16H157.542ZM149.783 27.947H155.208L152.495 9.46286L149.783 27.947Z", "M161.007 38.4H179.407L175.8 44.156L161.007 44.1564V38.4Z", "M164.064 18V5.15911H167.109C168.962 5.15911 170.154 6.36983 170.154 8.22258V9.7268C170.154 11.5796 168.962 12.7903 167.109 12.7903H166.008V18H164.064ZM166.008 10.9559H167.017C167.769 10.9559 168.21 10.5156 168.21 9.76349V8.18589C168.21 7.43378 167.769 6.99353 167.017 6.99353H166.008V10.9559ZM171.418 18V5.15911H173.363V16.1656H176.83V18H171.418ZM171.625 33L171.203 30.1567H169.112L168.69 33H166.746L168.874 20.1591H171.479L173.606 33H171.625ZM169.369 28.2856H170.947L170.158 22.9107L169.369 28.2856ZM178.374 20.1591H180.41L177.806 27.6252V33H175.861V27.6252L173.256 20.1591H175.329L176.833 25.057L178.374 20.1591Z"];
+  let logoPaths = null;
+  const canCompose = () => typeof HTMLCanvasElement !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream && typeof Path2D !== 'undefined';
+  function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function fitText(ctx, t, max) { if (ctx.measureText(t).width <= max) return t; let s = t; while (s.length > 1 && ctx.measureText(s + '…').width > max) s = s.slice(0, -1); return s + '…'; }
+  const F_UI = '"Bricolage Grotesque", system-ui, sans-serif', F_NUM = '"Archivo Condensed", "Bricolage Grotesque", system-ui, sans-serif';
+  // ov: { teams: [{ label, color }], cols: [[a,b]...] (sets, o último é o atual), pts: ['15','30'], server, ev: { text, color, at } }
+  function drawOverlay(ctx, W, H, ov, flags) {
+    const u = Math.min(W, H) / 720, m = 22 * u;
+    if (ov && flags.score && ov.teams) {
+      const rowH = 44 * u, pad = 10 * u, nameW = 168 * u, colW = 32 * u, ptsW = 62 * u;
+      const cols = ov.cols || [];
+      const w = pad + 8 * u + nameW + cols.length * colW + (ov.pts ? ptsW + pad : pad), h = rowH * 2 + pad * 2;
+      ctx.save(); ctx.globalAlpha = 0.92; ctx.fillStyle = 'rgba(6,7,8,0.82)'; rrect(ctx, m, m, w, h, 14 * u); ctx.fill(); ctx.restore();
+      ov.teams.forEach((t, i) => {
+        const y = m + pad + i * rowH, cy = y + rowH / 2;
+        ctx.fillStyle = t.color || '#AFFB48'; rrect(ctx, m + pad, y + 8 * u, 6 * u, rowH - 16 * u, 3 * u); ctx.fill();
+        ctx.font = '700 ' + Math.round(22 * u) + 'px ' + F_UI; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = '#F4F6F2';
+        const label = fitText(ctx, t.label || '', nameW - 34 * u);
+        ctx.fillText(label, m + pad + 16 * u, cy);
+        if (ov.server === i) { const lw = ctx.measureText(label).width; ctx.fillStyle = '#AFFB48'; ctx.beginPath(); ctx.arc(m + pad + 16 * u + lw + 12 * u, cy, 5 * u, 0, 7); ctx.fill(); }
+        ctx.textAlign = 'center'; ctx.font = '800 ' + Math.round(26 * u) + 'px ' + F_NUM;
+        cols.forEach((c, k) => {
+          const last = k === cols.length - 1;
+          ctx.fillStyle = last ? '#F4F6F2' : c[i] > c[1 - i] ? '#F4F6F2' : 'rgba(244,246,242,0.45)';
+          ctx.fillText(String(c[i]), m + pad + 8 * u + nameW + k * colW + colW / 2, cy + 1 * u);
+        });
+        if (ov.pts) {
+          const x = m + pad + 8 * u + nameW + cols.length * colW + 6 * u;
+          ctx.fillStyle = '#AFFB48'; rrect(ctx, x, y + 5 * u, ptsW - 6 * u, rowH - 10 * u, 8 * u); ctx.fill();
+          ctx.fillStyle = '#0B1200'; ctx.font = '900 ' + Math.round(26 * u) + 'px ' + F_NUM; ctx.fillText(String(ov.pts[i]), x + (ptsW - 6 * u) / 2, cy + 1 * u);
+        }
+      });
+    }
+    if (ov && flags.plays && ov.ev && ov.ev.text) {
+      const age = Date.now() - ov.ev.at;
+      if (age >= 0 && age < 3600) {
+        ctx.save(); ctx.globalAlpha = age > 3100 ? (3600 - age) / 500 : 1;
+        ctx.font = '800 ' + Math.round(24 * u) + 'px ' + F_UI; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+        const txt = ov.ev.text.toUpperCase(), tw = Math.min(ctx.measureText(txt).width, W * 0.6), ph = 50 * u, pw = tw + 58 * u, y = H - m - ph;
+        ctx.fillStyle = 'rgba(6,7,8,0.82)'; rrect(ctx, m, y, pw, ph, ph / 2); ctx.fill();
+        ctx.fillStyle = ov.ev.color || '#AFFB48'; ctx.beginPath(); ctx.arc(m + 26 * u, y + ph / 2, 8 * u, 0, 7); ctx.fill();
+        ctx.fillStyle = '#F4F6F2'; ctx.fillText(fitText(ctx, txt, W * 0.6), m + 44 * u, y + ph / 2 + 1 * u);
+        ctx.restore();
+      }
+    }
+    // marca no canto direito de baixo (sempre)
+    if (!logoPaths) logoPaths = LOGO_D.map(d => new Path2D(d));
+    const lw = 150 * u, k = lw / 182;
+    ctx.save(); ctx.translate(W - m - lw, H - m - 46 * k); ctx.scale(k, k);
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 10; ctx.fillStyle = '#AFFB48'; ctx.globalAlpha = 0.95;
+    logoPaths.forEach(p => ctx.fill(p));
+    ctx.restore();
+  }
+  // compõe uma câmera num canvas e devolve o stream do canvas (para gravar e para a prévia mostrar o que vai sair)
+  function compose(src, o) {
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.srcObject = src; v.play().catch(() => {});
+    const c = document.createElement('canvas'); const ctx = c.getContext('2d', { alpha: false });
+    const vert = o.orient === 'v'; c.width = vert ? 720 : 1280; c.height = vert ? 1280 : 720;
+    let alive = true;
+    const draw = () => {
+      if (!alive) return;
+      const W = c.width, H = c.height, vw = v.videoWidth, vh = v.videoHeight;
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      if (vw && vh) { const s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s; ctx.drawImage(v, (W - dw) / 2, (H - dh) / 2, dw, dh); }
+      try { drawOverlay(ctx, W, H, o.overlay ? o.overlay() : null, o.flags || { score: true, plays: true }); } catch (e) { /* placar indisponível: segue só com a imagem */ }
+    };
+    draw();
+    const timer = setInterval(draw, 1000 / 30);
+    const out = c.captureStream(30);
+    return { stream: out, orient: vert ? 'v' : 'h', draw, stop() { alive = false; clearInterval(timer); out.getTracks().forEach(t => t.stop()); v.srcObject = null; } };
+  }
+
   // Gravador: abre a câmera, mostra a prévia (se tiver um <video>) e guarda a partida em trechos de ~5 minutos.
   // Cortes sem perder lance: o app avisa quando acabou de marcar um ponto (safeCut) e, passados 4 min, o trecho
   // vira ali, no "tempo morto" entre um ponto e o próximo saque (troca de lado incluída), com 2 s de sobreposição.
@@ -66,20 +143,23 @@
   // onState({ recording, startedAt, segs, bytes, error, interrupted }) avisa a tela.
   const SAFE_MIN_MS = 240000, TARGET_MS = 300000, MAX_MS = 360000;
   function createRecorder(opts) {
-    const st = { recording: false, startedAt: 0, segs: 0, bytes: 0, error: '', interrupted: false, facing: opts.facing || 'environment' };
+    const st = { recording: false, startedAt: 0, segs: 0, bytes: 0, error: '', interrupted: false, facing: opts.facing || 'environment', orient: opts.orient === 'v' ? 'v' : 'h', flags: Object.assign({ score: true, plays: true }, opts.flags || {}), composed: false };
     const safeMin = opts.segMs ? opts.segMs * 0.8 : SAFE_MIN_MS, target = opts.segMs || TARGET_MS, maxMs = opts.segMs ? opts.segMs * 1.2 : MAX_MS;
-    let stream = null, cur = null, live = [], timer = 0, stopping = false, saving = Promise.resolve();
+    let stream = null, comp = null, cur = null, live = [], timer = 0, stopping = false, saving = Promise.resolve();
+    const recStream = () => (comp ? comp.stream : stream);
+    function setPreview() { if (opts.preview) { opts.preview.srcObject = recStream(); opts.preview.muted = true; opts.preview.playsInline = true; opts.preview.style.objectFit = comp ? 'contain' : ''; opts.preview.play().catch(() => {}); } }
+    function newComp() { const old = comp; comp = canCompose() && opts.compose !== false ? compose(stream, { orient: st.orient, overlay: opts.overlay, flags: st.flags }) : null; st.composed = !!comp; if (old) setTimeout(() => old.stop(), 1500); }
     const emit = () => { if (opts.onState) opts.onState(Object.assign({}, st)); };
     async function openCamera() {
       if (stream) stream.getTracks().forEach(t => t.stop());
       stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: st.facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } });
-      if (opts.preview) { opts.preview.srcObject = stream; opts.preview.muted = true; opts.preview.playsInline = true; opts.preview.play().catch(() => {}); }
+      newComp(); setPreview();
       stream.getVideoTracks().forEach(t => { t.onended = () => { if (st.recording && !stopping) { st.error = 'A gravação parou (o app saiu da tela ou o celular bloqueou). Toque para continuar gravando.'; st.interrupted = true; stopAll(); st.recording = false; emit(); } }; });
     }
     function beginSeg() {
       const type = mimeType();
       const parts = []; // cada gravador junta os próprios pedaços (o anterior ainda entrega o último depois que o próximo começa)
-      const r = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: BITRATE });
+      const r = new MediaRecorder(recStream(), { mimeType: type, videoBitsPerSecond: BITRATE });
       r.ondataavailable = e => { if (e.data && e.data.size) parts.push(e.data); };
       r.onstop = () => {
         live = live.filter(x => x !== r);
@@ -116,11 +196,20 @@
       async stop() {
         stopping = true; st.recording = false; stopAll();
         await new Promise(r => setTimeout(r, 300)); await saving;
+        if (comp) { comp.stop(); comp = null; }
         if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
         if (opts.preview) opts.preview.srcObject = null;
         emit();
       },
       async flip() { st.facing = st.facing === 'environment' ? 'user' : 'environment'; if (st.recording) { stopAll(); await openCamera(); beginSeg(); } emit(); },
+      // horizontal ↔ vertical: o trecho vira na hora (um canvas novo para cada formato)
+      setOrient(o) {
+        st.orient = o === 'v' ? 'v' : 'h';
+        if (stream) { const olds = live.slice(); newComp(); setPreview(); if (st.recording) { cur = null; beginSeg(); olds.forEach(r => endRec(r, 0)); } }
+        emit();
+      },
+      // placar e lances na gravação (a marca vai sempre)
+      setFlags(f) { Object.assign(st.flags, f || {}); emit(); },
     };
   }
   // espaço livre no aparelho e quantos minutos de vídeo cabem (aproximado)
@@ -143,5 +232,5 @@
   }
   const fmtMB = b => (b >= 1e9 ? (b / 1e9).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB');
 
-  root.CantaVideo = { supported, mimeType, createRecorder, segments, summary, removeMatch, removeAll, locate, fmtMB, freeSpace, TARGET_MS };
+  root.CantaVideo = { supported, mimeType, createRecorder, compose, canCompose, segments, summary, removeMatch, removeAll, locate, fmtMB, freeSpace, TARGET_MS };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

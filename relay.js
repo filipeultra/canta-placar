@@ -1,6 +1,7 @@
 /* ULTRA PLAY · canal entre aparelhos (celular do placar ↔ celular câmera), sem servidor próprio.
    Usa o ntfy.sh, serviço público de mensagens (grátis, sem cadastro, funciona direto do navegador): cada partida
-   tem um canal com nome sorteado (impossível de adivinhar) e só trafega status da gravação, sem nomes nem placar.
+   tem um canal com nome sorteado (impossível de adivinhar) e só trafega o status da gravação e o placar em números
+   (cores dos times, games e pontos, para desenhar no vídeo), sem nomes de jogadores.
    Quando houver servidor próprio, troca-se só este arquivo. Se o serviço estiver fora, nada quebra: cada aparelho
    continua gravando sozinho e o placar mostra "sem notícias da câmera". */
 (function (root) {

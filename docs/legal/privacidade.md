@@ -61,7 +61,7 @@ Quando a conta na nuvem for lançada, atualizaremos esta Política, avisaremos n
 | Conteúdo social | Legendas, nomes de times, denúncias e bloqueios | Você |
 | Voz | Áudio captado pelo microfone durante o uso do placar por voz, **não gravado nem guardado pelo app** | Microfone, com sua permissão |
 | Vídeo (Pro) | Imagem da partida, **sem som**, que pode incluir outras pessoas | Câmera, com sua permissão |
-| Status da conexão entre aparelhos | Gravando/parado, tempo de gravação, tamanho em MB, **sem nomes** | Gerado pelo app |
+| Status da conexão entre aparelhos | Gravando/parado, tempo de gravação, tamanho em MB e placar em números (cores dos times, games, pontos), **sem nomes** | Gerado pelo app |
 | Dados técnicos de conexão | Endereço IP, tipo de navegador e aparelho, data e hora, recebidos pelos serviços que o app acessa (hospedagem do site, CDN, ntfy.sh, serviços de voz) | Seu navegador, automaticamente |
 | Assinatura (futuro) | Plano, status, datas de cobrança e renovação, identificador da transação. **Não guardamos o número completo do cartão** | Lojas de aplicativos ou [PROCESSADOR DE PAGAMENTO] |
 
@@ -139,7 +139,7 @@ Não vendemos dados pessoais. Os dados podem chegar aos seguintes terceiros, ape
 |---|---|---|---|
 | Fornecedor do reconhecimento de voz do navegador/sistema (ex.: Google, Apple) | Áudio dos comandos de voz e dados técnicos | Transformar fala em texto, se você usa esse modo | Hoje |
 | CDNs que distribuem o motor e o modelo de voz offline (jsDelivr e GitHub Pages) | Dados técnicos de conexão (IP, navegador) no download | Entregar o modelo de voz | Hoje |
-| ntfy.sh (serviço de mensagens) | Status da gravação (gravando/parado, tempo, MB), **sem nomes**, e dados técnicos de conexão | Ligar o celular do placar ao celular câmera | Hoje |
+| ntfy.sh (serviço de mensagens) | Status da gravação (gravando/parado, tempo, MB) e placar em números, **sem nomes**, e dados técnicos de conexão | Ligar o celular do placar ao celular câmera | Hoje |
 | Provedor de hospedagem do site (hoje GitHub Pages; depois, o do domínio próprio) | Dados técnicos de conexão ao abrir o app ou um link | Entregar o app | Hoje |
 | Quem recebe o link de estatísticas | Dados da partida contidos no link | Compartilhamento feito por você | Hoje |
 | Organizadores e membros de grupos | Dados do grupo, conforme seção 10 | Funcionamento do grupo | [Hoje / futuro] |

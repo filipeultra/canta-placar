@@ -93,7 +93,7 @@ Estes Termos explicam as regras de uso do ULTRA PLAY. A forma como tratamos dado
 
 ## 9. Conexão entre aparelhos (placar e câmera)
 
-9.1. Para usar um celular como placar e outro como câmera, o app troca mensagens entre os dois por meio de um serviço de mensagens de terceiros (ntfy.sh). Essas mensagens contêm **apenas o status da gravação** (gravando ou parado, tempo e tamanho em MB), **sem nomes** de jogadores.
+9.1. Para usar um celular como placar e outro como câmera, o app troca mensagens entre os dois por meio de um serviço de mensagens de terceiros (ntfy.sh). Essas mensagens contêm **apenas o status da gravação** (gravando ou parado, tempo e tamanho em MB) e o **placar em números** (cores dos times, games e pontos, para aparecer no vídeo), **sem nomes** de jogadores.
 
 9.2. Esse recurso depende do funcionamento do serviço de terceiros e da internet. Não garantimos que a conexão funcione sempre ou sem atrasos.
 
