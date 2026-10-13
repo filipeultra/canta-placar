@@ -2601,3 +2601,6 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .love-q { margin: 0 0 14px; font: 600 16px/1.45 var(--font-display); }
 .love-a { display: flex; flex-wrap: wrap; gap: 10px; }
 .love-a.col { flex-direction: column; align-items: stretch; }
+.install-steps { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 10px; font-size: 15px; line-height: 1.45; }
+.install-steps .ic { width: 18px; height: 18px; vertical-align: -3px; }
+.install-card > .ic { color: var(--brand-ink, var(--brand)); }

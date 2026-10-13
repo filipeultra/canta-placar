@@ -1369,6 +1369,7 @@
     } else $('#liveCard').innerHTML = '';
     renderDrafts();
     renderNewsCard();
+    renderInstallCard();
     $('#streakCard').innerHTML = streakHTML();
     renderGroupStripNow();
     renderFeed();
@@ -4397,6 +4398,7 @@
       'O vídeo sai na horizontal mesmo com o celular em pé. Para vertical, toque no botão de formato.',
       'No fim de cada partida: análise do jogo, com onde ele foi decidido e uma dica para o próximo.',
       'Aviso de game, set e troca de lado menor, com OK e barra de tempo. Tocar fora só fecha o aviso, não marca ponto.',
+      'Instale na tela inicial pelo aviso no Início. Novidades, sugestões e convite com o seu código ficam em Ajustes.',
     ] },
     { id: '2026-10-13a', date: '13/10/2026', title: 'Grupos e câmera conectada', items: [
       'Grupos para a sua turma: ranking, partidas, resenha e convite pelo WhatsApp.',
@@ -4487,6 +4489,28 @@
       const left = Math.max(1, Math.ceil((wk(Date.now()) + 7 * 864e5 - Date.now()) / 864e5));
       return '<div class="streak-card">' + ic('i-flame') + '<span><b>' + ws + ' semanas seguidas</b>Jogue ' + (left === 1 ? 'até hoje' : 'nos próximos ' + left + ' dias') + ' para não perder a sequência.</span><button class="btn btn-sm btn-brand" type="button" data-action="choose">Jogar</button></div>';
     } catch (e) { return ''; }
+  }
+
+  // ---------- instalar na tela inicial (PWA) ----------
+  // Android/Chrome: guarda o pedido do navegador e mostra o botão na hora certa. iPhone: explica o Compartilhar → Adicionar à Tela de Início.
+  let installEvt = null;
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; renderInstallCard(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; prefs.installed = true; savePrefs(); renderInstallCard(); toast('ULTRA PLAY instalado na tela inicial'); });
+  function installReady() {
+    if (isStandalone() || prefs.installed || SCREEN) return false;
+    if (prefs.installHideUntil && Date.now() < prefs.installHideUntil) return false;
+    const own = history().filter(m => !m.demo).length;
+    return own >= 1 && (installEvt || isIOS());
+  }
+  function renderInstallCard() {
+    const el = $('#installCard'); if (!el) return;
+    el.innerHTML = installReady() ? '<div class="news-card install-card">' + ic('i-phone') + '<span><b>Instale o ULTRA PLAY</b>Abre mais rápido, em tela cheia e sem internet na quadra.</span><button class="btn btn-sm btn-brand" type="button" data-action="install">Instalar</button><button class="icon-btn sm" type="button" data-action="install-later" aria-label="Agora não">' + ic('i-x') + '</button></div>' : '';
+  }
+  async function doInstall() {
+    if (installEvt) { installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); installEvt = null; if (!r || r.outcome !== 'accepted') { prefs.installHideUntil = Date.now() + 14 * 864e5; savePrefs(); } renderInstallCard(); return; }
+    openInfo('Instalar no iPhone', '<ol class="install-steps"><li>Toque em <b>Compartilhar</b> ' + ic('i-share') + ' na barra do Safari.</li><li>Role e toque em <b>Adicionar à Tela de Início</b>.</li><li>Toque em <b>Adicionar</b>. O ULTRA PLAY aparece como app, em tela cheia.</li></ol><p class="hint">Precisa ser pelo Safari. Instalado, o app abre sem internet e, depois, pode receber avisos.</p>');
   }
 
   function deleteMatch(id, btn) {
@@ -4712,6 +4736,8 @@
         const a = act.dataset.action;
         if (a === 'prefs') openPrefs();
         if (a === 'news') { closeAllSheets(); openNews(); }
+        if (a === 'install') doInstall();
+        if (a === 'install-later') { prefs.installHideUntil = Date.now() + 14 * 864e5; savePrefs(); renderInstallCard(); }
         if (a === 'news-close') { prefs.seenNews = WHATS_NEW[0].id; savePrefs(); renderNewsCard(); }
         if (a === 'feedback') { closeAllSheets(); openFeedback(); }
         if (a === 'invite') { closeSheet('#sheetInfo'); shareInvite(); }
