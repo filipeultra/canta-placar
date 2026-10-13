@@ -1,0 +1,134 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<style>
+@font-face { font-family: "B"; src: url("../../fonts/bricolage-grotesque-latin.woff2") format("woff2"); font-weight: 400 800; }
+@font-face { font-family: "C"; src: url("../../fonts/archivo-condensed-latin.woff2") format("woff2"); font-weight: 600 900; }
+* { box-sizing: border-box; margin: 0; }
+body { background: #222; }
+.art { position: relative; width: 1080px; height: 1440px; overflow: hidden; background: #060708; color: #F4F6F2; font-family: "B", sans-serif; display: none; }
+.art.on { display: block; }
+.art.story { height: 1920px; }
+.art.a4 { width: 1240px; height: 1754px; }
+svg.ic { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.glow::before { content: ""; position: absolute; inset: 0; background: radial-gradient(700px 420px at 15% 10%, rgba(175,251,72,.20), transparent 70%), radial-gradient(600px 400px at 95% 90%, rgba(255,90,31,.16), transparent 70%); }
+.logo { position: absolute; left: 80px; bottom: 72px; width: 220px; height: 56px; color: #AFFB48; }
+.handle { position: absolute; right: 80px; bottom: 84px; font: 700 30px/1 "B"; color: #A3A9A6; }
+.big { font: 900 170px/.86 "C"; text-transform: uppercase; letter-spacing: -.01em; }
+.mid { font: 900 110px/.9 "C"; text-transform: uppercase; }
+.lime { color: #AFFB48; } .org { color: #FF5A1F; }
+.p { font: 400 40px/1.35 "B"; color: #A3A9A6; } .p b { color: #F4F6F2; font-weight: 700; }
+.phone { position: absolute; width: 400px; aspect-ratio: 390/844; border-radius: 66px; padding: 14px; background: linear-gradient(160deg, #2A2E30, #0B0C0D 40%, #1B1E20); box-shadow: 0 0 0 2px rgba(255,255,255,.08), 0 60px 120px -40px rgba(175,251,72,.45); }
+.phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 53px; display: block; }
+.say { position: absolute; display: flex; align-items: center; gap: 14px; padding: 22px 28px; border-radius: 28px; background: #AFFB48; color: #0B1200; font: 800 44px/1 "B"; transform: rotate(-4deg); box-shadow: 0 30px 60px -20px rgba(0,0,0,.7); }
+.say .ic { width: 40px; height: 40px; }
+.pill { display: inline-flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: 999px; border: 2px solid rgba(255,255,255,.16); font: 700 30px/1 "B"; color: #A3A9A6; }
+.pill .ic { width: 30px; height: 30px; color: #AFFB48; }
+.card { border-radius: 36px; background: #0E1011; border: 2px solid rgba(255,255,255,.08); padding: 44px; }
+.li { display: flex; gap: 18px; font: 500 38px/1.3 "B"; color: #D8DCD9; margin-top: 22px; } .li .ic { width: 40px; height: 40px; color: #AFFB48; flex: none; margin-top: 4px; }
+.qr svg { width: 100%; height: 100%; display: block; } .qr path { fill: #060708; } .qr rect { fill: #FFFFFF; }
+</style></head><body>
+<!-- Modelo das artes: abra este arquivo pelo servidor do app (ex.: python3 -m http.server na raiz e /marketing/posts/modelo.html), mostre uma arte com document.getElementById(ID).classList.add("on") e tire o print no tamanho da arte. -->
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo-h" viewBox="0 0 182 46" class="sym-fill"><path fill="currentColor" stroke="none" d="M0.595607 22.7648L13.3915 0.583801H26.1638L10.5924 27.5398H4.19444C0.689691 27.5398 -0.956837 25.3758 0.57208 22.7413L0.595607 22.7648Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M45.8045 23.0471L33.0087 45.2282H20.2363L35.8078 18.2722H42.2057C45.7105 18.2722 47.357 20.4362 45.8281 23.0706L45.8045 23.0471Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M26.1874 13.4737V0.583801H45.9928L35.7843 18.2722H32.5618C29.057 18.2722 26.1639 16.1082 26.1639 13.4737H26.1874Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M20.2128 32.3382V45.2282H0.407471L10.6159 27.5398H13.8384C17.3432 27.5398 20.2364 29.7038 20.2364 32.3382H20.2128Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M64.2158 44.7909C58.0965 44.7909 53.8067 40.6272 53.8067 34.4448V0H60.4938V34.4448C60.4938 37.0313 62.0709 32.96 64.2158 32.96C66.3608 32.96 67.9379 37.0313 67.9379 34.4448V0H74.4988V34.4448C74.4988 40.6272 70.3352 44.7909 64.2158 44.7909Z"/><path fill="currentColor" stroke="none" d="M79.0124 44.16V0H85.6995V37.8514H97.6227V44.16H79.0124Z"/><path fill="currentColor" stroke="none" d="M94.0583 6.30857L91.2001 3.15429L94.0583 0H115.381L112.4 3.15429L115.381 6.30857H108.063V44.16H101.376V6.30857H94.0583Z"/><path fill="currentColor" stroke="none" d="M139.968 44.16H133.029L128.171 25.9282H124.702V44.16H118.015V0H128.487C134.859 0 138.959 4.16366 138.959 10.5353V15.3929C138.959 19.4935 137.256 22.6478 134.354 24.4142L139.968 44.16ZM124.702 6.30857V19.6197H128.171C130.758 19.6197 132.272 18.1056 132.272 15.5191V10.4091C132.272 7.82263 130.758 6.30857 128.171 6.30857H124.702Z"/><path fill="currentColor" stroke="none" d="M157.542 44.16L156.091 34.3817L152.495 32.16L148.9 34.3817L147.449 44.16H140.761L148.079 0H157.038L164.356 44.16H157.542ZM149.783 27.947H155.208L152.495 9.46286L149.783 27.947Z"/><path fill="currentColor" stroke="none" d="M161.007 38.4H179.407L175.8 44.156L161.007 44.1564V38.4Z"/><path fill="currentColor" stroke="none" d="M164.064 18V5.15911H167.109C168.962 5.15911 170.154 6.36983 170.154 8.22258V9.7268C170.154 11.5796 168.962 12.7903 167.109 12.7903H166.008V18H164.064ZM166.008 10.9559H167.017C167.769 10.9559 168.21 10.5156 168.21 9.76349V8.18589C168.21 7.43378 167.769 6.99353 167.017 6.99353H166.008V10.9559ZM171.418 18V5.15911H173.363V16.1656H176.83V18H171.418ZM171.625 33L171.203 30.1567H169.112L168.69 33H166.746L168.874 20.1591H171.479L173.606 33H171.625ZM169.369 28.2856H170.947L170.158 22.9107L169.369 28.2856ZM178.374 20.1591H180.41L177.806 27.6252V33H175.861V27.6252L173.256 20.1591H175.329L176.833 25.057L178.374 20.1591Z"/></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6.5 9.5 17 4 11.5"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.4 3.3-5.5 6.5-5.5s5.7 2.1 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.8 3.1 2.6 3.5 5.2"/></symbol>
+<symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7.5 4.5h9v5a4.5 4.5 0 0 1-9 0v-5Z"/><path d="M7.5 6.5H4.5v1.5A3 3 0 0 0 7.6 11M16.5 6.5h3v1.5a3 3 0 0 1-3.1 3"/><path d="M12 14v3.5M8.5 20.5h7M9.5 20.5l.5-3h4l.5 3"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.4" r="3.4"/></symbol>
+<symbol id="i-replay" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/><path d="m10 9 5 3-5 3z"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V11"/><path d="M10 20V5"/><path d="M16 20v-6"/><path d="M21 20H3"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2.5 4 13.5h7l-1 8 9-11h-7l1-8Z"/></symbol>
+<symbol id="s-beach" viewBox="0 0 24 24"><path transform="rotate(-32 11 10)" d="M11 2a5.2 5.2 0 0 1 5.2 5.2c0 2.7-1.9 4.7-4.1 5.1l-.4 4.7h-1.4l-.4-4.7C7.7 11.9 5.8 9.9 5.8 7.2A5.2 5.2 0 0 1 11 2Z"/><circle cx="18.6" cy="5" r="1.9"/><path d="M3 21.5c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 4.5 0"/></symbol></defs></svg>
+
+<!-- 1 teaser (R1, D-5) -->
+<section class="art glow" id="teaser">
+  <div style="position:absolute;left:80px;top:120px;right:80px">
+    <span class="pill"><svg class="ic"><use href="#s-beach"/></svg>Todo jogo de beach tem essa briga</span>
+    <h1 class="big" style="margin-top:70px;font-size:250px">Tava<br>5-4 ou<br><span class="lime">4-5?</span></h1>
+    <p class="p" style="margin-top:60px;max-width:820px">E se o placar estivesse <b>ouvindo</b>? Dia <b>26/10</b> você descobre.</p>
+  </div>
+  <svg class="logo" viewBox="0 0 182 46"><use href="#logo-h"/></svg><span class="handle">@ultraplay.app</span>
+</section>
+
+<!-- 2 véspera (D-1) -->
+<section class="art" id="amanha" style="background:#060708">
+  <div style="position:absolute;left:80px;right:80px;top:50%;transform:translateY(-55%)">
+    <h1 class="big lime" style="font-size:200px">Amanhã,<br>o placar<br>começa a<br>escutar.</h1>
+    <p class="p" style="margin-top:60px">26/10 às 8h. Comenta <b>PLACAR</b> que você recebe primeiro ⚡</p>
+  </div>
+  <svg class="logo" viewBox="0 0 182 46"><use href="#logo-h"/></svg><span class="handle">@ultraplay.app</span>
+</section>
+
+<!-- 3 lançamento (D0) -->
+<section class="art glow" id="lancamento">
+  <div style="position:absolute;left:80px;top:110px;width:520px">
+    <span class="pill"><svg class="ic"><use href="#i-mic"/></svg>Chegou</span>
+    <h1 class="big" style="margin-top:50px;font-size:134px">O placar<br>que<br><span class="lime">escuta.</span></h1>
+    <p class="p" style="margin-top:44px">Fale <b>“ponto verde”</b> e o app marca. No fim, cada um vê os próprios números.</p>
+    <p class="p" style="margin-top:30px"><b>Grátis.</b> Link na bio.</p>
+  </div>
+  <div class="phone" style="right:50px;top:150px;transform:rotate(4deg)"><img src="../../site/img/placar.webp"></div>
+  <span class="say" style="right:110px;top:1060px"><svg class="ic"><use href="#i-mic"/></svg>“Ponto verde”</span>
+  <svg class="logo" viewBox="0 0 182 46"><use href="#logo-h"/></svg><span class="handle">@ultraplay.app</span>
+</section>
+
+<!-- 4 turmas (R12 capa) -->
+<section class="art glow" id="turma">
+  <div style="position:absolute;left:80px;top:110px;width:520px">
+    <span class="pill"><svg class="ic"><use href="#i-users"/></svg>Grupos</span>
+    <h1 class="big" style="margin-top:50px;font-size:134px">Quem<br>manda<br>na sua<br><span class="lime">turma?</span></h1>
+    <p class="p" style="margin-top:44px">Crie o grupo em 3 minutos, convide pelo WhatsApp e veja o <b>ranking</b>, a <b>dupla do período</b> e a <b>resenha</b>.</p>
+  </div>
+  <div class="phone" style="right:50px;top:190px;transform:rotate(-3deg)"><img src="../../site/img/grupo.webp"></div>
+  <svg class="logo" viewBox="0 0 182 46"><use href="#logo-h"/></svg><span class="handle">@ultraplay.app</span>
+</section>
+
+<!-- 5 estatística (R11 capa) -->
+<section class="art glow" id="numeros">
+  <div style="position:absolute;left:80px;top:110px;width:520px">
+    <span class="pill"><svg class="ic"><use href="#i-chart"/></svg>Estatística</span>
+    <h1 class="big" style="margin-top:50px;font-size:134px">O set<br>não foi<br>perdido<br><span class="org">no 5-5.</span></h1>
+    <p class="p" style="margin-top:44px">Aces, winners, erros e o <b>momento do jogo</b>, ponto a ponto.</p>
+  </div>
+  <div class="phone" style="right:50px;top:190px;transform:rotate(3deg)"><img src="../../site/img/stats2.webp"></div>
+  <svg class="logo" viewBox="0 0 182 46"><use href="#logo-h"/></svg><span class="handle">@ultraplay.app</span>
+</section>
+
+<!-- 6 grátis x pro (R6 card final) -->
+<section class="art glow" id="planos">
+  <div style="position:absolute;left:80px;right:80px;top:110px">
+    <h1 class="mid">Grátis pra jogar.<br><span class="lime">Pro pra gravar.</span></h1>
+    <div class="card" style="margin-top:60px"><div style="font:900 64px/1 C;text-transform:uppercase">Grátis</div>
+      <div class="li"><svg class="ic"><use href="#i-check"/></svg>Placar por voz, toque, relógio e fone</div><div class="li"><svg class="ic"><use href="#i-check"/></svg>Estatísticas, perfil e conquistas</div><div class="li"><svg class="ic"><use href="#i-check"/></svg>Grupos com ranking e resenha</div><div class="li"><svg class="ic"><use href="#i-check"/></svg>Link das estatísticas no WhatsApp</div></div>
+    <div class="card" style="margin-top:28px;border-color:rgba(175,251,72,.4);background:linear-gradient(180deg,rgba(175,251,72,.10),rgba(175,251,72,.02) 50%),#0E1011"><div style="font:900 64px/1 C;text-transform:uppercase" class="lime">Pro</div>
+      <div class="li"><svg class="ic"><use href="#i-camera"/></svg>Cada ponto vira um lance em vídeo</div><div class="li"><svg class="ic"><use href="#i-replay"/></svg>Replay do jogo em vídeo e GIF</div><div class="li"><svg class="ic"><use href="#i-chart"/></svg>Ponto a ponto e pontos decisivos</div></div>
+  </div>
+  <svg class="logo" viewBox="0 0 182 46"><use href="#logo-h"/></svg><span class="handle">@ultraplay.app</span>
+</section>
+
+<!-- 7 story final (tela 10 da sequência) -->
+<section class="art story glow" id="story">
+  <div style="position:absolute;left:80px;right:80px;top:200px">
+    <h1 class="big" style="font-size:180px">Abre agora<br>e marca o<br><span class="lime">próximo jogo.</span></h1>
+    <p class="p" style="margin-top:50px">Fale o ponto. O app marca. Grátis, sem baixar nada.</p>
+  </div>
+  <div class="phone" style="left:380px;top:950px;width:320px;transform:rotate(-3deg)"><img src="../../site/img/placar.webp"></div>
+  <div style="position:absolute;left:80px;right:80px;bottom:110px;height:150px;border-radius:40px;border:4px dashed rgba(175,251,72,.6);display:grid;place-items:center;font:700 36px/1 B;color:#AFFB48;background:rgba(6,7,8,.7)">espaço para a figurinha de link</div>
+</section>
+
+<!-- 8 cartaz A4 para arena (com QR) -->
+<section class="art a4 glow" id="cartaz">
+  <div style="position:absolute;left:100px;right:100px;top:120px">
+    <svg viewBox="0 0 182 46" style="width:300px;height:76px;color:#AFFB48"><use href="#logo-h"/></svg>
+    <h1 class="big" style="margin-top:80px;font-size:200px">Fala<br>o ponto.<br><span class="lime">O app<br>marca.</span></h1>
+    <p class="p" style="margin-top:50px;font-size:44px">Placar por voz, estatística de cada ponto e o ranking da sua turma. <b>Grátis.</b></p>
+  </div>
+  <div style="position:absolute;left:100px;bottom:120px;display:flex;align-items:center;gap:50px">
+    <div class="qr" id="qrBox" style="width:360px;height:360px;border-radius:28px;overflow:hidden;background:#fff;padding:18px"></div>
+    <div><div style="font:900 72px/.95 C;text-transform:uppercase">Aponte<br>a câmera</div><div class="p" style="margin-top:18px;font-size:36px">e abra no celular</div></div>
+  </div>
+</section>
+<script src="../../vendor/qrcode.js"></script>
+<script>
+  const q = window.qrcode(0, 'M'); q.addData(window.QR_URL || 'https://filipeultra.github.io/canta-placar/?utm_source=cartaz&utm_medium=arena'); q.make();
+  document.getElementById('qrBox').innerHTML = q.createSvgTag({ cellSize: 8, margin: 0, scalable: true });
+</script>
+</body></html>

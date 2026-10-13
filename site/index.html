@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>ULTRA PLAY · o placar que escuta</title>
+<meta name="description" content="Fale “ponto verde” e o ULTRA PLAY marca. Estatística de cada ponto, conquistas, ranking da turma e replay para postar. Beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei.">
+<meta name="theme-color" content="#060708">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ULTRA PLAY · o placar que escuta">
+<meta property="og:description" content="Fale o ponto e o app marca. Estatística de cada ponto, ranking da turma e replay para postar.">
+<meta property="og:image" content="https://filipeultra.github.io/canta-placar/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+@font-face { font-family: "Bricolage Grotesque"; src: url("../fonts/bricolage-grotesque-latin.woff2") format("woff2"); font-weight: 400 800; font-display: swap; }
+@font-face { font-family: "Archivo Condensed"; src: url("../fonts/archivo-condensed-latin.woff2") format("woff2"); font-weight: 600 900; font-display: swap; }
+:root { color-scheme: dark; --bg: #060708; --surface: #0E1011; --surface-2: #15181A; --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14); --fg: #F4F6F2; --fg-2: #A3A9A6; --fg-3: #6E7471; --brand: #AFFB48; --brand-ink: #0B1200; --orange: #FF5A1F; --green: #19D27A;
+  --font-ui: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --font-cond: "Archivo Condensed", "Bricolage Grotesque", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 17px/1.55 var(--font-ui); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+a { color: inherit; }
+svg.ic { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.sym-fill { fill: currentColor; }
+.wrap { width: min(1120px, 100% - 32px); margin: 0 auto; }
+header.top { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: rgba(6,7,8,.72); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+.logo { display: block; width: 132px; height: 33px; color: var(--brand); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 50px; padding: 0 24px; border-radius: 16px; font: 700 16px/1 var(--font-ui); text-decoration: none; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--fg); transition: transform .15s, box-shadow .15s; }
+.btn:hover { transform: translateY(-1px); }
+.btn.brand { background: var(--brand); color: var(--brand-ink); border-color: transparent; box-shadow: 0 10px 40px -10px rgba(175,251,72,.6); }
+.btn.sm { height: 40px; padding: 0 16px; border-radius: 12px; font-size: 14px; }
+.btn .ic { width: 20px; height: 20px; }
+.hero { position: relative; padding: 56px 0 40px; overflow: hidden; }
+.hero::before { content: ""; position: absolute; inset: -20% -10% auto; height: 620px; background: radial-gradient(600px 300px at 20% 30%, rgba(175,251,72,.16), transparent 70%), radial-gradient(500px 300px at 85% 20%, rgba(255,90,31,.12), transparent 70%); pointer-events: none; }
+.hero .wrap { position: relative; display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--fg-2); font: 600 13px/1 var(--font-ui); }
+.chip .ic { width: 16px; height: 16px; color: var(--brand); }
+h1 { margin: 0; font: 900 clamp(52px, 9vw, 104px)/.9 var(--font-cond); letter-spacing: -.01em; text-transform: uppercase; }
+h1 em { font-style: normal; color: var(--brand); }
+.lead { margin: 22px 0 28px; max-width: 34ch; color: var(--fg-2); font-size: clamp(18px, 2.2vw, 21px); }
+.lead b { color: var(--fg); }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; }
+.note { margin-top: 14px; color: var(--fg-3); font-size: 14px; }
+.phone { position: relative; justify-self: center; width: min(320px, 78vw); aspect-ratio: 390 / 844; border-radius: 46px; padding: 10px; background: linear-gradient(160deg, #2A2E30, #0B0C0D 40%, #1B1E20); box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 40px 90px -30px rgba(175,251,72,.35), 0 30px 60px -20px rgba(0,0,0,.8); }
+.phone img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 37px; }
+.phone.tilt { transform: rotate(3deg); }
+.say { position: absolute; left: -36px; bottom: 26%; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 18px; background: var(--brand); color: var(--brand-ink); font: 800 18px/1 var(--font-ui); box-shadow: 0 20px 40px -12px rgba(0,0,0,.6); transform: rotate(-4deg); }
+.say .ic { width: 22px; height: 22px; }
+section { padding: 72px 0; }
+.kicker { color: var(--brand); font: 800 13px/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
+h2 { margin: 12px 0 14px; font: 900 clamp(36px, 5.6vw, 60px)/.95 var(--font-cond); text-transform: uppercase; letter-spacing: -.005em; }
+.sub { margin: 0; max-width: 56ch; color: var(--fg-2); }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 36px; }
+.step { padding: 24px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); }
+.step .n { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: rgba(175,251,72,.12); color: var(--brand); font: 900 20px/1 var(--font-cond); }
+.step h3 { margin: 16px 0 8px; font: 800 21px/1.2 var(--font-ui); }
+.step p { margin: 0; color: var(--fg-2); font-size: 16px; }
+.step code { padding: 2px 7px; border-radius: 7px; background: var(--surface-2); color: var(--fg); font: 600 15px/1.4 var(--font-ui); white-space: nowrap; }
+.feature { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; padding: 40px 0; }
+.feature + .feature { border-top: 1px solid var(--line); }
+.feature.rev .txt { order: 2; }
+.feature .phone { width: min(280px, 72vw); }
+.feature ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.feature li { display: flex; gap: 10px; color: var(--fg-2); }
+.feature li .ic { width: 20px; height: 20px; margin-top: 3px; color: var(--brand); }
+.feature li b { color: var(--fg); font-weight: 700; }
+.feature h3 { margin: 10px 0 10px; font: 900 clamp(30px, 4.2vw, 44px)/.98 var(--font-cond); text-transform: uppercase; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 34px; }
+.card { padding: 22px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.card .ic { width: 26px; height: 26px; color: var(--brand); }
+.card h4 { margin: 14px 0 6px; font: 800 18px/1.25 var(--font-ui); }
+.card p { margin: 0; color: var(--fg-2); font-size: 15px; }
+.tag { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; background: rgba(175,251,72,.14); color: var(--brand); font: 800 11px/1.4 var(--font-ui); letter-spacing: .06em; vertical-align: 2px; }
+.plans { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 34px; }
+.plan { padding: 28px; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); }
+.plan.pro { background: linear-gradient(180deg, rgba(175,251,72,.10), rgba(175,251,72,.02) 40%), var(--surface); border-color: rgba(175,251,72,.35); }
+.plan h3 { margin: 0; font: 900 34px/1 var(--font-cond); text-transform: uppercase; }
+.plan .price { margin: 10px 0 18px; color: var(--fg-2); font-size: 15px; }
+.plan .price b { color: var(--fg); font: 900 30px/1 var(--font-cond); }
+.plan ul { margin: 0 0 24px; padding: 0; list-style: none; display: grid; gap: 10px; }
+.plan li { display: flex; gap: 10px; }
+.plan li .ic { width: 20px; height: 20px; margin-top: 3px; color: var(--brand); }
+.pros { display: grid; grid-template-columns: 1.2fr .8fr; gap: 24px; align-items: center; padding: 34px; border-radius: 28px; background: radial-gradient(500px 200px at 90% 0%, rgba(255,90,31,.16), transparent 70%), var(--surface); border: 1px solid var(--line); }
+.pros ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; color: var(--fg-2); }
+.pros li { display: flex; gap: 10px; }
+.pros li .ic { width: 20px; height: 20px; margin-top: 3px; color: var(--orange); }
+.pros .side { display: grid; gap: 12px; justify-items: start; }
+.faq { display: grid; gap: 10px; margin-top: 30px; }
+details { border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; cursor: pointer; font: 700 17px/1.3 var(--font-ui); list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary .ic { width: 20px; height: 20px; color: var(--fg-3); transform: rotate(90deg); transition: transform .2s; }
+details[open] summary .ic { transform: rotate(-90deg); }
+details p { margin: 0; padding: 0 22px 20px; color: var(--fg-2); }
+.final { text-align: center; padding: 90px 0 70px; }
+.final h2 { margin-bottom: 18px; }
+.final .cta { justify-content: center; }
+footer { padding: 30px 0 40px; border-top: 1px solid var(--line); color: var(--fg-3); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+footer .logo { width: 110px; height: 28px; color: var(--fg-2); }
+.sports { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.sport { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font: 700 15px/1 var(--font-ui); }
+.sport .ic { width: 22px; height: 22px; color: var(--brand); }
+@media (max-width: 860px) {
+  .hero { padding-top: 34px; }
+  .hero .wrap, .feature, .pros, .plans { grid-template-columns: 1fr; }
+  .feature { gap: 28px; }
+  .feature.rev .txt { order: 0; }
+  .steps, .grid { grid-template-columns: 1fr; }
+  .say { left: -10px; font-size: 16px; }
+  section { padding: 56px 0; }
+}
+@media (min-width: 861px) and (max-width: 1040px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn { transition: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="logo-h" viewBox="0 0 182 46" class="sym-fill"><path fill="currentColor" stroke="none" d="M0.595607 22.7648L13.3915 0.583801H26.1638L10.5924 27.5398H4.19444C0.689691 27.5398 -0.956837 25.3758 0.57208 22.7413L0.595607 22.7648Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M45.8045 23.0471L33.0087 45.2282H20.2363L35.8078 18.2722H42.2057C45.7105 18.2722 47.357 20.4362 45.8281 23.0706L45.8045 23.0471Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M26.1874 13.4737V0.583801H45.9928L35.7843 18.2722H32.5618C29.057 18.2722 26.1639 16.1082 26.1639 13.4737H26.1874Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M20.2128 32.3382V45.2282H0.407471L10.6159 27.5398H13.8384C17.3432 27.5398 20.2364 29.7038 20.2364 32.3382H20.2128Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M64.2158 44.7909C58.0965 44.7909 53.8067 40.6272 53.8067 34.4448V0H60.4938V34.4448C60.4938 37.0313 62.0709 32.96 64.2158 32.96C66.3608 32.96 67.9379 37.0313 67.9379 34.4448V0H74.4988V34.4448C74.4988 40.6272 70.3352 44.7909 64.2158 44.7909Z"/><path fill="currentColor" stroke="none" d="M79.0124 44.16V0H85.6995V37.8514H97.6227V44.16H79.0124Z"/><path fill="currentColor" stroke="none" d="M94.0583 6.30857L91.2001 3.15429L94.0583 0H115.381L112.4 3.15429L115.381 6.30857H108.063V44.16H101.376V6.30857H94.0583Z"/><path fill="currentColor" stroke="none" d="M139.968 44.16H133.029L128.171 25.9282H124.702V44.16H118.015V0H128.487C134.859 0 138.959 4.16366 138.959 10.5353V15.3929C138.959 19.4935 137.256 22.6478 134.354 24.4142L139.968 44.16ZM124.702 6.30857V19.6197H128.171C130.758 19.6197 132.272 18.1056 132.272 15.5191V10.4091C132.272 7.82263 130.758 6.30857 128.171 6.30857H124.702Z"/><path fill="currentColor" stroke="none" d="M157.542 44.16L156.091 34.3817L152.495 32.16L148.9 34.3817L147.449 44.16H140.761L148.079 0H157.038L164.356 44.16H157.542ZM149.783 27.947H155.208L152.495 9.46286L149.783 27.947Z"/><path fill="currentColor" stroke="none" d="M161.007 38.4H179.407L175.8 44.156L161.007 44.1564V38.4Z"/><path fill="currentColor" stroke="none" d="M164.064 18V5.15911H167.109C168.962 5.15911 170.154 6.36983 170.154 8.22258V9.7268C170.154 11.5796 168.962 12.7903 167.109 12.7903H166.008V18H164.064ZM166.008 10.9559H167.017C167.769 10.9559 168.21 10.5156 168.21 9.76349V8.18589C168.21 7.43378 167.769 6.99353 167.017 6.99353H166.008V10.9559ZM171.418 18V5.15911H173.363V16.1656H176.83V18H171.418ZM171.625 33L171.203 30.1567H169.112L168.69 33H166.746L168.874 20.1591H171.479L173.606 33H171.625ZM169.369 28.2856H170.947L170.158 22.9107L169.369 28.2856ZM178.374 20.1591H180.41L177.806 27.6252V33H175.861V27.6252L173.256 20.1591H175.329L176.833 25.057L178.374 20.1591Z"/></symbol>
+<symbol id="s-beach" viewBox="0 0 24 24"><path transform="rotate(-32 11 10)" d="M11 2a5.2 5.2 0 0 1 5.2 5.2c0 2.7-1.9 4.7-4.1 5.1l-.4 4.7h-1.4l-.4-4.7C7.7 11.9 5.8 9.9 5.8 7.2A5.2 5.2 0 0 1 11 2Z"/><circle cx="18.6" cy="5" r="1.9"/><path d="M3 21.5c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 4.5 0"/></symbol>
+<symbol id="s-padel" viewBox="0 0 24 24"><path d="M12 2.5a6.5 6.5 0 0 1 6.5 6.5c0 3.3-2.3 5.7-4.8 6.3L13 21.5h-2l-.7-6.2C7.8 14.7 5.5 12.3 5.5 9A6.5 6.5 0 0 1 12 2.5Z"/><path d="M10 7h.01M14 7h.01M12 9.5h.01M10 12h.01M14 12h.01"/></symbol>
+<symbol id="s-tenis" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.4 5.8a9 9 0 0 1 0 12.4"/><path d="M18.6 5.8a9 9 0 0 0 0 12.4"/></symbol>
+<symbol id="s-peteca" viewBox="0 0 24 24"><path d="M8.5 17h7l-1 4h-5z"/><path d="M8.5 17 5 3.5M15.5 17 19 3.5M12 17V3M10.2 17 8.5 4M13.8 17l1.7-13"/></symbol>
+<symbol id="s-volei" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3c2.6 2.2 4 5.3 4 9"/><path d="M3.6 9.2c3.3-.6 6.6.3 8.4 2.8 1.7 2.5 1.7 5.8.5 8.9"/><path d="M20.6 15.3c-3 1.4-6.4 1.2-8.6-.7"/></symbol>
+<symbol id="s-futevolei" viewBox="0 0 24 24"><circle cx="16" cy="6" r="3.5"/><path d="M3 20.5h18"/><path d="M5 17.5c1.6-2.2 3.6-3.3 6-3.3 1.4 0 2.6.3 3.7 1"/><path d="m9 14.2 1.5-4.7"/></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></symbol>
+<symbol id="i-watch" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3.2"/><path d="M9 6l.7-3h4.6l.7 3M9 18l.7 3h4.6l.7-3"/><path d="M12 9.5V12l1.6 1.2"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.4" r="3.4"/></symbol>
+<symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><path d="M14 14h2.5v2.5H14zM17.5 17.5H20V20h-2.5zM14 18.5V20M20 14v1.5"/></symbol>
+<symbol id="i-replay" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/><path d="m10 9 5 3-5 3z"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V11"/><path d="M10 20V5"/><path d="M16 20v-6"/><path d="M21 20H3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.4 3.3-5.5 6.5-5.5s5.7 2.1 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.8 3.1 2.6 3.5 5.2"/></symbol>
+<symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7.5 4.5h9v5a4.5 4.5 0 0 1-9 0v-5Z"/><path d="M7.5 6.5H4.5v1.5A3 3 0 0 0 7.6 11M16.5 6.5h3v1.5a3 3 0 0 1-3.1 3"/><path d="M12 14v3.5M8.5 20.5h7M9.5 20.5l.5-3h4l.5 3"/></symbol>
+<symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 4.2-2.6M10.5 5.1A15 15 0 0 1 22 8.8M5 12.5a10 10 0 0 1 5.2-2.7M16.6 11.1a10 10 0 0 1 2.4 1.4M8.5 16a5 5 0 0 1 7 0M12 20h.01"/><path d="m3 3 18 18"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3.5"/><path d="m7.5 8 4.5-4.5L16.5 8"/><path d="M5 12v7.5h14V12"/></symbol>
+<symbol id="i-tv" viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><path d="m8 2.5 4 4 4-4"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2.5 4 13.5h7l-1 8 9-11h-7l1-8Z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6.5 9.5 17 4 11.5"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="i-medal" viewBox="0 0 24 24"><circle cx="12" cy="15" r="5.5"/><path d="m8.5 10.7-3-7.2h4.2l2.3 5.6M15.5 10.7l3-7.2h-4.2L12 9.1"/><path d="m12 12.6.8 1.6 1.7.3-1.2 1.2.3 1.7-1.6-.8-1.6.8.3-1.7-1.2-1.2 1.7-.3Z"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5 4.5-4.5"/><path d="M4.5 20.5h15"/></symbol>
+</defs></svg>
+
+<header class="top"><div class="wrap">
+  <a href="#" aria-label="ULTRA PLAY, início"><svg class="logo" viewBox="0 0 182 46"><use href="#logo-h"/></svg></a>
+  <a class="btn brand sm" href="../?utm_source=site&amp;utm_medium=topo">Abrir o app</a>
+</div></header>
+
+<main>
+<section class="hero"><div class="wrap">
+  <div>
+    <div class="chips"><span class="chip"><svg class="ic"><use href="#i-mic"/></svg>Placar por voz</span><span class="chip"><svg class="ic"><use href="#i-chart"/></svg>Estatística de cada ponto</span><span class="chip"><svg class="ic"><use href="#i-users"/></svg>Ranking da turma</span></div>
+    <h1>O placar<br>que <em>escuta.</em></h1>
+    <p class="lead">Fale <b>“ponto verde”</b> e o ULTRA PLAY marca. No fim, cada um vê os próprios números, as conquistas e o replay do jogo para postar.</p>
+    <div class="cta"><a class="btn brand" href="../?utm_source=site&amp;utm_medium=hero"><svg class="ic"><use href="#i-play"/></svg>Abrir o app grátis</a><a class="btn" href="#como">Como funciona</a></div>
+    <p class="note">Abre no navegador do celular, sem loja. Instale na tela inicial em 2 toques.</p>
+  </div>
+  <div class="phone tilt"><img src="img/placar.webp" width="600" height="1298" alt="Placar do ULTRA PLAY ouvindo o comando “ponto verde”: Verde 40, Laranja 15, break point"><span class="say"><svg class="ic"><use href="#i-mic"/></svg>“Ponto verde”</span></div>
+</div></section>
+
+<section id="como"><div class="wrap">
+  <span class="kicker">Como funciona</span>
+  <h2>Acabou o “tava 5-4 ou 4-5?”</h2>
+  <p class="sub">Ninguém precisa largar a raquete. O celular fica na lateral da quadra e o placar anda sozinho.</p>
+  <div class="steps">
+    <div class="step"><span class="n">1</span><h3>Prenda o celular na lateral</h3><p>Na altura da rede, com a tela virada para a quadra. Toque no microfone e comece o jogo.</p></div>
+    <div class="step"><span class="n">2</span><h3>Fale o ponto</h3><p><code>ponto verde</code> <code>ace laranja</code> <code>desfazer</code>. O app fala o placar de volta. Sem voz, use o relógio, o fone ou o toque.</p></div>
+    <div class="step"><span class="n">3</span><h3>Veja e poste</h3><p>Aces, winners, erros, momento do jogo e conquistas. Mande o link no grupo ou poste o replay no story.</p></div>
+  </div>
+  <div class="sports" aria-label="Esportes">
+    <span class="sport"><svg class="ic"><use href="#s-beach"/></svg>Beach tennis</span><span class="sport"><svg class="ic"><use href="#s-padel"/></svg>Padel</span><span class="sport"><svg class="ic"><use href="#s-tenis"/></svg>Tênis</span><span class="sport"><svg class="ic"><use href="#s-peteca"/></svg>Peteca</span><span class="sport"><svg class="ic"><use href="#s-volei"/></svg>Vôlei de praia</span><span class="sport"><svg class="ic"><use href="#s-futevolei"/></svg>Futevôlei</span>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="feature">
+    <div class="txt"><span class="kicker">Estatística</span><h3>Cada ponto conta uma história</h3>
+      <p class="sub">O app guarda como cada ponto acabou e mostra o jogo do jeito que ele foi.</p>
+      <ul><li><svg class="ic"><use href="#i-check"/></svg><span><b>Aces, winners e erros</b> de cada time e de cada jogador.</span></li><li><svg class="ic"><use href="#i-check"/></svg><span><b>Momento do jogo:</b> quem estava na frente em cada ponto e onde virou.</span></li><li><svg class="ic"><use href="#i-check"/></svg><span><b>Ponto a ponto</b> e pontos decisivos, para o professor ler o jogo com o aluno.</span></li></ul></div>
+    <div class="phone"><img src="img/stats2.webp" width="600" height="1298" alt="Estatísticas de uma partida: placar 5-7, pontos 34-35, aces, winners, erros e gráfico do momento"></div>
+  </div>
+  <div class="feature rev">
+    <div class="txt"><span class="kicker">Grupos</span><h3>O ranking da sua turma</h3>
+      <p class="sub">“Peteca de segunda”, “Beach todo domingo”: crie o grupo e convide pelo link do WhatsApp.</p>
+      <ul><li><svg class="ic"><use href="#i-check"/></svg><span><b>Ranking por período</b>, dupla do período, maior sequência e quem mais jogou.</span></li><li><svg class="ic"><use href="#i-check"/></svg><span><b>Resenha:</b> o mural do grupo para comentar o jogo e combinar o próximo.</span></li><li><svg class="ic"><use href="#i-check"/></svg><span><b>Um celular marca para todos:</b> cada membro autoriza o organizador por 1 h, 3 h ou até o fim do dia, e as partidas entram no perfil de cada um.</span></li></ul></div>
+    <div class="phone"><img src="img/grupo.webp" width="600" height="1298" alt="Ranking do grupo Beach todo domingo com destaques e classificação"></div>
+  </div>
+  <div class="feature">
+    <div class="txt"><span class="kicker">Perfil</span><h3>Sua evolução, jogo a jogo</h3>
+      <p class="sub">Sequências, aproveitamento, contra quem você joga melhor e com quem faz a melhor dupla.</p>
+      <ul><li><svg class="ic"><use href="#i-check"/></svg><span><b>Conquistas</b> como Pneu, Virada histórica, Avalanche e Coruja.</span></li><li><svg class="ic"><use href="#i-check"/></svg><span><b>Confrontos e parceiros</b> com filtro de período.</span></li><li><svg class="ic"><use href="#i-check"/></svg><span><b>Privacidade em 3 níveis:</b> aberto, personalizado ou privado.</span></li></ul></div>
+    <div class="phone"><img src="img/voce.webp" width="600" height="1298" alt="Perfil com vitórias seguidas, semanas seguidas, aproveitamento e totais"></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <span class="kicker">E tem mais</span>
+  <h2>Feito para a quadra de verdade</h2>
+  <div class="grid">
+    <div class="card"><svg class="ic"><use href="#i-wifi-off"/></svg><h4>Funciona sem internet</h4><p>A voz pode rodar no próprio celular, sem sinal na arena. O app abre offline depois da primeira vez.</p></div>
+    <div class="card"><svg class="ic"><use href="#i-watch"/></svg><h4>Relógio e fone</h4><p>Os botões de música do Garmin, Amazfit, Apple Watch, Galaxy Watch ou do fone Bluetooth marcam o ponto.</p></div>
+    <div class="card"><svg class="ic"><use href="#i-camera"/></svg><h4>Grave a partida <span class="tag">PRO</span></h4><p>Cada ponto marcado vira um lance em vídeo. Use outro celular como câmera pelo QR Code, e o placar mostra se ele está gravando.</p></div>
+    <div class="card"><svg class="ic"><use href="#i-replay"/></svg><h4>Replay para o story <span class="tag">PRO</span></h4><p>O jogo inteiro em segundos, em vídeo ou GIF, com placar e estatísticas na tela.</p></div>
+    <div class="card"><svg class="ic"><use href="#i-share"/></svg><h4>Link no WhatsApp</h4><p>Quem jogou abre as estatísticas pelo link, mesmo sem o app, e pode guardar a partida no perfil.</p></div>
+    <div class="card"><svg class="ic"><use href="#i-tv"/></svg><h4>Placar na TV</h4><p>Modo TV em tela cheia e segunda janela para o telão da arena ou do torneio.</p></div>
+  </div>
+</div></section>
+
+<section id="planos"><div class="wrap">
+  <span class="kicker">Planos</span>
+  <h2>Grátis para jogar. Pro para gravar.</h2>
+  <div class="plans">
+    <div class="plan"><h3>Grátis</h3><p class="price"><b>R$ 0</b> para sempre</p>
+      <ul><li><svg class="ic"><use href="#i-check"/></svg>Placar por voz, toque, relógio e fone</li><li><svg class="ic"><use href="#i-check"/></svg>Estatísticas, perfil e conquistas</li><li><svg class="ic"><use href="#i-check"/></svg>Grupos com ranking e resenha</li><li><svg class="ic"><use href="#i-check"/></svg>Timeline, zap e link no WhatsApp</li><li><svg class="ic"><use href="#i-check"/></svg>Imagens para o story</li></ul>
+      <a class="btn" href="../?utm_source=site&amp;utm_medium=plano-gratis">Começar grátis</a></div>
+    <div class="plan pro"><h3>Pro</h3><p class="price"><b>Liberado</b> para testar no lançamento</p>
+      <ul><li><svg class="ic"><use href="#i-check"/></svg>Gravação da partida com cada ponto em vídeo</li><li><svg class="ic"><use href="#i-check"/></svg>Outro celular como câmera, pelo QR Code</li><li><svg class="ic"><use href="#i-check"/></svg>Replay animado em vídeo e GIF</li><li><svg class="ic"><use href="#i-check"/></svg>Ponto a ponto e pontos decisivos</li><li><svg class="ic"><use href="#i-check"/></svg>Exportar em planilha (CSV)</li></ul>
+      <a class="btn brand" href="../?utm_source=site&amp;utm_medium=plano-pro">Testar o Pro</a></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="pros">
+    <div><span class="kicker" style="color:var(--orange)">Professores e arenas</span><h2>Leve para a sua turma</h2>
+      <p class="sub">Os alunos marcam o jogo falando, e você lê os números de cada um para montar o treino.</p>
+      <ul><li><svg class="ic"><use href="#i-check"/></svg>Um grupo por turma, com ranking da temporada</li><li><svg class="ic"><use href="#i-check"/></svg>Um celular lança as partidas de todo mundo, com autorização de cada aluno</li><li><svg class="ic"><use href="#i-check"/></svg>Placar na TV para torneios e desafios</li></ul></div>
+    <div class="side"><a class="btn brand" href="../?utm_source=site&amp;utm_medium=professores#grupos"><svg class="ic"><use href="#i-users"/></svg>Criar o grupo da turma</a><p class="note">Planos para professores, arenas e organizadores em breve.</p></div>
+  </div>
+</div></section>
+
+<section id="perguntas"><div class="wrap">
+  <span class="kicker">Perguntas</span>
+  <h2>Antes de entrar na quadra</h2>
+  <div class="faq">
+    <details><summary>Precisa baixar na loja?<svg class="ic"><use href="#i-chev"/></svg></summary><p>Não. O ULTRA PLAY abre no navegador do celular. Para ficar com cara de app, instale na tela inicial: no iPhone, Compartilhar → Adicionar à Tela de Início; no Android, “Instalar app”.</p></details>
+    <details><summary>Entende com barulho na arena?<svg class="ic"><use href="#i-chev"/></svg></summary><p>Os comandos são curtos (“ponto verde”, “ace laranja”) e o app confirma em voz alta. Deixe o celular na lateral, na altura da rede, longe da caixa de som. Se não entender, um toque resolve, ou use os botões do relógio ou do fone.</p></details>
+    <details><summary>Funciona sem internet?<svg class="ic"><use href="#i-chev"/></svg></summary><p>Sim. Depois da primeira vez, o app abre sem sinal. Para a voz funcionar offline, baixe uma vez o reconhecimento de voz no próprio celular (cerca de 31 MB, de preferência no Wi-Fi).</p></details>
+    <details><summary>Onde ficam as minhas partidas?<svg class="ic"><use href="#i-chev"/></svg></summary><p>Hoje, no seu aparelho. Você pode exportar um backup e restaurar em outro aparelho quando quiser. A conta na nuvem, para sincronizar entre aparelhos, vem em seguida.</p></details>
+    <details><summary>Quem jogou comigo precisa ter o app?<svg class="ic"><use href="#i-chev"/></svg></summary><p>Não. Mande o link das estatísticas no grupo: quem abre vê a partida completa e, se quiser, guarda no próprio perfil.</p></details>
+    <details><summary>Quanto custa?<svg class="ic"><use href="#i-chev"/></svg></summary><p>Placar, estatísticas, conquistas e grupos são grátis. O Pro, com gravação e replay em vídeo, está liberado para testar durante o lançamento.</p></details>
+  </div>
+</div></section>
+
+<section class="final"><div class="wrap">
+  <h2>No próximo jogo,<br>deixa o placar com a gente.</h2>
+  <div class="cta"><a class="btn brand" href="../?utm_source=site&amp;utm_medium=final"><svg class="ic"><use href="#i-play"/></svg>Abrir o ULTRA PLAY</a></div>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <svg class="logo" viewBox="0 0 182 46" aria-label="ULTRA PLAY" role="img"><use href="#logo-h"/></svg>
+  <span>Feito no Brasil para quem joga. © 2026 ULTRA PLAY</span>
+</div></footer>
+</body>
+</html>
