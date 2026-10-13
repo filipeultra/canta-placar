@@ -36,6 +36,8 @@ create table public.profiles (
   birth_date     date,                       -- política de menores: ver docs/legal (decisão pendente)
   guardian_consent_at timestamptz,           -- consentimento do responsável, quando exigido
   pro_until      timestamptz,                -- preenchido pelo webhook de pagamento (service role)
+  show_online    boolean not null default true,   -- "Mostrar quando estou jogando" (jogando agora)
+  live_view      boolean not null default true,   -- "Deixar amigos verem o placar ao vivo"
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
   deleted_at     timestamptz
@@ -585,6 +587,113 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ============================================================
+-- jogando agora (presença e placar ao vivo) e análise do dia
+-- ============================================================
+-- Quem vê: só quem segue a pessoa (e sem bloqueio), e só se ela deixou "Mostrar quando estou jogando" (show_online).
+-- O placar e os nomes saem pela função live_for_viewer, nunca direto das tabelas:
+--   · a pessoa com live_view desligado: só "está jogando <esporte>", sem placar;
+--   · outra pessoa da partida com live_view desligado: placar sim, mas os outros nomes viram "Jogador 2, 3…";
+--   · todos permitem: placar e nomes. Vale a escolha mais fechada entre os jogadores.
+create table public.live_matches (
+  match_id       text primary key check (match_id ~ '^[A-Za-z0-9_-]{1,64}$'),   -- o mesmo id da partida no aparelho
+  owner_id       uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  sport          text not null check (char_length(sport) <= 20),
+  place_name     text check (char_length(place_name) <= 60),
+  started_at     timestamptz not null default now(),
+  last_point_at  timestamptz not null default now(),
+  score          jsonb not null default '{}',   -- { sets:[[a,b]...], games:[a,b], points:["15","30"], server:0|1 }
+  guests         jsonb not null default '[]',   -- [{ team, slot, name }] de quem não tem conta
+  check (jsonb_typeof(score) = 'object' and jsonb_typeof(guests) = 'array' and pg_column_size(score) < 4000 and pg_column_size(guests) < 2000)
+);
+create index live_matches_recent on public.live_matches (last_point_at desc);
+
+create table public.live_players (
+  match_id  text not null references public.live_matches(match_id) on delete cascade,
+  user_id   uuid not null references public.profiles(id) on delete cascade,
+  team      smallint not null check (team in (0, 1)),
+  slot      smallint not null check (slot between 0 and 5),
+  primary key (match_id, user_id),
+  unique (match_id, team, slot)
+);
+create index live_players_user on public.live_players (user_id);
+
+alter table public.live_matches enable row level security;
+alter table public.live_players enable row level security;
+-- direto nas tabelas, só o dono da partida (ele publica o placar a cada ponto)
+create policy live_owner_all on public.live_matches for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy live_players_read on public.live_players for select using (user_id = auth.uid() or exists (select 1 from public.live_matches l where l.match_id = live_players.match_id and l.owner_id = auth.uid()));
+create policy live_players_owner_ins on public.live_players for insert with check (exists (select 1 from public.live_matches l where l.match_id = live_players.match_id and l.owner_id = auth.uid()) and not public.is_blocked_between(user_id, auth.uid()));
+create policy live_players_owner_del on public.live_players for delete using (exists (select 1 from public.live_matches l where l.match_id = live_players.match_id and l.owner_id = auth.uid()) or user_id = auth.uid());
+
+-- o que quem está olhando (viewer) pode ver de alguém (target) que está jogando agora
+create or replace function public.live_for_viewer(target uuid)
+returns table (match_id text, sport text, place_name text, started_at timestamptz, last_point_at timestamptz, mode text, score jsonb, players jsonb)
+language plpgsql stable security definer set search_path = public as $$
+declare viewer uuid := auth.uid(); t profiles; l live_matches; any_closed boolean;
+begin
+  if viewer is null then return; end if;
+  select * into t from profiles where id = target and deleted_at is null;
+  if not found or not t.show_online then return; end if;
+  if viewer <> target and (not public.follows_active(viewer, target) or public.is_blocked_between(viewer, target)) then return; end if;
+  select lm.* into l from live_matches lm
+   where (lm.owner_id = target or exists (select 1 from live_players lp where lp.match_id = lm.match_id and lp.user_id = target))
+     and lm.last_point_at > now() - interval '30 minutes'
+   order by lm.last_point_at desc limit 1;
+  if not found then return; end if;
+  match_id := l.match_id; sport := l.sport; place_name := l.place_name; started_at := l.started_at; last_point_at := l.last_point_at;
+  if not t.live_view then
+    mode := 'so-jogando'; score := null; players := null; return next; return;
+  end if;
+  -- a escolha mais fechada entre todos os jogadores com conta (o dono da partida também conta)
+  select exists (select 1 from profiles p where (p.id = l.owner_id or p.id in (select lp.user_id from live_players lp where lp.match_id = l.match_id)) and not p.live_view)
+    into any_closed;
+  mode := case when any_closed then 'nomes' else 'aberto' end;
+  score := l.score;
+  select coalesce(jsonb_agg(x order by (x->>'team')::int, (x->>'slot')::int), '[]'::jsonb) into players from (
+    select jsonb_build_object('team', lp.team, 'slot', lp.slot,
+             'name', case when lp.user_id = target or not any_closed then p.name else null end,
+             'user_id', case when lp.user_id = target or not any_closed then lp.user_id else null end) as x
+      from live_players lp join profiles p on p.id = lp.user_id where lp.match_id = l.match_id
+    union all
+    select jsonb_build_object('team', (g->>'team')::int, 'slot', (g->>'slot')::int, 'name', case when any_closed then null else g->>'name' end, 'user_id', null)
+      from jsonb_array_elements(l.guests) g
+  ) s;
+  return next;
+end $$;
+
+-- limpeza (agendar no Supabase a cada 15 min): partida sem ponto há mais de 30 min sai do "jogando agora"
+create or replace function public.live_cleanup() returns integer
+language sql volatile security definer set search_path = public as $$
+  with d as (delete from live_matches where last_point_at < now() - interval '30 minutes' returning 1) select count(*)::int from d
+$$;
+
+-- análise do dia: uma por pessoa, por esporte e por dia, e só quando há partida nova desde a última
+create table public.daily_analyses (
+  user_id        uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  sport          text not null check (sport ~ '^[a-z]{2,20}$'),   -- 'geral' ou o esporte
+  day            date not null default current_date,
+  last_match_at  timestamptz not null,
+  items          jsonb not null check (jsonb_typeof(items) = 'array' and pg_column_size(items) < 8000),
+  source         text not null default 'regras' check (source in ('regras', 'ia')),
+  created_at     timestamptz not null default now(),
+  primary key (user_id, sport, day)
+);
+alter table public.daily_analyses enable row level security;
+create policy daily_read on public.daily_analyses for select using (user_id = auth.uid());
+-- pelo app só entra a análise por regras; a da IA quem grava é a função do servidor (service role)
+create policy daily_insert on public.daily_analyses for insert with check (user_id = auth.uid() and source = 'regras');
+create policy daily_delete on public.daily_analyses for delete using (user_id = auth.uid());
+create or replace function public.daily_only_new() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from daily_analyses d where d.user_id = new.user_id and d.sport = new.sport and d.last_match_at >= new.last_match_at) then
+    raise exception 'sem partida nova desde a última análise' using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+create trigger daily_only_new before insert on public.daily_analyses for each row execute function public.daily_only_new();
+
+-- ============================================================
 -- permissões por coluna (o Supabase dá acesso amplo às tabelas; as regras por linha dizem QUAIS linhas,
 -- e estes grants dizem QUAIS COLUNAS cada um pode mudar)
 -- ============================================================
@@ -594,7 +703,7 @@ grant insert, update, delete on all tables in schema public to authenticated;
 grant execute on all functions in schema public to anon, authenticated;
 -- perfil: a pessoa não mexe no Pro, no ID público nem no consentimento do responsável
 revoke update on public.profiles from authenticated;
-grant update (handle, name, city, bio, avatar_url, sports, privacy_level, privacy_show, birth_date, deleted_at) on public.profiles to authenticated;
+grant update (handle, name, city, bio, avatar_url, sports, privacy_level, privacy_show, show_online, live_view, birth_date, deleted_at) on public.profiles to authenticated;
 revoke insert, delete on public.profiles from authenticated;
 -- marcado só responde (aceitar/recusar); dono troca jogador apagando e inserindo de novo
 revoke update on public.match_players from authenticated;
@@ -621,3 +730,10 @@ grant update (revoked_at) on public.group_delegations to authenticated;
 -- lugares: arena verificada só pela equipe
 revoke update on public.places from authenticated;
 grant update (name, city, lat, lng) on public.places to authenticated;
+-- jogando agora: ninguém de fora lê as tabelas (só pela função live_for_viewer); dono não troca id nem dono
+revoke all on public.live_matches, public.live_players, public.daily_analyses from anon;
+revoke update on public.live_matches from authenticated;
+grant update (sport, place_name, last_point_at, score, guests) on public.live_matches to authenticated;
+revoke update on public.live_players, public.daily_analyses from authenticated;
+revoke execute on function public.live_for_viewer(uuid), public.live_cleanup() from public, anon;
+revoke execute on function public.live_cleanup() from authenticated;

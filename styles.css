@@ -2966,3 +2966,52 @@ button.st-kpi:active, .st-tile:active { transform: scale(0.98); }
 .live-note .ic { flex: none; margin-top: 2px; }
 #liveBody { display: grid; gap: 14px; }
 @media (prefers-reduced-motion: reduce) { .av.is-live::after, .me-avatar.is-live::after { animation: none; display: none; } }
+
+/* ===== v29 · estatísticas: abas, pontos detalhados, ajuda "?", com um jogador ===== */
+.bk-bars u:first-child em { transform-origin: right; }
+.st-tabs span { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.st-tabs .ic { font-size: 15px; }
+.st-tabs .pro-badge { margin-left: 2px; }
+.qhelp { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 4px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--fg-2); font: 750 12px/1 var(--font); vertical-align: middle; cursor: pointer; position: relative; }
+.qhelp::before { content: ""; position: absolute; inset: -11px; } /* área de toque de 44px */
+.qhelp:hover, .qhelp:focus-visible { color: var(--fg); border-color: var(--fg-3); }
+.st-types .qhelp { align-self: center; }
+.st-detail { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.st-dl { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; }
+.st-dl .ic { font-size: 15px; color: var(--brand-ink); }
+.st-detail .seg span { display: inline-flex; align-items: baseline; gap: 4px; }
+.st-detail .seg small { font-size: 10.5px; color: var(--fg-2); font-weight: 600; }
+.st-detail .seg .ic { font-size: 11px; align-self: center; }
+.st-detail .seg label.locked span { color: var(--fg-2); }
+.st-warn { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--fill); font-size: 12.5px; line-height: 1.4; color: var(--fg); flex-wrap: wrap; }
+.st-warn > .ic { flex: none; margin-top: 1px; color: var(--fg-2); }
+.st-warn > span { flex: 1; min-width: 200px; }
+.st-warn .linkish { margin-left: auto; font-weight: 750; color: var(--brand-ink); }
+.ph-tools { display: inline-flex; align-items: center; gap: 6px; }
+.st-search { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; border-radius: 12px; background: var(--fill); }
+.st-search .ic { color: var(--fg-2); flex: none; }
+.st-search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--fg); font: 500 15px var(--font); outline: none; }
+.st-search:focus-within { box-shadow: 0 0 0 2px var(--brand); }
+.st-people { display: flex; flex-wrap: wrap; gap: 6px; max-height: 196px; overflow-y: auto; }
+.pchip { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px 0 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); font: 650 13px/1 var(--font); }
+.pchip[hidden] { display: none; }
+.pchip .mini-av { width: 28px; height: 28px; font-size: 10px; background: var(--av, var(--surface-2)); color: #101500; }
+.pchip small { color: var(--fg-2); font-size: 11px; }
+.pchip.on { background: var(--ink); color: var(--ink-fg); border-color: var(--ink); }
+.pchip.on small { color: inherit; opacity: 0.75; }
+.st-side span { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.st-side small { font-size: 11px; color: var(--fg-2); }
+.st-side input:disabled + span { opacity: 0.45; }
+.st-vs-head { display: flex; align-items: center; gap: 12px; }
+.st-vs-head > div { display: grid; gap: 2px; min-width: 0; }
+.st-vs-head b { font: 800 18px/1.2 var(--font-display); }
+.st-vs-head span { color: var(--fg-2); font-size: 13px; }
+.mini-av.big { width: 46px; height: 46px; font-size: 15px; background: var(--av, var(--surface-2)); color: #101500; flex: none; }
+.st-vs .st-kpis .st-kpi { background: var(--surface-2); box-shadow: none; }
+.cmp-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 750; color: var(--fg-2); margin-bottom: -4px; }
+.bk-row.cmp b { font-size: 14px; }
+.bk-row.cmp { grid-template-columns: 36px minmax(0, 1fr) 36px; }
+.st-detail .seg input:checked + span small { color: var(--fg); }
+.st-side input:checked + span small { color: var(--fg); }
+.st-who { grid-template-columns: minmax(0, 1fr); }
+.st-search input { width: 100%; }

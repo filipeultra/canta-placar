@@ -50,17 +50,18 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
   - **Limite conhecido:** qualquer um pode mandar eventos de visita (é assim que o site conta visitas sem login). Isso não dá acesso a nada, mas alguém mal-intencionado pode inflar os números de visitas; o Supabase limita a taxa de pedidos por IP e o painel mostra a origem para identificar.
 - **Primeiro admin:** depois de criar sua conta no app, rode no SQL Editor: `insert into admins (user_id) select id from auth.users where email = 'seu@email.com';`
 
-## Jogando agora (presença e placar ao vivo) · ainda não está no banco
-No app já funciona com a rede de demonstração. Para valer com pessoas reais, o modelo é este:
-- **Tabela `live_matches`:** `match_id`, `owner_id`, `sport`, `started_at`, `last_point_at`, `score` (jsonb com sets, games e pontos), `players` (ids de quem tem conta). Some quando a partida termina ou fica 30 min sem ponto.
-- **Escolhas de cada pessoa em `profiles`:** `show_online` (aparece jogando) e `live_view` (amigos veem o placar), as duas ligadas por padrão.
-- **Quem vê (RLS):** só quem segue o dono, e só se o dono tiver `show_online`. Sem isso, a linha nem aparece.
-- **O placar e os nomes saem por uma função (`live_for_viewer`)**, nunca direto da tabela:
-  - dono com `live_view` desligado: só "está jogando <esporte>", sem placar;
-  - alguém da partida com `live_view` desligado: o placar sai, mas os nomes dos outros jogadores vêm como "Jogador 2", "Jogador 3" (vale a escolha mais fechada entre os jogadores);
-  - todos permitem: placar e nomes.
-- **Tempo real:** Supabase Realtime no canal da partida, só para quem passou na função acima.
-- **Testes a escrever (como os de `tests/admin.sql`):** quem não segue não vê; `show_online` desligado esconde; um jogador com `live_view` desligado esconde os nomes; ninguém consegue ler `players` direto.
+## Jogando agora (presença e placar ao vivo) e análise do dia
+Já estão no `schema.sql`, com testes em `tests/ao-vivo.sql` (24 verificações). O app ainda usa a rede de demonstração; quando a conta na nuvem for ligada, ele passa a publicar o placar nestas tabelas.
+- **`profiles.show_online` e `profiles.live_view`** (ligados por padrão): "Mostrar quando estou jogando" e "Deixar amigos verem o placar ao vivo". Cada um só muda os seus.
+- **`live_matches` + `live_players`:** a partida em andamento (placar em `score`, convidados sem conta em `guests`). Só o dono lê e escreve direto; ninguém se coloca na partida de outro nem troca o dono.
+- **`live_for_viewer(pessoa)`** é o único jeito de outra pessoa ver:
+  - só quem segue a pessoa (sem bloqueio), e só se ela deixou `show_online`;
+  - a pessoa com `live_view` desligado: só "está jogando <esporte>", sem placar (`mode = 'so-jogando'`);
+  - alguém da partida com `live_view` desligado: placar sim, nomes e ids dos outros vazios (`mode = 'nomes'`; o app mostra "Jogador 2, 3…");
+  - todos permitem: placar e nomes (`mode = 'aberto'`);
+  - partida sem ponto há mais de 30 min não aparece. `live_cleanup()` apaga as paradas (agendar a cada 15 min; só o servidor roda).
+- **Tempo real:** Supabase Realtime avisando que o placar mudou; o app chama `live_for_viewer` de novo (assim as regras valem sempre).
+- **`daily_analyses`:** uma análise por pessoa, por esporte e por dia, e só com partida nova (`last_match_at` maior que o da última, conferido por gatilho). Pelo app só entra a análise por regras (`source = 'regras'`); a da IA quem grava é a função do servidor.
 
 ## Como ligar (passo a passo)
 
@@ -85,4 +86,5 @@ createdb ultraplay_teste
 psql -d ultraplay_teste -f supabase/tests/supabase-stub.sql
 psql -d ultraplay_teste -f supabase/schema.sql
 psql -d ultraplay_teste -f supabase/tests/regras.sql
+psql -d ultraplay_teste -f supabase/tests/ao-vivo.sql   # jogando agora e análise do dia (numa base nova)
 ```

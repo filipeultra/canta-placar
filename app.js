@@ -994,8 +994,8 @@
   }
 
   function renderStats() {
-    $('#fullBody').innerHTML = sumHTML(match, S.matchStats(match), true);
-    fillVideoPanels($('#fullBody'));
+    $('#statsBody').innerHTML = sumHTML(match, S.matchStats(match), true);
+    fillVideoPanels($('#statsBody'));
   }
 
   // Fim de jogo
@@ -1197,7 +1197,7 @@
     if (view === 'grupos') renderGrupos();
     if (view === 'camera') renderCamera(id); else if (typeof camRelease === 'function' && !(cam.r && cam.r.state.recording)) camRelease();
     if (view === 'voce') renderMe();
-    if (view === 'stats') renderStats();
+    if (view === 'stats') { renderFull(); maybeStatsTour(); }
     if (view === 'jogar') { render(); renderVoice(); maybePlayTour(); }
     const hash = '#' + view + (id ? '-' + id : '');
     if (location.hash !== hash) history_replace(hash);
@@ -2684,7 +2684,7 @@
   }
   // adianta o cálculo do perfil quando o celular está ocioso: a primeira ida a Você já abre na hora
   function warmProfile() {
-    const run = () => { try { const m = meSubject(); profileOf(m.list, m.who); } catch (e) { console.info('[perfil] pré-cálculo falhou', e); } };
+    const run = () => { try { const m = meSubject(); profileOf(m.list, m.who); if (window.CantaFull) window.CantaFull.rows(m.list, m.who); } catch (e) { console.info('[perfil] pré-cálculo falhou', e); } };
     if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 3000 }); else setTimeout(run, 1200);
   }
   function renderMe() {
@@ -2812,12 +2812,62 @@
   const SHOT_EN = { voleio: 'volley', ataque: 'attack', bloqueio: 'block', saque: 'serve' };
   const oppTxt = o => (EN ? String(o).replace(/ e /g, ' and ') : o);
   const shotName = k => (EN ? SHOT_EN[k] || k : G.SHOT_LABEL[k] || k);
-  const stF = Object.assign({ period: '180', types: [], sport: '' }, prefs.statsF || {});
+  const stF = Object.assign({ period: '180', types: [], sport: '', detail: 0, tab: 'me', with: '', side: '' }, prefs.statsF || {});
   const ST_PERIODS = [['30', '30d'], ['90', '3m'], ['180', '6m'], ['365', '12m'], ['all', 'Sempre']];
   const ST_PERIOD_LONG = { 30: 'últimos 30 dias', 90: 'últimos 3 meses', 180: 'últimos 6 meses', 365: 'últimos 12 meses', all: 'desde o começo' };
   const FUN_TYPES = ['resenha', 'treino', 'aula'];
   const ST_PERIOD_EN = { 30: 'last 30 days', 90: 'last 3 months', 180: 'last 6 months', 365: 'last 12 months', all: 'since the start' };
   const sportEN = sp => (window.CantaI18n ? window.CantaI18n.t(sportLabel(sp)) : sportLabel(sp));
+
+  // "?" pequeno ao lado do que precisa de explicação: abre um aviso curto
+  const QHELP = {
+    detalhe: [L('Pontos detalhados', 'Detailed points'), L('Um ponto é detalhado quando foi lançado com o tipo do lance: ace, winner, erro (na rede ou fora), dupla falta ou o golpe. Partidas marcadas só com "ponto" deixam aces, winners e erros abaixo do real. Escolha 50%+ ou 80%+ para usar só as partidas bem lançadas: os números ficam mais confiáveis. O número pequeno é quantas partidas entram em cada opção.', 'A point is detailed when it was logged with what happened: ace, winner, error (net or out), double fault or the shot. Matches logged with just "point" make aces, winners and errors look lower than they were. Pick 50%+ or 80%+ to use only well-logged matches, so the numbers are more reliable. The small number is how many matches each option includes.')],
+    serio: [L('Só pra valer', 'Competitive only'), L('Tira resenha, treino e aula dos números e deixa amistoso, campeonato e desafio. Bom para ver como você joga quando vale o resultado. Você também pode tocar em cada tipo para escolher um por um.', 'Leaves out casual games, practice and lessons, keeping friendlies, tournaments and challenges. Good for seeing how you play when the result counts. You can also tap each type to pick them one by one.')],
+    analise: [L('Análise do dia', 'Daily analysis'), L('Compara as suas partidas mais recentes com as de antes e mostra o que melhorou, o que piorou, o que treinar e o seu ponto forte. Sai no máximo uma vez por dia para cada esporte, e só quando há partida nova. Usa as partidas do esporte escolhido, sem resenhas e aulas, e, para erros e acertos, as partidas com pelo menos metade dos pontos detalhados.', 'Compares your latest matches with the ones before and shows what improved, what got worse, what to work on and your strength. It comes out at most once a day per sport, and only when there is a new match. It uses the chosen sport\'s matches, without casual games and lessons, and, for errors and winners, the matches with at least half of the points detailed.')],
+    jogador: [L('Com um jogador', 'With a player'), L('Escolha uma pessoa para ver só as partidas com ela. Contra: ela estava do outro lado. Junto: vocês jogaram na mesma dupla ou time. Os filtros de esporte, período, tipo e pontos detalhados também valem aqui. Os números dela só aparecem nos pontos em que o nome dela foi marcado.', 'Pick someone to see only your matches with them. Against: they were on the other side. Together: you played on the same pair or team. The sport, period, type and detailed points filters apply here too. Their numbers only count the points logged with their name.')],
+  };
+  const qhelp = k => '<button class="qhelp" type="button" data-qhelp="' + k + '" aria-label="' + esc(L('O que é isso?', 'What is this?')) + '" title="' + esc(L('O que é isso?', 'What is this?')) + '">?</button>';
+  // filtro em uso nas estatísticas (o detalhe e "com um jogador" só valem no Pro)
+  function stFilter() {
+    const pro = isPro() || meSubject().useDemo;
+    const f = Object.assign({}, stF, { detail: pro ? stF.detail : 0, with: '', side: '' });
+    if (pro && stF.tab === 'with' && stF.with) Object.assign(f, { with: stF.with, side: stF.side });
+    return f;
+  }
+  // aba "com um jogador": escolhe a pessoa, contra ou junto, e mostra o retrospecto
+  function withHTML(R, fx) {
+    const ppl = F.people(F.filter(R, Object.assign({}, fx, { period: 'all' })));
+    let h = '';
+    if (!ppl.length) return '<div class="empty-state">' + ic('i-users') + '<b>' + esc(L('Ninguém por aqui ainda', 'Nobody here yet')) + '</b><span>' + esc(L('Coloque o nome dos jogadores ao criar a partida para ver o retrospecto com cada um.', 'Add the players\' names when you create a match to see your record with each one.')) + '</span></div>';
+    const sel = ppl.find(p => p.key === stF.with) || null;
+    h += '<div class="panel st-who">' + ph('i-users', 'Com quem?', qhelp('jogador')) +
+      '<label class="st-search">' + ic('i-search') + '<input type="search" id="stWho" autocomplete="off" placeholder="' + esc(L('Buscar jogador', 'Search player')) + '" aria-label="' + esc(L('Buscar jogador', 'Search player')) + '"></label>' +
+      '<div class="st-people" id="stPeople"' + (sel ? ' data-sel="1"' : '') + '>' + ppl.slice(0, 60).map(p => '<button class="pchip' + (sel && sel.key === p.key ? ' on' : '') + '" type="button" data-stwith="' + esc(p.key) + '" data-name="' + esc(S.fold(p.name)) + '" aria-pressed="' + !!(sel && sel.key === p.key) + '"' + (sel && sel.key !== p.key ? ' hidden' : '') + '><span class="mini-av" style="--av:' + nameColor(p.name) + '">' + esc(initials(p.name)) + '</span><span>' + esc(p.name) + '</span><small>' + p.n + '</small></button>').join('') + '</div>' +
+      (sel && ppl.length > 1 ? '<button class="linkish small st-more" type="button" data-stmore>' + esc(L('Ver todos (' + ppl.length + ')', 'See all (' + ppl.length + ')')) + '</button>' : '') +
+      '<p class="hint st-none" hidden>' + esc(L('Ninguém com esse nome nas suas partidas.', 'Nobody with that name in your matches.')) + '</p></div>';
+    if (!sel) return h + '<p class="hint center">' + esc(L('Escolha alguém para ver as partidas contra ou junto.', 'Pick someone to see your matches against or with them.')) + '</p>';
+    const side = stF.side === 'opp' && sel.opp ? 'opp' : stF.side === 'mate' && sel.mate ? 'mate' : sel.opp >= sel.mate ? 'opp' : 'mate';
+    const fn = firstName(sel.name);
+    h += '<div class="seg seg-wide st-side" role="radiogroup" aria-label="' + esc(L('Contra ou junto', 'Against or together')) + '"><label><input type="radio" name="stSide" value="opp"' + (side === 'opp' ? ' checked' : '') + (sel.opp ? '' : ' disabled') + '><span>' + ic('i-swords') + esc(L('Contra', 'Against')) + ' <small>' + sel.opp + '</small></span></label><label><input type="radio" name="stSide" value="mate"' + (side === 'mate' ? ' checked' : '') + (sel.mate ? '' : ' disabled') + '><span>' + ic('i-users') + esc(L('Junto', 'Together')) + ' <small>' + sel.mate + '</small></span></label></div>';
+    const list = F.filter(R, Object.assign({}, fx, { with: sel.key, side }));
+    if (!list.length) return h + '<div class="empty-state">' + ic('i-chart') + '<b>' + esc(L('Nenhuma partida com esses filtros', 'No matches with these filters')) + '</b><span>' + esc(L('Aumente o período ou escolha outros tipos de partida.', 'Widen the period or pick other match types.')) + '</span></div>';
+    const a = F.agg(list), o = F.aggOther(list, sel.key), M = id => F.metric(id);
+    h += '<div class="panel st-vs" translate="no"><div class="st-vs-head"><span class="mini-av big" style="--av:' + nameColor(sel.name) + '">' + esc(initials(sel.name)) + '</span><div><b>' + esc(side === 'opp' ? L('Você × ' + sel.name, 'You vs ' + sel.name) : L('Você e ' + sel.name, 'You and ' + sel.name)) + '</b><span>' + esc(L(a.matches + (a.matches === 1 ? ' partida' : ' partidas') + (side === 'opp' ? ' contra' : ' juntos'), a.matches + (a.matches === 1 ? ' match' : ' matches') + (side === 'opp' ? ' against' : ' together'))) + ' · ' + a.wins + L('V', 'W') + ' · ' + a.losses + L('D', 'L') + '</span></div></div>' +
+      '<div class="st-kpis">' + [M('winRate'), M('ptsPct'), M('margin'), M('streak')].map(mt => '<div class="st-kpi"><span class="st-ic">' + ic(mt.ic) + '</span><em>' + esc(window.CantaI18n ? window.CantaI18n.t(mt.label) : mt.label) + '</em><b>' + esc(fmtMt(mt, F.value(mt, a))) + '</b></div>').join('') + '</div></div>';
+    h += '<div class="panel">' + ph('i-trend', side === 'opp' ? 'Aproveitamento contra' : 'Aproveitamento juntos') + xChartHTML(M('winRate'), F.series(list, M('winRate'))) + '</div>';
+    // você e a outra pessoa, por partida (só pontos com o nome marcado)
+    const kind = stF.sport ? F.kindOf(stF.sport) : 'games';
+    const per = (x, k) => (x.attributed ? x[k] / x.attributed : null);
+    const rows = [['Pontos', 'pts'], ['Winners', 'winners']].concat(kind === 'games' ? [['Aces', 'aces'], ['Duplas faltas', 'df']] : [['Assistências', 'assists']]).concat([['Erros', 'errors']]);
+    if (a.attributed && o.attributed) {
+      h += '<div class="panel">' + ph('i-swap', side === 'opp' ? L('Você × ' + fn, 'You vs ' + fn) : L('Você e ' + fn, 'You and ' + fn), '<span class="sec-meta">por partida</span>') + '<div class="cmp-head" translate="no"><span>' + esc(L('Você', 'You')) + '</span><span>' + esc(fn) + '</span></div>' +
+        rows.map(([lbl, k]) => { const x = per(a, k) || 0, y = per(o, k) || 0, t = x + y; const w = v => (t ? Math.round(v / t * 100) : 0) + '%';
+          return '<div class="bk-row cmp"><b>' + esc(one(x)) + '</b><div class="bk-mid"><span>' + esc(lbl) + '</span><div class="bk-bars"><u><em style="width:' + w(x) + ';--tc:var(--chart)"></em></u><u><em style="width:' + w(y) + ';--tc:' + (side === 'opp' ? 'var(--alert)' : 'var(--c-azul)') + '"></em></u></div></div><b>' + esc(one(y)) + '</b></div>'; }).join('') +
+        (side === 'mate' && a.teamPts ? '<p class="st-lead" translate="no">' + ic('i-users') + '<span>' + esc(L('Dos pontos do time, ' + Math.round(a.pts / a.teamPts * 100) + '% foram seus e ' + Math.round(o.pts / a.teamPts * 100) + '% de ' + fn + '.', 'Of the team\'s points, ' + Math.round(a.pts / a.teamPts * 100) + '% were yours and ' + Math.round(o.pts / a.teamPts * 100) + '% were ' + fn + '\'s.')) + '</span></p>' : '') + '</div>';
+    } else h += '<p class="hint">' + ic('i-info') + ' ' + esc(L('Para comparar pontos, winners e erros, marque quem fez cada ponto.', 'To compare points, winners and errors, log who won each point.')) + '</p>';
+    h += '<div class="panel">' + ph('i-history', 'Partidas') + '<div class="recs">' + list.slice(-10).reverse().map(r => '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(r.endedAt)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? L('V', 'W') : r.won === false ? L('D', 'L') : '–') + '</span></span><small translate="no">' + (side === 'opp' ? L('contra ', 'vs ') + esc(oppTxt(r.opp)) : esc(TYPE_LABEL[r.type] || '')) + ' · ' + esc(L(Math.round(r.detail * 100) + '% detalhado', Math.round(r.detail * 100) + '% detailed')) + '</small></span><b>' + r.teamPts + '-' + r.oppPts + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
+    return h;
+  }
   const xcData = new Map(); // gráficos interativos desenhados agora (id → pontos)
   let stEvo = 'winRate', stDetail = null;
   const fmtMt = (mt, v) => (v === null || v === undefined || !Number.isFinite(v) ? '–'
@@ -2904,7 +2954,7 @@
     const s = meSubject();
     return Object.assign(s, { rows: F.rows(s.list, s.who) });
   }
-  function saveStF() { prefs.statsF = { period: stF.period, types: stF.types.slice(), sport: stF.sport }; savePrefs(); }
+  function saveStF() { prefs.statsF = { period: stF.period, types: stF.types.slice(), sport: stF.sport, detail: stF.detail, tab: stF.tab, with: stF.with, side: stF.side }; savePrefs(); }
   // análise do dia: base é o esporte escolhido, sem resenha e aula (se sobrar o bastante); guardada por esporte
   function dailyFor(rowsAll, sport, demo) {
     const sp = rowsAll.filter(r => !sport || r.sport === sport);
@@ -2933,12 +2983,12 @@
       : status === 'same' ? L('Sem partidas novas desde ' + fmtDay(data.lastAt) + ': a análise continua valendo.', 'No new matches since ' + fmtDay(data.lastAt) + ', so this analysis still holds.')
         : L('Atualizada hoje com ' + (data.n === 1 ? 'a partida' : 'as ' + data.n + ' partidas') + (sport ? ' de ' + sportLabel(sport) : '') + (data.fun ? '' : ', sem as resenhas e aulas') + '.',
           'Updated today with your ' + (data.n === 1 ? '' : data.n + ' ') + (sport ? sportEN(sport) + ' ' : '') + (data.n === 1 ? 'match' : 'matches') + (data.fun ? '' : ', leaving out casual games and lessons') + '.');
-    return '<div class="panel ai-day">' + ph('i-sparkles', 'Análise do dia', '<span class="sec-meta">' + esc(fmtDay(when.getTime())) + '</span>') +
+    return '<div class="panel ai-day">' + ph('i-sparkles', 'Análise do dia', '<span class="ph-tools"><span class="sec-meta">' + esc(fmtDay(when.getTime())) + '</span>' + qhelp('analise') + '</span>') +
       '<p class="ai-status" translate="no">' + ic(status === 'tomorrow' ? 'i-clock' : status === 'same' ? 'i-check' : 'i-sparkles') + '<span>' + esc(st) + '</span></p>' +
       '<div class="ai-items" translate="no">' + data.items.map((it, k) => '<div class="ai-item t-' + it.tone + '" style="--k:' + k + '"><span class="ai-ic">' + ic(it.ic) + '</span><div><b>' + esc(it.title) + '</b><p>' + esc(it.text) + '</p></div></div>').join('') + '</div></div>';
   }
 
-  function renderStats() {
+  function renderFull() {
     const body = $('#fullBody'); if (!body) return;
     xcData.clear();
     const { rows: R, useDemo, who } = statsSubject();
@@ -2948,14 +2998,18 @@
     const typesCount = {}; R.filter(r => !stF.sport || r.sport === stF.sport).forEach(r => { typesCount[r.type] = (typesCount[r.type] || 0) + 1; });
     const types = SO.TYPES.map(t => t.id).filter(t => typesCount[t]);
     stF.types = stF.types.filter(t => typesCount[t]);
-    const cur = F.filter(R, stF), prev = F.previous(R, stF);
-    const a = F.agg(cur), pa = prev && prev.length ? F.agg(prev) : null;
     const pro = isPro() || useDemo;
+    if (!pro) { stF.tab = 'me'; } // pontos detalhados e "com um jogador" são do Pro
+    const fx = Object.assign({}, stF, { detail: pro ? stF.detail : 0, with: '', side: '' });
+    const cur = F.filter(R, fx), prev = F.previous(R, fx);
+    const a = F.agg(cur), pa = prev && prev.length ? F.agg(prev) : null;
     const mts = F.metricsFor(stF.sport);
     const M = id => F.metric(id);
     const v = (mt, x) => (x ? F.value(mt, x) : null);
     let h = '';
     if (useDemo) h += '<p class="demo-note" translate="no">' + ic('i-info') + '<span>' + esc(L('Exemplo com as partidas fictícias da ' + firstName(who) + '. As suas aparecem aqui depois da primeira partida com o seu nome.', 'A sample with ' + firstName(who) + '\'s made-up matches. Yours show up here after your first match with your name on it.')) + '</span></p>';
+    // abas: os seus números ou as partidas com uma pessoa (contra ou junto)
+    h += '<div class="seg seg-wide st-tabs" role="radiogroup" aria-label="O que ver"><label><input type="radio" name="stTab" value="me"' + (stF.tab !== 'with' ? ' checked' : '') + '><span>' + ic('i-user') + 'Meus números</span></label><label><input type="radio" name="stTab" value="with"' + (stF.tab === 'with' ? ' checked' : '') + '><span>' + ic('i-users') + 'Com um jogador' + (pro ? '' : '<span class="pro-badge">PRO</span>') + '</span></label></div>';
     // filtros
     h += '<div class="st-filters">';
     if (sports.length > 1) h += '<div class="sport-filter" role="radiogroup" aria-label="Esporte"><button class="sf' + (stF.sport ? '' : ' on') + '" type="button" role="radio" aria-checked="' + !stF.sport + '" data-stsport="">' + ic('i-grid') + '<span>Visão geral</span></button>' +
@@ -2966,9 +3020,17 @@
       const seriousOn = fun.length && stF.types.length && fun.every(t => !stF.types.includes(t)) && types.filter(t => !FUN_TYPES.includes(t)).every(t => stF.types.includes(t));
       h += '<div class="st-types" role="group" aria-label="Tipo de partida"><button class="fchip' + (!stF.types.length ? ' on' : '') + '" type="button" data-sttype="" aria-pressed="' + !stF.types.length + '">Todas</button>' +
         (fun.length && types.length > fun.length ? '<button class="fchip fchip-ic' + (seriousOn ? ' on' : '') + '" type="button" data-sttype="@serio" aria-pressed="' + !!seriousOn + '">' + ic('i-trophy') + 'Só pra valer</button>' : '') +
-        types.map(t => '<button class="fchip' + (stF.types.includes(t) ? ' on' : '') + '" type="button" data-sttype="' + t + '" aria-pressed="' + stF.types.includes(t) + '">' + esc(TYPE_LABEL[t]) + '<small>' + typesCount[t] + '</small></button>').join('') + '</div>';
+        types.map(t => '<button class="fchip' + (stF.types.includes(t) ? ' on' : '') + '" type="button" data-sttype="' + t + '" aria-pressed="' + stF.types.includes(t) + '">' + esc(TYPE_LABEL[t]) + '<small>' + typesCount[t] + '</small></button>').join('') + qhelp('serio') + '</div>';
     }
-    h += '<p class="st-sum" translate="no">' + ic('i-filter') + '<span>' + a.matches + L(a.matches === 1 ? ' partida' : ' partidas', a.matches === 1 ? ' match' : ' matches') + ' · ' + esc(EN ? ST_PERIOD_EN[stF.period] : ST_PERIOD_LONG[stF.period]) + (stF.types.length ? ' · ' + esc(stF.types.map(t => TYPE_LABEL[t]).join(', ')) : '') + '</span></p></div>';
+    // pontos detalhados: só as partidas em que boa parte dos pontos foi lançada com o tipo do lance (Pro)
+    const dc = F.detailCounts(R, Object.assign({}, fx, stF.tab === 'with' && stF.with ? { with: stF.with, side: stF.side } : {}));
+    h += '<div class="st-detail"><span class="st-dl">' + ic('i-target') + 'Pontos detalhados' + qhelp('detalhe') + '</span><div class="seg seg-sm" role="radiogroup" aria-label="Pontos detalhados">' +
+      F.DETAIL.map(([d, l], i) => '<label' + (!pro && d ? ' class="locked"' : '') + '><input type="radio" name="stDetail" value="' + d + '"' + ((pro ? stF.detail : 0) === d ? ' checked' : '') + (!pro && d ? ' data-locked="1"' : '') + '><span>' + (!pro && d ? ic('i-lock') : '') + l + '<small>' + dc[i] + '</small></span></label>').join('') + '</div></div>';
+    const low = cur.filter(r => r.detail < 0.5).length;
+    if (stF.tab !== 'with') h += '<p class="st-sum" translate="no">' + ic('i-filter') + '<span>' + a.matches + L(a.matches === 1 ? ' partida' : ' partidas', a.matches === 1 ? ' match' : ' matches') + ' · ' + esc(EN ? ST_PERIOD_EN[stF.period] : ST_PERIOD_LONG[stF.period]) + (stF.types.length ? ' · ' + esc(stF.types.map(t => TYPE_LABEL[t]).join(', ')) : '') + (fx.detail ? ' · ' + L(Math.round(fx.detail * 100) + '%+ detalhados', Math.round(fx.detail * 100) + '%+ detailed') : '') + '</span></p>' +
+      (!fx.detail && low && stF.tab !== 'with' ? '<p class="st-warn" translate="no">' + ic('i-info') + '<span>' + esc(L(low === 1 ? '1 partida tem menos da metade dos pontos detalhados: aces, winners e erros dela ficam abaixo do real.' : low + ' partidas têm menos da metade dos pontos detalhados: aces, winners e erros delas ficam abaixo do real.', low === 1 ? '1 match has fewer than half of its points detailed, so its aces, winners and errors read low.' : low + ' matches have fewer than half of their points detailed, so their aces, winners and errors read low.')) + '</span>' + (pro ? '<button class="linkish small" type="button" data-stdetail="0.5">' + esc(L('Usar só 50%+', 'Use 50%+ only')) + '</button>' : '') + '</p>' : '');
+    h += '</div>';
+    if (stF.tab === 'with') { body.innerHTML = h + withHTML(R, fx); return; }
 
     if (!a.matches) {
       body.innerHTML = h + '<div class="empty-state">' + ic('i-chart') + '<b>Nenhuma partida com esses filtros</b><span>Aumente o período ou escolha outros tipos de partida.</span></div>';
@@ -3065,7 +3127,8 @@
     const { rows: R, useDemo } = statsSubject();
     if (!isPro() && !useDemo && id !== 'winRate') { openPro('estatisticas', () => openStatDetail(id)); return; }
     stDetail = id;
-    const cur = F.filter(R, stF), prev = F.previous(R, stF);
+    const fx = stFilter();
+    const cur = F.filter(R, fx), prev = F.previous(R, fx);
     const a = F.agg(cur), pa = prev && prev.length ? F.agg(prev) : null;
     const s = F.series(cur, mt);
     const val = F.value(mt, a);
@@ -3077,16 +3140,32 @@
     let h = '<div class="sd-head"><span class="st-ic big">' + ic(mt.ic) + '</span><div><b>' + esc(fmtMt(mt, val)) + '</b><span>' + esc(mtUnitTxt(mt) || (EN ? ST_PERIOD_EN[stF.period] : ST_PERIOD_LONG[stF.period])) + '</span></div>' + deltaHTML(mt, val, pa ? F.value(mt, pa) : null) + '</div>' +
       '<p class="hint">' + esc(mt.help) + '</p>' + xChartHTML(mt, s, true);
     if (s.length >= 2) h += '<div class="kpis">' + [['Melhor partida', fmtMt(mt, best)], ['Últimas 5', fmtMt(mt, avg(l5))], ['5 anteriores', b5.length ? fmtMt(mt, avg(b5)) : '–']].map(([l, x]) => '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(x) + '</b></div>').join('') + '</div>';
-    if (s.length) h += '<h4 class="sd-sub">Partida a partida</h4><div class="recs">' + s.slice(-12).reverse().map(p => '<button class="rec-row" type="button" data-open="' + esc(p.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + p.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(p.t)) + '<span class="res-dot ' + (p.won === true ? 'w' : p.won === false ? 'l' : '') + '">' + (p.won === true ? 'V' : p.won === false ? 'D' : '–') + '</span></span><small translate="no">' + L('contra ', 'vs ') + esc(oppTxt(p.opp)) + ' · ' + esc(TYPE_LABEL[p.type] || '') + '</small></span><b>' + esc(fmtMt(mt, p.v)) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div>';
+    if (s.length) h += '<h4 class="sd-sub">Partida a partida</h4><div class="recs">' + s.slice(-12).reverse().map(p => '<button class="rec-row" type="button" data-open="' + esc(p.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + p.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(p.t)) + '<span class="res-dot ' + (p.won === true ? 'w' : p.won === false ? 'l' : '') + '">' + (p.won === true ? 'V' : p.won === false ? 'D' : '–') + '</span></span><small translate="no">' + L('contra ', 'vs ') + esc(oppTxt(p.opp)) + ' · ' + esc(TYPE_LABEL[p.type] || '') + (p.detail != null ? ' · ' + L(Math.round(p.detail * 100) + '% detalhado', Math.round(p.detail * 100) + '% detailed') : '') + '</small></span><b>' + esc(fmtMt(mt, p.v)) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div>';
     $('#statBody').innerHTML = h;
     openSheet('#sheetStat');
   }
   function wireStats() {
     const body = $('#fullBody');
-    body.addEventListener('change', e => { if (e.target.name === 'stPeriod') { stF.period = e.target.value; saveStF(); renderStats(); } });
+    body.addEventListener('change', e => {
+      const t = e.target;
+      if (t.name === 'stPeriod') { stF.period = t.value; saveStF(); renderFull(); }
+      if (t.name === 'stDetail') { if (t.dataset.locked) { renderFull(); openPro('detalhe', () => { stF.detail = Number(t.value); saveStF(); renderFull(); }); return; } stF.detail = Number(t.value); saveStF(); renderFull(); }
+      if (t.name === 'stTab') { if (t.value === 'with' && !(isPro() || meSubject().useDemo)) { renderFull(); openPro('jogador', () => { stF.tab = 'with'; saveStF(); renderFull(); }); return; } stF.tab = t.value; saveStF(); renderFull(); }
+      if (t.name === 'stSide') { stF.side = t.value; saveStF(); renderFull(); }
+    });
+    // busca de jogador: filtra a lista sem redesenhar a tela (o teclado não fecha)
+    body.addEventListener('input', e => {
+      if (e.target.id !== 'stWho') return;
+      const q = S.fold(e.target.value);
+      let n = 0;
+      const box = $('#stPeople', body), keepSel = box && box.dataset.sel && !q;
+      $$('#stPeople .pchip', body).forEach(b => { const on = keepSel ? b.classList.contains('on') : !q || b.dataset.name.includes(q); b.hidden = !on; if (on) n++; });
+      const more = $('.st-more', body); if (more) more.hidden = !keepSel;
+      const none = $('.st-none', body); if (none) none.hidden = n > 0;
+    });
     body.addEventListener('click', e => {
       const sp = e.target.closest('[data-stsport]');
-      if (sp) { stF.sport = sp.dataset.stsport; saveStF(); renderStats(); return; }
+      if (sp) { stF.sport = sp.dataset.stsport; saveStF(); renderFull(); return; }
       const ty = e.target.closest('[data-sttype]');
       if (ty) {
         const t = ty.dataset.sttype;
@@ -3094,16 +3173,22 @@
         if (!t) stF.types = [];
         else if (t === '@serio') stF.types = stF.types.length && !stF.types.some(x => FUN_TYPES.includes(x)) ? [] : present.filter(x => !FUN_TYPES.includes(x));
         else { stF.types = stF.types.includes(t) ? stF.types.filter(x => x !== t) : stF.types.concat(t); if (stF.types.length === present.length) stF.types = []; }
-        saveStF(); renderStats(); return;
+        saveStF(); renderFull(); return;
       }
+      const wi = e.target.closest('[data-stwith]');
+      if (wi) { stF.with = stF.with === wi.dataset.stwith ? '' : wi.dataset.stwith; stF.side = ''; saveStF(); renderFull(); return; }
+      if (e.target.closest('[data-stmore]')) { $$('#stPeople .pchip', body).forEach(b => { b.hidden = false; }); const box = $('#stPeople', body); if (box) delete box.dataset.sel; e.target.closest('[data-stmore]').hidden = true; return; }
+      const sd = e.target.closest('[data-stdetail]');
+      if (sd) { stF.detail = Number(sd.dataset.stdetail); saveStF(); renderFull(); return; }
       const ev = e.target.closest('[data-stevo]');
-      if (ev) { if (ev.dataset.locked) { openPro('estatisticas'); return; } stEvo = ev.dataset.stevo; renderStats(); return; }
+      if (ev) { if (ev.dataset.locked) { openPro('estatisticas'); return; } stEvo = ev.dataset.stevo; renderFull(); return; }
       const st = e.target.closest('[data-stat]');
       if (st) { openStatDetail(st.dataset.stat); return; }
       const pr = e.target.closest('[data-pro]');
-      if (pr) openPro(pr.dataset.pro, () => { if (currentView === 'stats') renderStats(); });
+      if (pr) openPro(pr.dataset.pro, () => { if (currentView === 'stats') renderFull(); });
     });
     wireXCharts();
+    document.addEventListener('click', e => { const q = e.target.closest('[data-qhelp]'); if (!q) return; e.stopPropagation(); const x = QHELP[q.dataset.qhelp]; if (x) openModal({ icon: 'i-help', title: x[0], text: x[1], actions: [{ label: L('Entendi', 'Got it'), kind: 'brand', act: closeModal }] }); }, true);
   }
 
 
@@ -3207,6 +3292,8 @@
   const isPro = () => !!prefs.pro;
   const PRO_FEATURES = { analise: 'a análise do jogo por IA',
     estatisticas: 'as estatísticas completas',
+    detalhe: 'o filtro de pontos detalhados',
+    jogador: 'as estatísticas com um jogador',
     momento: 'Momento ponto a ponto',
     exportar: 'Exportar planilha (CSV) e dados (JSON)',
     video: 'Vídeo animado da partida (MP4 e GIF)',
@@ -3219,7 +3306,7 @@
     $('#proBody').innerHTML =
       '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
       '<ul class="pro-list">' +
-      '<li><svg><use href="#i-chart"/></svg><span><b>Estatísticas completas</b>Os números do seu esporte (aces, break points, saque, ataques, golpes, erros na rede e fora), a evolução de cada um em gráfico e a análise do dia, que se atualiza quando há partida nova. Filtre por período e tire resenhas e treinos.</span></li>' +
+      '<li><svg><use href="#i-chart"/></svg><span><b>Estatísticas completas</b>Os números do seu esporte (aces, break points, saque, ataques, golpes, erros na rede e fora), a evolução de cada um em gráfico e a análise do dia, que se atualiza quando há partida nova. Filtre por período, tire resenhas e treinos e use só as partidas com os pontos detalhados. Veja também o seu retrospecto contra ou junto de cada jogador.</span></li>' +
       '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Cada ponto no gráfico e na lista, game a game: quem fez, ace, winner, erro, golpe e o placar naquele instante. Filtre por jogador ou tipo de lance.</span></li>' +
       '<li><svg><use href="#i-camera"/></svg><span><b>Gravar a partida em vídeo</b>Com este celular (miniatura no canto) ou com outro aparelho pelo QR Code. Cada ponto marcado vira um lance em vídeo para assistir e mandar.</span></li>' +
       '<li><svg><use href="#i-film"/></svg><span><b>Vídeo animado da partida</b>O replay ponto a ponto vira vídeo MP4 ou GIF para o story: gráfico, placar e lances evoluindo, com fundo de quadra, foto ou vídeo seu, ou transparente.</span></li>' +
@@ -3238,7 +3325,7 @@
     if (on && proBack) { const b = proBack; proBack = null; b(); }
     if (currentView === 'partida') renderMatchView(currentMatchId);
     if (currentView === 'voce') renderMe();
-    if (currentView === 'stats') renderStats();
+    if (currentView === 'stats') renderFull();
     setFeedback('', 'ok', on ? 'ULTRA PLAY Pro ativado (demonstração)' : 'ULTRA PLAY Pro desligado');
   }
 
@@ -4905,6 +4992,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13g', date: '13/10/2026', title: 'Pontos detalhados e retrospecto com cada jogador', items: [
+      'Estatísticas: filtro Pontos detalhados (Todas, 50%+ ou 80%+) para contar só as partidas bem lançadas. Números mais confiáveis.',
+      'Estatísticas: aba Com um jogador, com o seu retrospecto contra ou junto de cada pessoa, por esporte.',
+      'Um ? ao lado do que precisa de explicação, e um tour rápido na primeira vez nas estatísticas.',
+    ] },
     { id: '2026-10-13f', date: '13/10/2026', title: 'Estatísticas completas, on fire e jogando agora', items: [
       'Estatísticas completas (Pro): em Você, os números do seu esporte com gráfico de evolução de cada um. Filtre por período e tire resenhas e treinos.',
       'Análise do dia: sai uma vez por dia, por esporte, e só quando há partida nova.',
@@ -5060,16 +5152,23 @@
       { sel: '#view-inicio .feed-tabs', title: 'Sua timeline', text: 'Suas partidas e as de quem você segue, com placar, estatísticas e replay animado.' },
       { sel: '#view-inicio .bell', title: 'Notificações', text: 'Quando alguém te marca numa partida ou te dá um zap, aparece aqui.' },
       { sel: '#view-inicio [data-action="prefs"]', title: 'Ajustes e ajuda', text: 'Voz, microfone, tema, privacidade e a Ajuda: este tutorial, dicas e perguntas frequentes.' },
-      { sel: '.tabbar [data-go="voce"]', title: 'Você', text: 'Seu perfil com evolução, recordes, conquistas e grupos.' },
+      { sel: '.tabbar [data-go="voce"]', title: 'Você', text: 'Seu perfil com evolução, recordes, conquistas e as estatísticas completas.' },
       { title: 'No placar, é assim', list: [['i-hand', 'Toque no lado do time que fez o ponto'], ['i-grid', '“Lançar” abre um botão para cada lance: ace, winner, erro'], ['i-camera', 'Filme e cada ponto vira um lance em vídeo'], ['i-mic', 'E se quiser, marque por voz: “ponto azul”']], done: 'Bora jogar' },
     ],
     play: [
       { sel: '#board', title: 'Toque para marcar', text: 'Toque no lado do time que fez o ponto. Games, sets, saque e troca de lado seguem a regra do esporte sozinhos.', inset: true },
-      { sel: '#btnType', title: 'Lançar com detalhe', text: 'O painel tem um botão para cada lance: ace, winner, erro, dupla falta e quem fez. É isso que vira estatística de atleta.' },
+      { sel: '#btnType', title: 'Lançar com detalhe', text: 'O painel tem um botão para cada lance: ace, winner, erro, dupla falta e quem fez. Quanto mais pontos detalhados, mais confiáveis ficam as suas estatísticas.' },
       { sel: '#btnUndo', title: 'Errou? Volta', text: 'Desfaz o último lance na hora.' },
       { sel: '#btnMic', title: 'Voz, se quiser', text: 'Ligue o microfone e diga “ponto azul” ou “ace laranja”. Bom para quem joga sem largar a raquete.' },
       { sel: '#btnCam', title: 'Filmar a partida', text: 'Grave com este celular ou use outro aparelho como câmera pelo QR Code. Cada ponto vira um lance em vídeo.' },
       { sel: '#btnFinish', title: 'Encerrar e salvar', text: 'No fim: estatísticas, análise do jogo e imagem ou vídeo para mandar no grupo.', done: 'Bom jogo!' },
+    ],
+    // 1ª vez nas estatísticas completas
+    stats: [
+      { sel: '#view-stats .st-tabs', title: 'Seus números ou com alguém', text: 'Em Com um jogador você vê o retrospecto contra ou junto de cada pessoa.' },
+      { sel: '#view-stats .sport-filter', title: 'Geral ou um esporte', text: 'Escolha um esporte para ver o que é só dele: aces e break points no beach, padel e tênis; ataques e assistências na peteca e no vôlei.' },
+      { sel: '#view-stats .st-detail', title: 'Pontos detalhados', text: 'Use 50%+ ou 80%+ para contar só as partidas em que os pontos foram lançados com o tipo do lance. O ? explica cada filtro.' },
+      { sel: '#view-stats .st-kpis', title: 'Toque num número', text: 'Cada número abre o gráfico de evolução, partida a partida. Arraste o dedo no gráfico para ver cada ponto.', done: 'Bons números!' },
     ],
   };
   let tour = null;
@@ -5114,7 +5213,7 @@
   function endTour(done) {
     if (!tour) return;
     const k = tour.kind, back = tour.back, at = tour.i;
-    if (k === 'home') prefs.tour = done ? 'feito' : 'pulou'; else prefs.tourPlay = done ? 'feito' : 'pulou';
+    if (k === 'home') prefs.tour = done ? 'feito' : 'pulou'; else if (k === 'stats') prefs.tourStats = done ? 'feito' : 'pulou'; else prefs.tourPlay = done ? 'feito' : 'pulou';
     savePrefs();
     trk('tutorial', { step: (done ? 'fim_' : 'pulou_') + k, at });
     tour = null;
@@ -5140,6 +5239,11 @@
     if (prefs.tour !== 'feito' || prefs.tourPlay || SCREEN || tour) return;
     setTimeout(() => { if (currentView === 'jogar' && !tour && $('#modal').hidden && !$$('.sheet').some(x => !x.hidden)) startTour('play'); }, 650);
   }
+  // tour das estatísticas: na 1ª visita de quem já fez o tour do Início
+  function maybeStatsTour() {
+    if (prefs.tour !== 'feito' || prefs.tourStats || SCREEN || tour) return;
+    setTimeout(() => { if (currentView === 'stats' && !tour && $('#modal').hidden && !$$('.sheet').some(x => !x.hidden) && $('#view-stats .st-kpis')) startTour('stats'); }, 700);
+  }
   function wireTour() {
     $('#tourNext').addEventListener('click', () => tourGo(1));
     $('#tourPrev').addEventListener('click', () => tourGo(-1));
@@ -5160,6 +5264,7 @@
     const H = window.CantaHelp || { steps: [], tips: [], faq: [] };
     return '<div class="help-acts"><button class="btn btn-brand" type="button" data-action="tour">' + ic('i-play') + 'Ver o tutorial</button>' +
       '<button class="btn" type="button" data-action="tour-play">' + ic('i-hand') + 'Tour do placar</button>' +
+      '<button class="btn" type="button" data-action="tour-stats">' + ic('i-chart') + 'Tour das estatísticas</button>' +
       '<button class="btn" type="button" data-action="help-cmds">' + ic('i-mic') + 'Comandos de voz</button></div>' +
       '<section class="group"><h3>Primeiros passos</h3><ol class="help-steps">' + H.steps.map((x, i) => '<li><span class="n">' + (i + 1) + '</span><span><b>' + esc(x.title) + '</b>' + esc(x.text) + '</span></li>').join('') + '</ol></section>' +
       '<section class="group"><h3>Dicas</h3><div class="help-tips">' + H.tips.map(x => '<div class="help-tip"><span class="row-ic">' + ic(x.icon) + '</span><span><b>' + esc(x.title) + '</b>' + esc(x.text) + '</span></div>').join('') + '</div></section>' +
@@ -5470,6 +5575,7 @@
         if (a === 'helpcenter') openHelpCenter();
         if (a === 'tour') { closeAllSheets(); prefs.tourPlay = null; savePrefs(); if (currentView !== 'inicio') go('inicio'); setTimeout(() => startTour('home'), 280); }
         if (a === 'tour-play') { closeAllSheets(); go('jogar'); setTimeout(() => startTour('play'), 380); }
+        if (a === 'tour-stats') { closeAllSheets(); prefs.tourStats = 'feito'; savePrefs(); go('stats'); setTimeout(() => startTour('stats'), 450); }
         if (a === 'help-cmds') { closeAllSheets(); renderHelp(); openSheet('#sheetHelp'); }
         if (a === 'retro') openRetro();
         if (a === 'install') doInstall();

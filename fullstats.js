@@ -35,6 +35,22 @@
       bpC: 0, bpW: 0, bpF: 0, bpS: 0, setsW: st.state.setsWon ? st.state.setsWon[t] : 0, setsL: st.state.setsWon ? st.state.setsWon[o] : 0,
     };
     r.attributed = r.pts + r.errors + r.df + r.assists > 0;
+    // quanto da partida foi lançado com detalhe (ace, winner, erro, dupla falta, golpe ou rede/fora): base do filtro "pontos detalhados"
+    let nPts = 0, nDet = 0;
+    for (const x of st.rows) {
+      const ev = x.ev;
+      if (!ev || ev.type !== 'point' || (x.out && x.out.type === 'ignored')) continue;
+      nPts++;
+      if (ev.tag || ev.shot || ev.errType) nDet++;
+    }
+    r.nPts = nPts; r.nDet = nDet; r.detail = nPts ? nDet / nPts : 0; // partida lançada à mão (sem lances) conta como 0%
+    // as outras pessoas da partida (parceiros e adversários), para as estatísticas "com um jogador"
+    r.others = {};
+    for (const p of st.players) {
+      const k = S.fold(p.name);
+      if (!k || k === key) continue;
+      r.others[k] = { name: p.name, side: p.team === t ? 'mate' : 'opp', pts: p.pts, aces: p.aces, winners: p.winners, errors: p.errors, df: p.df, assists: p.assists };
+    }
     // break points (só esportes com games): chance de quebrar o saque do outro e de salvar o próprio
     if (!st.manual && kindOf(r.sport) === 'games' && (m.events || []).length) {
       try {
@@ -61,14 +77,48 @@
   function filter(list, f, now) {
     const cut = since(f.period, now);
     const types = f.types && f.types.length ? new Set(f.types) : null;
-    return list.filter(r => r.endedAt >= cut && (!types || types.has(r.type)) && (!f.sport || r.sport === f.sport));
+    return list.filter(r => r.endedAt >= cut && okRow(r, f, types));
+  }
+  // tipo, esporte, nível de detalhe e (na aba "com um jogador") a pessoa e o lado
+  function okRow(r, f, types) {
+    if (types && !types.has(r.type)) return false;
+    if (f.sport && r.sport !== f.sport) return false;
+    if (f.detail && r.detail < f.detail) return false;
+    if (f.with) { const o = r.others[f.with]; if (!o || (f.side && o.side !== f.side)) return false; }
+    return true;
+  }
+  const DETAIL = [[0, 'Todas'], [0.5, '50%+'], [0.8, '80%+']];
+  // quantas partidas passam em cada nível de detalhe (para o seletor mostrar o número)
+  function detailCounts(list, f, now) {
+    const base = filter(list, Object.assign({}, f, { detail: 0 }), now);
+    return DETAIL.map(([d]) => base.filter(r => r.detail >= d).length);
+  }
+  // pessoas com quem você jogou (contra e junto), das que mais aparecem para as que menos
+  function people(list) {
+    const m = new Map();
+    for (const r of list) for (const [k, o] of Object.entries(r.others)) {
+      const x = m.get(k) || { key: k, name: o.name, n: 0, opp: 0, mate: 0, last: 0 };
+      x.n++; x[o.side]++; x.last = Math.max(x.last, r.endedAt); m.set(k, x);
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n || b.last - a.last);
+  }
+  // números da outra pessoa nas partidas filtradas (média por partida com lances atribuídos)
+  function aggOther(list, key) {
+    const a = { matches: 0, attributed: 0, pts: 0, aces: 0, winners: 0, errors: 0, df: 0, assists: 0 };
+    for (const r of list) {
+      const o = r.others[key]; if (!o) continue;
+      a.matches++;
+      if (o.pts + o.errors + o.df + o.assists > 0) a.attributed++;
+      ['pts', 'aces', 'winners', 'errors', 'df', 'assists'].forEach(k => { a[k] += o[k] || 0; });
+    }
+    return a;
   }
   // mesmo tamanho de período, logo antes (para o "▲ 8 pts")
   function previous(list, f, now) {
     if (f.period === 'all') return null;
     const n = now || Date.now(), len = Number(f.period) * DAY;
     const types = f.types && f.types.length ? new Set(f.types) : null;
-    return list.filter(r => r.endedAt >= n - 2 * len && r.endedAt < n - len && (!types || types.has(r.type)) && (!f.sport || r.sport === f.sport));
+    return list.filter(r => r.endedAt >= n - 2 * len && r.endedAt < n - len && okRow(r, f, types));
   }
 
   // ---------- soma ----------
@@ -127,7 +177,7 @@
     src.forEach((r, i) => {
       let v = mt.row(r);
       if (mt.roll) { const w = src.slice(Math.max(0, i - 4), i + 1).map(mt.row).filter(x => x !== null); v = w.length ? w.reduce((s, x) => s + x, 0) / w.length : null; }
-      if (v !== null && v !== undefined && Number.isFinite(v)) out.push({ id: r.id, t: r.endedAt, v, won: r.won, opp: r.opp, sport: r.sport, type: r.type });
+      if (v !== null && v !== undefined && Number.isFinite(v)) out.push({ id: r.id, t: r.endedAt, v, won: r.won, opp: r.opp, sport: r.sport, type: r.type, detail: r.detail });
     });
     return out;
   }
@@ -201,7 +251,9 @@
             : w('Nível estável: ' + P(wr(b) || 0) + ' de vitórias e ' + P(pp(b) || 0) + ' dos pontos nas últimas ' + n + ' partidas, perto das ' + n + ' anteriores.',
               'Steady level: ' + P(wr(b) || 0) + ' wins and ' + P(pp(b) || 0) + ' of the points in your last ' + n + ' matches, close to the ' + n + ' before.') });
       // erros e acertos, recentes contra antes (só com lances atribuídos)
-      const aa = H[0].filter(r => r.attributed), bb = H[1].filter(r => r.attributed);
+      const good = r => r.attributed && r.detail >= 0.5; // erros e acertos só com partidas bem lançadas (se der)
+      const pickG = x => (x.filter(good).length >= 2 ? x.filter(good) : x.filter(r => r.attributed));
+      const aa = pickG(H[0]), bb = pickG(H[1]);
       if (aa.length >= 2 && bb.length >= 2) {
         const ea = agg(aa), eb = agg(bb);
         const er = x => (x.errors + x.df) / x.attributed, wi = x => (x.winners + x.aces) / x.attributed;
@@ -222,7 +274,8 @@
     }
     // o que melhorar: o ponto mais fraco, com o porquê e o que treinar
     const cands = [];
-    const attr = list.filter(r => r.attributed), A = agg(attr);
+    const attrAll = list.filter(r => r.attributed), attrGood = attrAll.filter(r => r.detail >= 0.5);
+    const attr = attrGood.length >= 3 ? attrGood : attrAll, A = agg(attr);
     if (A.attributed >= 3) {
       const errs = A.rede + A.fora;
       if (errs >= 6) {
@@ -252,5 +305,5 @@
       recent: list.slice(-10).map(r => ({ won: r.won, pts: r.pts, errors: r.errors + r.df, winners: r.winners, teamPts: r.teamPts, oppPts: r.oppPts })) };
   }
 
-  return { rows, rowOf, filter, previous, agg, METRICS, SHOT_SPORTS, metric, metricsFor, value, series, smooth, byMonth, analysis, needsAnalysis, dayKey, facts, kindOf, PERIODS, typeOf };
+  return { rows, rowOf, filter, previous, DETAIL, detailCounts, people, aggOther, agg, METRICS, SHOT_SPORTS, metric, metricsFor, value, series, smooth, byMonth, analysis, needsAnalysis, dayKey, facts, kindOf, PERIODS, typeOf };
 });
