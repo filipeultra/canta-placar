@@ -3366,3 +3366,97 @@ button.mtag.gtag { max-width: 128px; }
 .act-when { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
 .act-when > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act-when .ic { flex: none; font-size: 13px; }
+
+/* ===== v37 · partida publicada (líquido verde-claro + raio) ===== */
+.pubfx { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; cursor: pointer; }
+.pubfx-liquid { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pubfx-in { position: relative; display: grid; justify-items: center; gap: 6px; padding: 24px; text-align: center; color: #0B0D05; }
+.pubfx-logo { width: 92px; height: 92px; display: grid; place-items: center; border-radius: 28px; background: #0B0D05; color: #AFFB48; box-shadow: 0 18px 40px rgba(40, 70, 0, 0.28); margin-bottom: 14px; opacity: 0; transform: translateY(-40px) scale(0.6) rotate(-10deg); animation: pubLogo 0.62s cubic-bezier(0.2, 1.6, 0.4, 1) 0.42s forwards; }
+.pubfx-logo .ic { width: 52px; height: 52px; }
+.pubfx-in b { font: 900 40px/0.95 var(--font-cond); text-transform: uppercase; letter-spacing: -0.01em; opacity: 0; transform: translateY(14px); animation: pubTxt 0.4s ease-out 0.62s forwards; }
+.pubfx-sub { font: 700 16px/1.3 var(--font-display); opacity: 0; transform: translateY(10px); animation: pubTxt 0.4s ease-out 0.72s forwards; }
+.pubfx-in small { font: 500 11px/1 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(11, 13, 5, 0.62); opacity: 0; animation: pubTxt 0.4s ease-out 0.82s forwards; }
+.pubfx.out { transition: opacity 0.3s ease, transform 0.3s ease; opacity: 0; transform: scale(1.04); }
+@keyframes pubLogo { 60% { opacity: 1; transform: translateY(4px) scale(1.06) rotate(2deg); } 100% { opacity: 1; transform: none; } }
+@keyframes pubTxt { to { opacity: 1; transform: none; } }
+.pubfx.rm .pubfx-logo, .pubfx.rm .pubfx-in b, .pubfx.rm .pubfx-sub, .pubfx.rm .pubfx-in small { animation: none; opacity: 1; transform: none; }
+.pubfx.rm { animation: pubFade 0.2s ease; }
+@keyframes pubFade { from { opacity: 0; } }
+
+/* ===== v38 · conquista em vitrine: luz de cima, pedestal, giro de peão e verso gravado ===== */
+.trophy {
+  --m1: #C8FF6A; --m2: #4F8F00;
+  position: relative; width: 100%; height: 300px; margin: 2px 0 4px; border-radius: 22px; overflow: hidden;
+  background: radial-gradient(120% 85% at 50% 0%, #262a31 0%, #111316 55%, #07080a 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 -40px 60px rgba(0, 0, 0, 0.45);
+  perspective: 820px; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; outline: none;
+}
+.trophy:active { cursor: grabbing; }
+.trophy:focus-visible { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 0 3px var(--surface), 0 0 0 5px var(--brand); }
+/* o cone de luz e a lâmpada lá em cima */
+.tr-spot { position: absolute; top: 0; left: 50%; width: 300px; height: 300px; transform: translateX(-50%); pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 249, 222, 0.42), rgba(255, 249, 222, 0.1) 62%, rgba(255, 249, 222, 0));
+  clip-path: polygon(43% 0, 57% 0, 90% 100%, 10% 100%); filter: blur(7px); }
+.tr-spot::before { content: ""; position: absolute; top: -8px; left: 50%; width: 64px; height: 18px; transform: translateX(-50%); border-radius: 50%; background: #FFF8DC; filter: blur(4px); box-shadow: 0 0 30px 10px rgba(255, 246, 210, 0.55); }
+.trophy:not(.got) .tr-spot { opacity: 0.45; }
+.trophy.unlock .tr-spot { animation: trSpotOn 0.9s linear both; }
+@keyframes trSpotOn { 0% { opacity: 0; } 8% { opacity: 0.9; } 13% { opacity: 0.1; } 22% { opacity: 1; } 28% { opacity: 0.35; } 40%, 100% { opacity: 1; } }
+/* poeira no feixe */
+.tr-motes { position: absolute; inset: 0; pointer-events: none; }
+.tr-motes i { position: absolute; top: 60%; left: 50%; width: 2px; height: 2px; border-radius: 50%; background: rgba(255, 248, 220, 0.8); animation: trMote 7s linear infinite; opacity: 0; }
+.tr-motes i:nth-child(1) { margin-left: -40px; animation-delay: 0s; }
+.tr-motes i:nth-child(2) { margin-left: 22px; animation-delay: 1.4s; animation-duration: 8s; }
+.tr-motes i:nth-child(3) { margin-left: -12px; animation-delay: 2.9s; }
+.tr-motes i:nth-child(4) { margin-left: 46px; animation-delay: 4.1s; animation-duration: 9s; }
+.tr-motes i:nth-child(5) { margin-left: -58px; animation-delay: 5.3s; }
+@keyframes trMote { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 0.8; } 85% { opacity: 0.5; } 100% { transform: translate(14px, -170px); opacity: 0; } }
+/* a medalha: flutua e gira só no eixo vertical */
+.tr-float { position: absolute; left: 50%; top: 40px; width: 150px; height: 150px; margin-left: -75px; transform-style: preserve-3d; animation: trBob 3.4s ease-in-out infinite; }
+.trophy.unlock .tr-float { animation: trDrop 0.9s cubic-bezier(0.2, 1.35, 0.4, 1) both, trBob 3.4s ease-in-out 0.9s infinite; }
+@keyframes trBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes trDrop { 0% { transform: translateY(-190px) scale(0.7); opacity: 0; } 60% { opacity: 1; } 100% { transform: translateY(0); } }
+.tr-coin { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; will-change: transform; }
+.tr-face { position: absolute; inset: 0; display: grid; place-items: center; -webkit-backface-visibility: hidden; backface-visibility: hidden; filter: brightness(var(--lit, 1)); }
+.tr-front { transform: translateZ(4px); }
+.tr-back { transform: rotateY(180deg) translateZ(4px); }
+.medal.tr-m { --s: 150px; margin: 0; }
+.tr-front .medal.tr-m.got { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--m2) 50%, transparent)); }
+.tr-front .medal.tr-m .ic { width: 42%; height: 42%; }
+/* borda: camadas finas uma atrás da outra dão a espessura quando ela vira de lado */
+.medal.tr-layer { position: absolute; inset: 0; transform: translateZ(var(--z)); filter: brightness(calc(0.55 + var(--edge, 0) * 0.55)); }
+.medal.tr-layer::before { background: linear-gradient(90deg, color-mix(in srgb, var(--m2) 65%, #000), color-mix(in srgb, var(--m1) 70%, var(--m2)), color-mix(in srgb, var(--m2) 55%, #000)); }
+.medal.tr-layer::after { display: none; }
+.medal.tr-layer:not(.got)::before { background: #3a3d42; }
+/* reflexo da luz que corre pela face conforme o giro */
+.medal.tr-shine { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: soft-light; }
+.medal.tr-shine::before { background: linear-gradient(105deg, rgba(255, 255, 255, 0) calc(var(--sh, 50%) - 22%), rgba(255, 255, 255, 0.85) var(--sh, 50%), rgba(255, 255, 255, 0) calc(var(--sh, 50%) + 22%)); }
+.medal.tr-shine::after { inset: 0; background: radial-gradient(70% 45% at 50% 0%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%); }
+/* verso: metal escovado e o texto gravado (data, hora, placar) */
+.medal.tr-bm::after { background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0.05) 1px 3px),
+    radial-gradient(110% 100% at 35% 20%, color-mix(in srgb, var(--m1) 55%, var(--m2)), color-mix(in srgb, var(--m2) 80%, #000) 78%); }
+.medal.tr-bm:not(.got)::after { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 1px, rgba(0, 0, 0, 0.06) 1px 3px), #2c2f34; }
+.tr-eng { position: absolute; inset: 22% 14%; display: grid; place-content: center; justify-items: center; gap: 3px; text-align: center; color: rgba(255, 255, 255, 0.86);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.22); }
+.tr-eng em { font: 600 8.5px/1.1 var(--font-mono); font-style: normal; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.85; }
+.tr-eng b { font: 900 21px/1 var(--font-cond); letter-spacing: 0.01em; }
+.tr-eng span { font: 600 10.5px/1.2 var(--font-mono); letter-spacing: 0.04em; }
+.tr-eng i { display: grid; margin-top: 4px; opacity: 0.7; }
+.tr-eng i .ic { width: 15px; height: 15px; }
+/* pedestal com a sombra da medalha */
+.tr-base { position: absolute; left: 50%; bottom: 26px; width: 200px; height: 70px; transform: translateX(-50%); pointer-events: none; }
+.tr-base::before, .tr-base::after { content: ""; position: absolute; left: 0; right: 0; }
+.tr-base::after { top: 18px; bottom: 0; border-radius: 0 0 50% 50% / 0 0 22px 22px; background: linear-gradient(90deg, #0d0f11, #2b2f35 46%, #3a3f46 52%, #0d0f11); box-shadow: 0 18px 30px rgba(0, 0, 0, 0.6); }
+.tr-base::before { top: 0; height: 36px; z-index: 1; border-radius: 50%; background: radial-gradient(ellipse at 50% 38%, #5a606a, #2e3238 58%, #17191c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 34px color-mix(in srgb, var(--m1) 22%, transparent); }
+.tr-shadow { position: absolute; z-index: 2; top: 8px; left: 50%; width: 110px; height: 16px; margin-left: -55px; border-radius: 50%; background: radial-gradient(ellipse, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0) 70%); animation: trShadow 3.4s ease-in-out infinite; }
+@keyframes trShadow { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.82); opacity: 0.7; } }
+.tr-fx { position: absolute; inset: 0; pointer-events: none; }
+.tr-hint { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--fg-2); font-size: 12px; }
+.tr-hint .ic { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) {
+  .tr-float, .trophy.unlock .tr-float, .tr-shadow, .trophy.unlock .tr-spot { animation: none; }
+  .tr-motes { display: none; }
+}
+.btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-ghost > svg { width: 1em; height: 1em; font-size: 18px; flex: none; }
+.tr-eng .tr-sc { font-size: 10px; opacity: 0.9; }

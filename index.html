@@ -60,6 +60,7 @@
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-vibrate" viewBox="0 0 24 24"><rect x="7.5" y="3.5" width="9" height="17" rx="2"/><path d="M4 9v6M20 9v6M1.5 10.5v3M22.5 10.5v3"/></symbol>
     <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.3a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.3h.01"/></symbol>
@@ -648,6 +649,8 @@
             </div>
           </div>
           <label class="row"><span class="row-ic"><svg><use href="#i-phone"/></svg></span><span>Manter a tela ligada</span><input class="switch" type="checkbox" id="pAwake"></label>
+          <label class="row"><span class="row-ic"><svg><use href="#i-vibrate"/></svg></span><span>Vibrar nos momentos do jogo<small>Toques curtos ao marcar ponto, fechar game e set, terminar e publicar a partida e ganhar uma conquista</small></span><input class="switch" type="checkbox" id="pHaptics"></label>
+          <div class="row"><span class="row-ic"><svg><use href="#i-sparkles"/></svg></span><span>Sentir as vibrações<small>Toca a sequência: toque, batida, batidinhas, zap, carregando e conquista</small></span><button class="btn" type="button" id="btnHapTest">Testar</button></div>
           <label class="row"><span class="row-ic"><svg><use href="#i-watch"/></svg></span><span>Controle pelo relógio ou fone<small>Os botões de música marcam o ponto: próxima = 1º time, anterior = 2º time, tocar/pausar = desfazer. Garmin, Amazfit, Apple Watch, Galaxy Watch e fones Bluetooth.</small></span><input class="switch" type="checkbox" id="pRemote"></label>
           <div class="row"><span class="row-ic"><svg><use href="#i-window"/></svg></span><span>Placar numa segunda janela<small>Arraste para a TV ligada no notebook</small></span><button class="btn" type="button" id="btnWindow"><svg><use href="#i-window"/></svg>Abrir</button></div>
         </div>

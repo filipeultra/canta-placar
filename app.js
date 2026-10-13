@@ -60,9 +60,45 @@
     return store.set(KEY_HIST, hist.slice(0, HIST_MAX));
   };
 
-  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, engine: 'auto', mic: '', detail: true, myName: '', city: '', feedKind: 'seguindo', lastSport: '', privacy: null };
+  const DEFAULT_PREFS = { tts: true, beep: true, wake: false, cooldown: 2, theme: 'system', local: false, awake: true, haptics: true, engine: 'auto', mic: '', detail: true, myName: '', city: '', feedKind: 'seguindo', lastSport: '', privacy: null };
   const prefs = Object.assign({}, DEFAULT_PREFS, store.get(KEY_PREFS, {}));
   const savePrefs = () => store.set(KEY_PREFS, prefs);
+
+  // ---------- Vibração: padrões curtos para cada momento (ligada por padrão; Ajustes → Tela) ----------
+  // A Vibration API só liga e desliga o motor: a "força" sai da duração de cada pulso e do espaço entre eles.
+  // Pares [vibra, pausa, vibra, …] em ms; todos curtos (até ~0,5 s) para não cansar.
+  const HAPTIC = {
+    tick: [6],                                 // seleção leve, cada "dente" do giro da conquista
+    tap: [12],                                 // toque: abrir uma conquista, escolher algo
+    thump: [28],                               // batida: um game ou set fechado
+    taps: [9, 55, 9, 55, 9],                   // batidinhas: troca de lado
+    zap: [7, 28, 18],                          // zap: dar um zap na timeline
+    load: [5, 70, 7, 55, 10, 42, 14, 32, 20],  // "carregando": vai crescendo (publicando a partida)
+    pub: [10, 45, 34],                         // publicada: tique e batida
+    win: [16, 60, 16, 60, 60],                 // fim de partida
+    wow: [8, 36, 8, 36, 12, 70, 90],           // conquista: batidinhas e uma onda no fim
+  };
+  // iPhone: o Safari não tem navigator.vibrate; o interruptor nativo (<input switch>, iOS 17.4+) dá um tique ao mudar.
+  // Usamos um tique por pulso, quando o sistema deixa (pode não funcionar em todas as versões do iOS).
+  let iosHap = null;
+  const iosTick = () => {
+    try {
+      if (!iosHap) { iosHap = document.createElement('label'); iosHap.setAttribute('aria-hidden', 'true'); iosHap.style.cssText = 'position:fixed;left:-99px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none'; iosHap.innerHTML = '<input type="checkbox" switch tabindex="-1">'; ['click', 'change', 'input'].forEach(t => iosHap.addEventListener(t, e => e.stopPropagation())); document.body.appendChild(iosHap); } // o clique não chega aos outros ouvintes do app
+      iosHap.click();
+    } catch (e) { iosHap = null; }
+  };
+  const CAN_VIBRATE = typeof navigator.vibrate === 'function';
+  const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let hapAt = 0;
+  function haptic(kind, force) {
+    if (!prefs.haptics && !force) return;
+    const p = HAPTIC[kind] || HAPTIC.tap;
+    const now = Date.now();
+    if (kind === 'tick' && now - hapAt < 40) return; // giro rápido: no máximo ~25 tiques por segundo
+    hapAt = now;
+    if (CAN_VIBRATE) { try { navigator.vibrate(p); } catch (e) { console.info('[vibração] indisponível', e); } return; }
+    if (IS_IOS) { let t = 0; for (let i = 0; i < p.length; i += 2) { setTimeout(iosTick, t); t += p[i] + (p[i + 1] || 0); } }
+  }
 
   const params = new URLSearchParams(location.search);
   // Celular e tablet: a voz continua do Chrome Android para a cada pausa e bipa ao reiniciar
@@ -347,7 +383,7 @@
     const ev = { type: 'point', team };
     for (const k of DETAIL_KEYS.concat(['heard', 'src'])) if (m[k] !== undefined && m[k] !== null && m[k] !== '') ev[k] = m[k];
     if (m.src !== 'toque') earcon.play('ok');
-    if ((m.src === 'toque' || m.src === 'painel') && navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { console.info('[toque] vibracao indisponivel', e); } }
+    if (m.src === 'toque' || m.src === 'painel') haptic('tap');
     setFeedback(m.heard, 'ok', describe(ev), team);
     commit(ev);
   }
@@ -718,6 +754,7 @@
       sub = (state.inTiebreak ? 'Tiebreak ' : '') + pts[0] + '-' + pts[1];
     }
     if (!title) return;
+    haptic(L.type === 'match' ? 'win' : L.type === 'set' ? 'thump' : L.type === 'game' ? 'tap' : 'taps');
     const tEl = $('#bannerTitle');
     tEl.innerHTML = (team != null ? '<i style="--tc:' + colorVar(match.teams[team].color) + '"></i>' : '') + esc(title);
     $('#bannerSub').textContent = sub;
@@ -762,10 +799,11 @@
     if (sel === '#sheetFinish') finishStep = 0;
     // o Pro aberto de dentro de outra folha (ex.: Nova partida): ao fechar, volta para ela como estava
     if (sel === '#sheetPro' && proFrom) { const f = proFrom; proFrom = null; setTimeout(() => { if (!anySheetOpen()) openSheet('#' + f); }, 0); }
+    if (sel === '#sheetAch') { stopTrophy(); if (achQueue) setTimeout(achQueueNext, 0); }
     if (sel === '#sheetPhoto') { if (photoEd) { URL.revokeObjectURL(photoEd.url); photoEd = null; } if (photoFrom) { const f = photoFrom; photoFrom = null; setTimeout(() => { if (!anySheetOpen()) { openSheet('#' + f); if (f === 'sheetPrefs') renderPrefsPhoto(); } }, 0); } }
   }
   let proFrom = null;
-  function closeAllSheets() { proFrom = null; photoFrom = null; $$('.sheet').forEach(d => closeSheet('#' + d.id)); }
+  function closeAllSheets() { proFrom = null; photoFrom = null; achQueue = null; $$('.sheet').forEach(d => closeSheet('#' + d.id)); }
   $('#scrim').addEventListener('click', closeAllSheets);
   $$('.sheet').forEach(d => $$('[data-close]', d).forEach(b => b.addEventListener('click', () => closeSheet('#' + d.id))));
 
@@ -1672,23 +1710,164 @@
     return got.filter(a => a.earnedId === m.id);
   }
 
-  function openAch(id) {
+  // ---------- Conquista: troféu numa vitrine (luz de cima, pedestal), gira como um peão e tem o verso gravado ----------
+  let trophy = null; // { el, coin, ang, vel, target, drag, raf, parts, lastTick, ... }
+  let achQueue = null; // conquistas novas da partida, uma depois da outra: { list, i, done }
+  const TR_T = 8; // espessura da medalha (px)
+  function trophyHTML(a, got, unlock) {
+    const [, c1, c2] = achLook(a);
+    const src = got && a.earnedId ? findMatch(a.earnedId) : null;
+    const d = got ? new Date(a.earnedAt) : null;
+    const date = d ? (String(d.getDate()).padStart(2, '0') + ' ' + d.toLocaleDateString(EN ? 'en-US' : 'pt-BR', { month: 'short' }).replace(/\./g, '') + ' ' + d.getFullYear()).toUpperCase() : '';
+    const hour = d ? d.toLocaleTimeString(EN ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    let vs = '';
+    if (src) {
+      try { const st = S.matchStats(src); vs = placarText(st) || ''; } catch (e) { vs = ''; }
+    }
+    const sp = a.earnedSport || (src && src.cfg && src.cfg.sport) || '';
+    const layers = Array.from({ length: TR_T }, (_, i) => '<span class="medal m-' + a.group + (got ? ' got' : '') + ' tr-m tr-layer" style="--z:' + (i - (TR_T - 1) / 2).toFixed(1) + 'px"></span>').join('');
+    const back = got
+      ? '<span class="tr-eng"><em>' + esc(sp ? (EN ? sportEN(sp) : sportLabel(sp)) : 'ULTRA PLAY') + '</em><b>' + esc(date) + '</b><span>' + esc(hour) + '</span>' + (vs ? '<span class="tr-sc">' + esc(vs.split(' ').slice(0, 3).join(' ')) + '</span>' : '') + '<i>' + ic('i-bolt') + '</i></span>'
+      : '<span class="tr-eng"><em>' + esc(L('Bloqueada', 'Locked')) + '</em><b>' + Math.round(a.progress * 100) + '%</b><span>' + esc(achVal(a, a.value) + L(' de ', ' of ') + achVal(a, a.goal)) + '</span><i>' + ic('i-lock') + '</i></span>';
+    return '<div class="trophy' + (got ? ' got' : '') + (unlock ? ' unlock' : '') + '" id="trophy" style="--m1:' + c1 + ';--m2:' + c2 + '" tabindex="0" role="img" aria-label="' + esc(a.name + '. ' + L('Arraste para girar e ver o verso', 'Drag to spin and see the back')) + '">' +
+      '<span class="tr-spot" aria-hidden="true"></span><span class="tr-motes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' +
+      '<div class="tr-float"><div class="tr-coin" id="trCoin">' +
+        '<div class="tr-face tr-front">' + medalHTML(a, 'tr-m') + '<span class="medal m-' + a.group + ' tr-m tr-shine"></span></div>' + layers +
+        '<div class="tr-face tr-back"><span class="medal m-' + a.group + (got ? ' got' : '') + ' tr-m tr-bm" style="--m1:' + c1 + ';--m2:' + c2 + '"></span>' + back + '</div>' +
+      '</div></div>' +
+      '<span class="tr-base" aria-hidden="true"><i class="tr-shadow"></i></span><canvas class="tr-fx" aria-hidden="true"></canvas></div>';
+  }
+  function openAch(id, opts) {
     const a = achIndex[id];
     if (!a) return;
+    const unlock = !!(opts && opts.unlock);
     const got = a.progress >= 1;
     const when = got ? new Date(a.earnedAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
     const src = got && a.earnedId ? findMatch(a.earnedId) : null;
-    $('#achBody').innerHTML = '<div class="ach-detail' + (got ? ' got' : '') + '">' + medalHTML(a, 'xl') +
-      '<span class="ach-eyebrow">' + (got ? 'Conquista desbloqueada' : 'Ainda bloqueada') + '</span>' +
+    const q = achQueue, more = unlock && q && q.i < q.list.length - 1;
+    $('#achTitle').textContent = unlock ? L('Nova conquista', 'New achievement') : L('Conquista', 'Achievement');
+    $('#achBody').innerHTML = '<div class="ach-detail' + (got ? ' got' : '') + '">' + trophyHTML(a, got, unlock) +
+      '<p class="tr-hint">' + ic('i-swap') + '<span>' + esc(L('Arraste para girar · toque para ver o verso', 'Drag to spin · tap to see the back')) + '</span></p>' +
+      '<span class="ach-eyebrow">' + (unlock ? esc(L('Nova conquista!', 'New achievement!')) : got ? 'Conquista desbloqueada' : 'Ainda bloqueada') + '</span>' +
       '<h3>' + esc(a.name) + '</h3><p>' + esc(a.desc) + '</p>' +
       (got
         ? '<p class="ach-when">' + ic('i-calendar') + esc(when) + (a.earnedSport ? ' · ' + esc(sportLabel(a.earnedSport)) : '') + '</p>'
         : '<div class="ach-prog"><span class="ach-bar"><i style="width:' + Math.round(a.progress * 100) + '%"></i></span><small>' + esc(achVal(a, a.value)) + ' de ' + esc(achVal(a, a.goal)) + ' · ' + Math.round(a.progress * 100) + '%</small></div>') +
       '<div class="finish-actions">' +
-      (got ? '<button class="btn-primary" type="button" data-action="share-ach" data-ach-id="' + a.id + '"><svg><use href="#i-share"/></svg>Compartilhar conquista</button>' : '') +
-      (src && currentMatchId !== a.earnedId ? '<button class="btn-ghost" type="button" data-open="' + esc(a.earnedId) + '">Ver a partida</button>' : '') +
+      (more ? '<button class="btn-primary" type="button" data-achnext>' + ic('i-chev') + esc(L('Próxima conquista (' + (q.i + 2) + ' de ' + q.list.length + ')', 'Next achievement (' + (q.i + 2) + ' of ' + q.list.length + ')')) + '</button>' : '') +
+      (got ? '<button class="' + (more ? 'btn-ghost' : 'btn-primary') + '" type="button" data-action="share-ach" data-ach-id="' + a.id + '"><svg><use href="#i-share"/></svg>Compartilhar conquista</button>' : '') +
+      (src && currentMatchId !== a.earnedId && !unlock ? '<button class="btn-ghost" type="button" data-open="' + esc(a.earnedId) + '">Ver a partida</button>' : '') +
       '</div></div>';
     openSheet('#sheetAch');
+    haptic(unlock ? 'wow' : 'tap');
+    startTrophy(unlock);
+  }
+  // conquistas novas da partida: abre uma por vez; ao fechar a última, segue (compartilhar a partida)
+  function achUnlockQueue(list, done) {
+    indexAch(list, myName());
+    achQueue = { list, i: 0, done };
+    openAch(list[0].id, { unlock: true });
+  }
+  function achQueueNext() {
+    const q = achQueue; if (!q) return;
+    if (q.i < q.list.length - 1) { q.i++; openAch(q.list[q.i].id, { unlock: true }); return; }
+    achQueue = null; if (q.done) q.done();
+  }
+  function stopTrophy() { if (trophy) { cancelAnimationFrame(trophy.raf); trophy = null; } }
+  function startTrophy(unlock) {
+    stopTrophy();
+    const el = $('#trophy'); if (!el) return;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cv = el.querySelector('.tr-fx'), g = cv.getContext('2d');
+    const T = trophy = { el, coin: $('#trCoin'), ang: unlock && !reduce ? -720 : 0, intro: unlock && !reduce ? performance.now() + 250 : 0, vel: 0, target: 0, drag: null, parts: [], lastStep: 0, t0: performance.now(), moved: false, reduce, cv, g, col: getComputedStyle(el).getPropertyValue('--m1').trim() || '#AFFB48' };
+    const fit = () => { const r = el.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); cv.width = r.width * dpr; cv.height = r.height * dpr; cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; g.setTransform(dpr, 0, 0, dpr, 0, 0); T.w = r.width; T.h = r.height; };
+    fit();
+    if (unlock && !reduce) burst(T, 34);
+    let last = performance.now();
+    const frame = now => {
+      if (!el.isConnected || $('#sheetAch').hidden) { stopTrophy(); return; }
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      if (T.intro && !T.drag) {
+        // conquista nova: chega girando duas voltas e para de frente (desacelerando)
+        const p = Math.max(0, Math.min(1, (now - T.intro) / 1500)), e = 1 - Math.pow(1 - p, 3);
+        T.ang = -720 * (1 - e); T.vel = p < 1 ? 720 * 3 * Math.pow(1 - p, 2) / 1.5 : 0;
+        if (p >= 1) { T.intro = 0; T.vel = 0; T.target = 0; }
+      } else if (!T.drag) {
+        if (Math.abs(T.vel) > 40) { T.ang += T.vel * dt; T.vel *= Math.pow(0.12, dt); if (Math.abs(T.vel) <= 40) T.target = Math.round(T.ang / 180) * 180; }
+        else {
+          // mola até a frente ou o verso mais perto, com um balanço leve de peão quando parado
+          const sway = T.reduce || T.moved ? 0 : Math.sin((now - T.t0) / 900) * 11;
+          const k = T.target + sway - T.ang;
+          T.vel = 0; T.ang += k * Math.min(1, dt * 7);
+        }
+      }
+      // "dentes" do giro: um tique a cada 30°, então girar mais rápido vibra mais
+      const step = Math.floor(T.ang / 30);
+      if (step !== T.lastStep) { if (T.drag || Math.abs(T.vel) > 60) haptic('tick'); T.lastStep = step; }
+      const rad = T.ang * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+      T.coin.style.transform = 'rotateY(' + T.ang.toFixed(2) + 'deg)';
+      // luz de cima e da frente: a face clareia de frente e escurece de lado; o brilho corre conforme o ângulo
+      T.coin.style.setProperty('--lit', (0.72 + 0.36 * Math.abs(c)).toFixed(3));
+      T.coin.style.setProperty('--sh', (50 + s * 70).toFixed(1) + '%');
+      T.el.style.setProperty('--edge', Math.abs(s).toFixed(3));
+      // partículas e rastro de vento quando gira rápido
+      const speed = Math.abs(T.drag ? T.drag.v : T.vel);
+      if (!T.reduce && speed > 260 && Math.random() < Math.min(0.9, speed / 1600)) spark(T, Math.sign(T.drag ? T.drag.v : T.vel), speed);
+      drawFx(T, dt, speed);
+      T.raf = requestAnimationFrame(frame);
+    };
+    T.raf = requestAnimationFrame(frame);
+    // arrastar: só gira no eixo vertical (como um peão); toque rápido vira para o verso
+    el.addEventListener('pointerdown', e => {
+      el.setPointerCapture(e.pointerId);
+      T.drag = { x: e.clientX, x0: e.clientX, t: performance.now(), v: 0 }; T.moved = true; T.vel = 0; T.intro = 0;
+    });
+    el.addEventListener('pointermove', e => {
+      const d = T.drag; if (!d) return;
+      const now = performance.now(), dx = e.clientX - d.x, dtm = Math.max(1, now - d.t);
+      T.ang += dx * 0.75;
+      d.v = 0.6 * d.v + 0.4 * (dx * 0.75 / dtm * 1000);
+      d.x = e.clientX; d.t = now;
+    });
+    const up = e => {
+      const d = T.drag; if (!d) return; T.drag = null;
+      if (Math.abs(e.clientX - d.x0) < 6) { T.target = Math.round(T.ang / 180) * 180 + 180; T.vel = 0; haptic('tap'); return; } // toque: vira
+      if (performance.now() - d.t > 120) d.v = 0; // segurou parado antes de soltar
+      T.vel = Math.max(-2600, Math.min(2600, d.v));
+      if (Math.abs(T.vel) <= 40) T.target = Math.round(T.ang / 180) * 180;
+    };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); T.moved = true; T.vel = (e.key === 'ArrowLeft' ? -1 : 1) * 700; }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); T.moved = true; T.target = Math.round(T.ang / 180) * 180 + 180; haptic('tap'); }
+    });
+  }
+  function spark(T, dir, speed) {
+    // sai da borda que está "indo para trás" e é levada pelo vento do giro
+    const cx = T.w / 2, cy = T.h * 0.4, R = 64;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    T.parts.push({ x: cx + side * R * (0.6 + Math.random() * 0.4), y: cy + (Math.random() - 0.5) * R * 1.4, vx: -dir * (40 + Math.random() * 90) * (speed / 900), vy: -10 - Math.random() * 40, life: 0, max: 0.6 + Math.random() * 0.6, r: 0.8 + Math.random() * 1.8, white: Math.random() < 0.45 });
+  }
+  function burst(T, n) {
+    const cx = T.w / 2, cy = T.h * 0.4;
+    for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 60 + Math.random() * 160; T.parts.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, life: 0, max: 0.7 + Math.random() * 0.7, r: 1 + Math.random() * 2.2, white: Math.random() < 0.5 }); }
+  }
+  function drawFx(T, dt, speed) {
+    const g = T.g; g.clearRect(0, 0, T.w, T.h);
+    // rastro de vento: arcos finos em volta da medalha, mais visíveis quanto mais rápido
+    if (!T.reduce && speed > 300) {
+      const cx = T.w / 2, cy = T.h * 0.4, al = Math.min(0.35, (speed - 300) / 3000);
+      g.lineWidth = 1.4; g.strokeStyle = 'rgba(255,255,255,' + al.toFixed(3) + ')';
+      for (let k = 0; k < 3; k++) { const rr = 78 + k * 9, a0 = (performance.now() / 160 + k * 2.1) % (Math.PI * 2); g.beginPath(); g.ellipse(cx, cy, rr, rr * 0.32, 0, a0, a0 + 0.9); g.stroke(); }
+    }
+    T.parts = T.parts.filter(p => (p.life += dt) < p.max);
+    T.parts.forEach(p => {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 30 * dt; p.vx *= 0.985;
+      const a = 1 - p.life / p.max;
+      g.globalAlpha = a; g.fillStyle = p.white ? '#FFFFFF' : T.col;
+      g.beginPath(); g.arc(p.x, p.y, p.r, 0, Math.PI * 2); g.fill();
+    });
+    g.globalAlpha = 1;
   }
 
   // =========================================================
@@ -2262,7 +2441,7 @@
     const on = SO.toggleZap(id);
     const a = findAct(id);
     if (a) $$('.zapbar').forEach(z => { const b = z.querySelector('[data-zap="' + CSS.escape(id) + '"]'); if (b) z.outerHTML = zapBtnHTML(a); });
-    if (on) $$('[data-zap="' + CSS.escape(id) + '"]').forEach(b => { b.classList.add('pop'); });
+    if (on) { haptic('zap'); $$('[data-zap="' + CSS.escape(id) + '"]').forEach(b => { b.classList.add('pop'); }); }
   }
   function onFollow(id) {
     const st = SO.toggleFollow(id);
@@ -2428,12 +2607,46 @@
     if (!m) return;
     m.post = applyDeleg(Object.assign(readPost('sv', m.post), { status: 'publicada' }), m.endedAt);
     if (!writeHist(hist)) return;
+    const btn = $('#formSave button[type=submit]'), r = btn ? btn.getBoundingClientRect() : null;
     closeSheet('#sheetSave');
-    toast(saveCtx.draft ? 'Partida publicada' : 'Alterações salvas');
-    if (saveCtx.draft) maybeAskLove();
-    const after = saveCtx.afterFinish;
+    const after = saveCtx.afterFinish, draft = saveCtx.draft;
     go('partida', m.id);
-    if (after) setTimeout(() => openShare(m.id), 450);
+    if (!draft) { toast('Alterações salvas'); return; }
+    // publicada: a animação cobre a troca de tela; depois vêm as conquistas novas desta partida e o compartilhar
+    const st = S.matchStats(m);
+    publishFx({ x: r ? r.left + r.width / 2 : innerWidth / 2, y: r ? r.top + r.height / 2 : innerHeight * 0.8 },
+      sportLabel(st.cfg.sport) + (placarText(st) ? ' · ' + placarText(st) : ''), () => {
+        let achs = [];
+        try { achs = achievementsIn(m); } catch (e) { console.info('[conquistas] não deu para ver as novas', e); }
+        const next = () => { maybeAskLove(); if (after) setTimeout(() => openShare(m.id), 450); };
+        if (achs.length) achUnlockQueue(achs, next); else next();
+      });
+  }
+  // "Partida publicada": um líquido verde-claro sai do botão e enche a tela, o raio cai no centro e tudo some em ~1,8 s.
+  // Toque em qualquer lugar pula. Com movimento reduzido, só aparece e some.
+  function publishFx(origin, sub, done) {
+    const old = $('#pubFx'); if (old) old.remove();
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const W = innerWidth, H = innerHeight, R = Math.ceil(Math.hypot(Math.max(origin.x, W - origin.x), Math.max(origin.y, H - origin.y))) + 60;
+    const el = document.createElement('div');
+    el.id = 'pubFx'; el.className = 'pubfx' + (reduce ? ' rm' : '');
+    el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<svg class="pubfx-liquid" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><defs><filter id="pubLiq" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="7" result="n">' +
+      (reduce ? '' : '<animate attributeName="baseFrequency" dur="0.9s" values="0.018;0.008;0.004" fill="freeze"/>') + '</feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="' + (reduce ? 0 : 70) + '" xChannelSelector="R" yChannelSelector="G">' +
+      (reduce ? '' : '<animate attributeName="scale" dur="0.9s" values="90;40;0" fill="freeze"/>') + '</feDisplacementMap></filter></defs>' +
+      '<circle cx="' + origin.x + '" cy="' + origin.y + '" r="' + (reduce ? R : 0) + '" fill="#D9FFA6" filter="url(#pubLiq)">' + (reduce ? '' : '<animate attributeName="r" dur="0.62s" values="0;' + R + '" keySplines="0.3 0 0.2 1" calcMode="spline" fill="freeze"/>') + '</circle></svg>' +
+      '<div class="pubfx-in"><span class="pubfx-logo">' + ic('i-bolt') + '</span><b>' + esc(L('Partida publicada', 'Match posted')) + '</b><span class="pubfx-sub" translate="no">' + esc(sub || '') + '</span><small>' + esc(L('No seu perfil e na timeline', 'On your profile and in the feed')) + '</small></div>';
+    document.body.appendChild(el);
+    haptic('load');
+    const t1 = setTimeout(() => haptic('pub'), reduce ? 0 : 560);
+    let closed = false;
+    const close = () => {
+      if (closed) return; closed = true; clearTimeout(t1); clearTimeout(t2);
+      el.classList.add('out');
+      setTimeout(() => { el.remove(); if (done) done(); }, 320);
+    };
+    const t2 = setTimeout(close, reduce ? 1400 : 1900);
+    el.addEventListener('click', close);
   }
   function discardDraft(btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para descartar de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Descartar partida'; } }, 4000); return; }
@@ -5749,6 +5962,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13k', date: '13/10/2026', title: 'Vibração, partida publicada e conquistas em vitrine', items: [
+      'Vibração nos momentos do jogo: ponto, game, set, fim de partida, partida publicada e conquista, cada um com o seu toque (Ajustes → Tela).',
+      'Partida publicada com animação: a tela enche de verde, o raio cai no centro e as conquistas novas aparecem uma a uma.',
+      'Conquistas em vitrine: luz de cima, pedestal e giro com o dedo (com vibração e partículas); no verso, a data, a hora e o placar.',
+    ] },
     { id: '2026-10-13j', date: '13/10/2026', title: 'Foto do perfil e estatísticas mais limpas', items: [
       'Foto do perfil: em Você, toque na câmera ao lado do avatar, escolha a foto e arraste ou use o zoom para enquadrar. Ela aparece no perfil, nas partidas e na timeline.',
       'Estatísticas mais limpas: período, tipo de partida e pontos detalhados ficam no botão Filtros; o aviso de partidas pouco detalhadas virou um chip que abre quando você toca.',
@@ -6363,6 +6581,7 @@
       if (fbk) { openFeedback(fbk.dataset.fb); return; }
       const aic = e.target.closest('[data-aicoach]');
       if (aic) { aiCoach(aic.dataset.aicoach, aic); return; }
+      if (e.target.closest('[data-achnext]')) { closeSheet('#sheetAch'); return; } // fechar segue a fila (achQueueNext)
       const ac = e.target.closest('[data-ach]');
       if (ac) { openAch(ac.dataset.ach); return; }
       const op = e.target.closest('[data-open]');
@@ -6399,7 +6618,7 @@
         if (a === 'continue') openContinue();
         if (a === 'home') go('inicio');
         if (a === 'share') openShare(currentMatchId);
-        if (a === 'share-ach') { closeSheet('#sheetAch'); openShareAch(act.dataset.achId); }
+        if (a === 'share-ach') { achQueue = null; closeSheet('#sheetAch'); openShareAch(act.dataset.achId); }
         if (a === 'delete-match') deleteMatch(act.dataset.mid);
         if (a === 'moment') openMoment(findMatch(act.dataset.mid));
       }
@@ -6499,6 +6718,11 @@
     $('#btnMicTest').addEventListener('click', toggleMicTest);
     $('#pDemoNet').addEventListener('change', e => { prefs.demoNet = e.target.checked; savePrefs(); renderBell(); renderGroupStripNow(); if (currentView !== 'jogar') go(currentView, currentMatchId, true); toast(prefs.demoNet ? 'Rede de exemplo ligada' : 'Rede de exemplo desligada: só o que é seu aparece'); });
     $$('input[name="engine"]').forEach(el => el.addEventListener('change', () => { prefs.engine = getRadio('engine'); savePrefs(); switchEngine(); renderEngineNote(); }));
+    $('#pHaptics').addEventListener('change', e => { prefs.haptics = e.target.checked; savePrefs(); if (prefs.haptics) haptic('wow'); });
+    $('#btnHapTest').addEventListener('click', () => {
+      if (!CAN_VIBRATE && !IS_IOS) { toast(L('Este aparelho não vibra pelo navegador', 'This device can\'t vibrate from the browser')); return; }
+      ['tap', 'thump', 'taps', 'zap', 'load', 'wow'].forEach((k, i) => setTimeout(() => haptic(k, true), i * 700));
+    });
     $('#pAwake').addEventListener('change', e => { prefs.awake = e.target.checked; savePrefs(); if (prefs.awake) requestWakeLock(); else if (wakeLock) wakeLock.release().catch(err => console.info('[tela] liberar falhou', err)); });
     $('#pLocal').addEventListener('change', e => { prefs.local = e.target.checked; if (voice.kind === 'web') { voice.useLocal = prefs.local; voice.phrases = voicePhrases(); voice.reopen(); } savePrefs(); });
     $$('input[name="cooldown"]').forEach(el => el.addEventListener('change', () => { prefs.cooldown = Number(getRadio('cooldown')); savePrefs(); }));
@@ -6559,6 +6783,7 @@
     $('#pBeep').checked = prefs.beep;
     $('#pWake').checked = prefs.wake;
     $('#pAwake').checked = prefs.awake;
+    $('#pHaptics').checked = !!prefs.haptics;
     $('#pLocal').checked = prefs.local;
     setRadio('cooldown', prefs.cooldown);
     setRadio('theme', prefs.theme);

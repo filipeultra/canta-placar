@@ -1,5 +1,17 @@
 /* ULTRA PLAY · dicionário português → inglês, usado por i18n.js. Gerado a partir dos textos do app (ver docs/IDIOMAS.md). */
 window.CantaI18nDict = {
+"Vibração, partida publicada e conquistas em vitrine": "Vibration, match posted and achievement showcase",
+"Vibração nos momentos do jogo: ponto, game, set, fim de partida, partida publicada e conquista, cada um com o seu toque (Ajustes → Tela).": "Vibration at key moments: point, game, set, end of match, match posted and achievement, each with its own feel (Settings → Screen).",
+"Partida publicada com animação: a tela enche de verde, o raio cai no centro e as conquistas novas aparecem uma a uma.": "Match posted animation: the screen fills with green, the bolt lands in the middle and new achievements show up one by one.",
+"Conquistas em vitrine: luz de cima, pedestal e giro com o dedo (com vibração e partículas); no verso, a data, a hora e o placar.": "Achievements in a showcase: light from above, a pedestal and finger spin (with vibration and particles); the back shows the date, time and score.",
+"Vibrar nos momentos do jogo": "Vibrate at key moments",
+"Toques curtos ao marcar ponto, fechar game e set, terminar e publicar a partida e ganhar uma conquista": "Short taps when you score, close a game or set, finish and post a match and earn an achievement",
+"Sentir as vibrações": "Feel the vibrations",
+"Toca a sequência: toque, batida, batidinhas, zap, carregando e conquista": "Plays the set: tap, thump, little taps, zap, loading and achievement",
+"Como as conquistas giram?": "How do achievements spin?",
+"Abra uma conquista no seu perfil ou no de um amigo: ela fica numa vitrine com luz de cima. Arraste para os lados para girar (quanto mais rápido, mais o celular vibra) e toque para ver o verso, com a data, a hora e o placar da partida em que você ganhou.": "Open an achievement on your profile or a friend's: it sits in a showcase lit from above. Drag sideways to spin it (the faster, the more the phone vibrates) and tap to see the back, with the date, time and score of the match where you earned it.",
+"Dá para desligar a vibração?": "Can I turn vibration off?",
+"Sim: Ajustes → Tela → Vibrar nos momentos do jogo. Ali também tem o botão Testar, para sentir cada vibração. No iPhone, o navegador só deixa um toque leve, e nem toda versão do iOS deixa.": "Yes: Settings → Screen → Vibrate at key moments. There's also a Test button to feel each one. On iPhone the browser only allows a light tap, and not every iOS version allows it.",
 "Foto do perfil e estatísticas mais limpas": "Profile photo and cleaner stats",
 "Foto do perfil: em Você, toque na câmera ao lado do avatar, escolha a foto e arraste ou use o zoom para enquadrar. Ela aparece no perfil, nas partidas e na timeline.": "Profile photo: in You, tap the camera next to your avatar, pick a photo and drag or zoom to frame it. It shows on your profile, your matches and the feed.",
 "Estatísticas mais limpas: período, tipo de partida e pontos detalhados ficam no botão Filtros; o aviso de partidas pouco detalhadas virou um chip que abre quando você toca.": "Cleaner stats: period, match type and detailed points live in the Filters button; the few-detailed-matches notice is now a chip that opens when you tap it.",
