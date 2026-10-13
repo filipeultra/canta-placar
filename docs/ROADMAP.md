@@ -79,11 +79,19 @@ Já feito na revisão de 12/10/2026:
 - Prévia do link no WhatsApp e nas redes (imagem e descrição).
 - "Já tenho conta" sem botões de Google/Apple de mentira: restaurar backup ou continuar no aparelho.
 
+Feito em 13/10/2026:
+- Placar e câmera conectados: o placar mostra o status da câmera e manda gravar ou parar lá; trechos de ~5 min cortados no tempo morto.
+- Grupos/turmas com ranking, resenha, convite por link, partida do grupo e autorização temporária ao organizador.
+- Rede de exemplo desligável (Ajustes → Conta). O padrão é a constante `DEMO_NET_DEFAULT` em `app.js`.
+- Site de apresentação em `site/`, artes de lançamento e cartaz com QR Code em `marketing/`.
+- Banco do servidor pronto e testado em `supabase/` (28 verificações das regras).
+- Rascunhos de Termos e Política de Privacidade em `docs/legal/`, para revisão jurídica.
+
 Falta, e depende de servidor ou de decisão:
 1. **Conta na nuvem** (login Google, Apple e celular), com as partidas sincronizadas entre aparelhos.
-2. **Desligar a rede de demonstração** para quem é usuário real: pessoas, zaps, convites e números "ao vivo" da tela de entrada são fictícios. Manter só no modo de demonstração.
+2. **Rede de exemplo desligada no lançamento:** a chave já existe. No dia, mude `DEMO_NET_DEFAULT` para `false` (ou deixe ligada só no modo de demonstração).
 3. **Pro de verdade:** hoje é demonstração grátis; cobrança pela loja ou por assinatura web.
-4. **Termos de uso e política de privacidade (LGPD)**, com atenção a menores de idade, e canal de contato.
+4. **Termos de uso e política de privacidade (LGPD):** os rascunhos estão em `docs/legal/`. Falta a revisão por advogado, os dados do responsável (nome/CNPJ, endereço, e-mail, encarregado), as decisões entre [colchetes] e o canal de contato. Depois, publicar como páginas e pôr o link na tela de entrada.
 5. **Domínio próprio** (ex.: ultraplay.app) em vez de github.io, com cabeçalhos de segurança no servidor.
 6. **Monitoramento de erros e métricas de uso** (com consentimento), para saber o que quebra no celular das pessoas.
 7. **Moderação:** as denúncias hoje só mostram "enviada"; precisam chegar a alguém.

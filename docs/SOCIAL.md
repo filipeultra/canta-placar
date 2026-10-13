@@ -27,9 +27,26 @@ Este documento descreve como a parte social funciona hoje no protótipo e o que 
 | Convidar quem jogou | Na tela da sua partida: os convidados sem conta, os pedidos para **aceitar ou recusar**, o código e os botões **Copiar link** e **Enviar**. |
 | Selo **manual** | Partidas lançadas depois do jogo levam um selo discreto (lápis + "manual") no card, no perfil e na imagem de compartilhar, para ninguém confundir com placar marcado ao vivo. |
 
+## Grupos (turmas, clubes, times)
+
+- **Onde:** faixa "Seus grupos" no Início, lista em `#grupos` e página do grupo em `#grupo-<id>`. Os dados ficam em `social.js` (`groups`, `group`, `createGroup`, `joinGroup`, `delegate`, `groupActs`, `wall`…), guardados no mesmo `canta.social.v1`.
+- **Página do grupo:** cabeçalho (esporte, local, dia e horário, membros, partidas, aberto ou fechado), **Nova partida** e **Convidar**, o cartão de autorização e quatro abas:
+  - **Ranking**: 30 dias, 3 meses ou sempre, com destaques e dupla do período. Só membros entram; convidados não.
+  - **Partidas**: as partidas do grupo.
+  - **Resenha**: mural de mensagens.
+  - **Membros**: o organizador nomeia moderadores, tira membros e adiciona quem ele segue.
+- **Entrar:** grupo aberto entra direto; fechado vira pedido (simulado: aprovado em 1 minuto). O **link de convite** (`#grupo-convite-<dados>`) leva nome, esporte, local e horário. Funciona em outro aparelho mesmo sem servidor, e quem abre entra direto.
+- **Partida do grupo:** o formulário de nova partida mostra os membros para tocar e pôr nos times. Quem é de fora é digitado e entra como convidado. A partida fica marcada no grupo (`match.groupId`), e o grupo também pode ser escolhido em Salvar e Lançar partida.
+- **Autorização ao organizador:** o membro deixa o organizador e os moderadores lançarem partidas com ele **por 1 h, 3 h ou até o fim do dia**, e pode cancelar quando quiser. As marcações dessas partidas já entram **aceitas** (`tagged[].auto = true`). No exemplo, você organiza o "Beach todo domingo", e a Rafa e a Lu autorizaram você.
+- **No banco:** `groups`, `group_members`, `group_delegations` (máximo 24 h), `group_posts` e a função `group_ranking`, em `supabase/schema.sql`.
+
+## Rede de exemplo (ligar e desligar)
+
+Em Ajustes → Conta → **Rede de exemplo**, desligada, o app mostra só o que é seu: sem pessoas, partidas, zaps, grupos ou números "ao vivo" fictícios. A constante `DEMO_NET_DEFAULT` em `app.js` define o padrão. Hoje está **ligada**, para demonstrar o app; no lançamento com contas de verdade, mude para `false`.
+
 ## Modelo de dados
 
-Sugestão para Postgres (por exemplo Supabase, que já traz login, regras por linha, tempo real e armazenamento de fotos).
+Sugestão para Postgres (por exemplo Supabase, que já traz login, regras por linha, tempo real e armazenamento de fotos). **O esquema completo e testado está em `supabase/schema.sql`** (ver `supabase/README.md`); o resumo abaixo é a visão geral.
 
 ```text
 users            id, public_id (UP-XXXXXX, único), name, handle (único), city,
