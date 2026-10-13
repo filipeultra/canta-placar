@@ -2697,6 +2697,7 @@
       '<div class="streak hot">' + ic('i-flame') + '<b>' + (cur.kind ? cur.len : '–') + '</b><span>' + (cur.kind === 'D' ? (cur.len === 1 ? 'derrota seguida' : 'derrotas seguidas') : (cur.len === 1 ? 'vitória seguida' : 'vitórias seguidas')) + '</span></div>' +
       '<div class="streak">' + ic('i-calendar') + '<b>' + p.weekStreak + '</b><span>' + (p.weekStreak === 1 ? 'semana jogando' : 'semanas seguidas') + '</span></div>' +
       '<div class="streak">' + ic('i-target') + '<b>' + pct + '</b><span>aproveitamento</span></div></div>';
+    if (!useDemo) h += '<button class="cont-link retro-link" type="button" data-action="retro">' + ic('i-sparkles') + 'Retrospectiva do mês para o story</button>';
 
     // totais por período
     const per = p.periods[mePeriod];
@@ -3077,6 +3078,7 @@
     };
   }
   function shareTemplates() {
+    if (share.retro) return SH.RETRO_TEMPLATES;
     if (share.ach) return SH.ACH_TEMPLATES;
     const m = findMatch(share.id);
     const mvp = m && S.matchStats(m).mvp;
@@ -3089,16 +3091,16 @@
     $('#shareTpls').innerHTML = list.map(t => '<button class="tpl' + (t.id === share.tpl ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (t.id === share.tpl) + '" data-tpl="' + t.id + '"><canvas aria-hidden="true"></canvas><span>' + esc(t.name) + '</span></button>').join('');
     drawShare(true);
     // além da imagem e do vídeo: o link que abre as estatísticas completas no celular de quem recebe
-    const sm = share.ach ? null : findMatch(share.id);
+    const sm = share.ach || share.retro ? null : findMatch(share.id);
     $('#shareLinkRow').hidden = !sm || share.id === 'live';
     if (sm) $('#shareLinkRow').innerHTML = statLinkRowHTML(sm) + '<small>Quem receber vê placar, gráficos, jogadores e replay, sem instalar nada.</small>';
     openSheet('#sheetShare');
-    setShareMode(share.ach ? 'imagem' : vid.mode);
+    setShareMode(share.ach || share.retro ? 'imagem' : vid.mode);
   }
   function openShare(id, mode) {
     const m = findMatch(id);
     if (!m) { setFeedback('', 'miss', 'Partida não encontrada para compartilhar'); return; }
-    share.id = id; share.ach = null;
+    share.id = id; share.ach = null; share.retro = null;
     vid.dataId = null; vid.result = null;
     if (mode) vid.mode = mode;
     $('#shareTitle').textContent = 'Compartilhar partida';
@@ -3107,12 +3109,12 @@
   function openShareAch(id) {
     const a = achIndex[id];
     if (!a || a.progress < 1) return;
-    share.ach = a; share.id = null;
+    share.ach = a; share.id = null; share.retro = null;
     $('#shareTitle').textContent = 'Compartilhar conquista';
     openShareWith();
   }
   function shareDataNow() {
-    const data = share.ach ? achShareData(share.ach) : shareData(findMatch(share.id));
+    const data = share.retro ? { retro: share.retro, who: share.retro.who } : share.ach ? achShareData(share.ach) : shareData(findMatch(share.id));
     if (share.sticker) {
       const img = loadSticker(share.sticker);
       if (img.complete && img.naturalWidth) data.sticker = { img, text: (share.stickerText || '').trim().slice(0, 40) };
@@ -3121,7 +3123,7 @@
   }
   // thumbs: redesenha também as miniaturas (ao abrir e quando muda formato, sticker ou foto; não a cada letra digitada)
   function drawShare(thumbs) {
-    if (!share.ach && !findMatch(share.id)) return;
+    if (!share.ach && !share.retro && !findMatch(share.id)) return;
     for (const f of ['800 40px "Bricolage Grotesque"', '900 40px "Archivo Condensed"']) {
       if (document.fonts && document.fonts.check && !document.fonts.check(f)) {
         document.fonts.load(f).then(() => drawShare(true), e => console.warn('[compartilhar] fonte nao carregou', f, e));
@@ -3144,8 +3146,8 @@
       : canShareFiles ? 'Compartilhar abre o Instagram, o WhatsApp e os outros apps do aparelho.' : 'Neste navegador, salve a imagem e poste pelo app.';
   }
   function shareFile(blob) {
-    const m = share.ach ? null : findMatch(share.id);
-    const base = 'ultra-' + (share.ach ? 'conquista-' + share.ach.id : m ? G.fold(m.teams[0].name).replace(/ /g, '-') + '-x-' + G.fold(m.teams[1].name).replace(/ /g, '-') : 'partida');
+    const m = share.ach || share.retro ? null : findMatch(share.id);
+    const base = 'ultra-' + (share.retro ? 'retrospectiva' : share.ach ? 'conquista-' + share.ach.id : m ? G.fold(m.teams[0].name).replace(/ /g, '-') + '-x-' + G.fold(m.teams[1].name).replace(/ /g, '-') : 'partida');
     return new File([blob], base + '-' + share.tpl + '.png', { type: 'image/png' });
   }
   async function doShare(kind) {
@@ -4399,6 +4401,7 @@
       'No fim de cada partida: análise do jogo, com onde ele foi decidido e uma dica para o próximo.',
       'Aviso de game, set e troca de lado menor, com OK e barra de tempo. Tocar fora só fecha o aviso, não marca ponto.',
       'Instale na tela inicial pelo aviso no Início. Novidades, sugestões e convite com o seu código ficam em Ajustes.',
+      'Retrospectiva do mês para o story, em Você.',
     ] },
     { id: '2026-10-13a', date: '13/10/2026', title: 'Grupos e câmera conectada', items: [
       'Grupos para a sua turma: ranking, partidas, resenha e convite pelo WhatsApp.',
@@ -4511,6 +4514,34 @@
   async function doInstall() {
     if (installEvt) { installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); installEvt = null; if (!r || r.outcome !== 'accepted') { prefs.installHideUntil = Date.now() + 14 * 864e5; savePrefs(); } renderInstallCard(); return; }
     openInfo('Instalar no iPhone', '<ol class="install-steps"><li>Toque em <b>Compartilhar</b> ' + ic('i-share') + ' na barra do Safari.</li><li>Role e toque em <b>Adicionar à Tela de Início</b>.</li><li>Toque em <b>Adicionar</b>. O ULTRA PLAY aparece como app, em tela cheia.</li></ol><p class="hint">Precisa ser pelo Safari. Instalado, o app abre sem internet e, depois, pode receber avisos.</p>');
+  }
+
+  // ---------- Retrospectiva: o mês (ou os últimos 3 meses) em uma imagem para o story ----------
+  const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  function retroData() {
+    const who = myName(), own = history().filter(m => !m.demo && !isDraft(m));
+    const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    let list = own.filter(m => (m.endedAt || m.createdAt || 0) >= m0), title = MONTHS[now.getMonth()], period = MONTHS[now.getMonth()] + ' de ' + now.getFullYear();
+    if (list.length < 2) { const c = Date.now() - 91 * 864e5; list = own.filter(m => (m.endedAt || m.createdAt || 0) >= c); title = 'Últimos 3 meses'; period = 'até ' + now.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', ''); }
+    if (!list.length) return null;
+    const p = S.profile(list, who), all = profileOf(own, who);
+    if (!p.matches) return null;
+    const pct = p.wins + p.losses ? Math.round(100 * p.wins / (p.wins + p.losses)) + '%' : '–';
+    const best = Object.values(p.partners).sort((a, b) => b.matches - a.matches || b.wins - a.wins)[0];
+    const fav = Object.values(p.opponents).filter(o => o.wins > o.losses).sort((a, b) => b.wins - a.wins)[0];
+    const sportTop = Object.keys(p.sports).sort((a, b) => p.sports[b] - p.sports[a])[0];
+    return {
+      who, title, period,
+      cells: [['Partidas', p.matches], ['Vitórias · ' + pct, p.wins], ['Em quadra', fmtDur(p.durationMs) || '–'], ['Aces', p.aces], ['Vitórias seguidas', p.bestWinStreak || 0], ['Semanas seguidas', all.weekStreak || 0]],
+      lines: [best ? 'Dupla do período: ' + best.name + ' · ' + best.matches + (best.matches === 1 ? ' jogo, ' : ' jogos, ') + best.wins + (best.wins === 1 ? ' vitória' : ' vitórias') : '', fav ? 'Freguês: ' + fav.name + ' · ' + fav.wins + ' a ' + fav.losses : sportTop ? 'Esporte do período: ' + sportLabel(sportTop) : ''].filter(Boolean),
+    };
+  }
+  function openRetro() {
+    const r = retroData();
+    if (!r) { toast('Jogue umas partidas com o seu nome nos times para ter a retrospectiva'); return; }
+    share.retro = r; share.ach = null; share.id = null;
+    $('#shareTitle').textContent = 'Sua retrospectiva';
+    openShareWith();
   }
 
   function deleteMatch(id, btn) {
@@ -4736,6 +4767,7 @@
         const a = act.dataset.action;
         if (a === 'prefs') openPrefs();
         if (a === 'news') { closeAllSheets(); openNews(); }
+        if (a === 'retro') openRetro();
         if (a === 'install') doInstall();
         if (a === 'install-later') { prefs.installHideUntil = Date.now() + 14 * 864e5; savePrefs(); renderInstallCard(); }
         if (a === 'news-close') { prefs.seenNews = WHATS_NEW[0].id; savePrefs(); renderNewsCard(); }

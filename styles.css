@@ -2604,3 +2604,4 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .install-steps { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 10px; font-size: 15px; line-height: 1.45; }
 .install-steps .ic { width: 18px; height: 18px; vertical-align: -3px; }
 .install-card > .ic { color: var(--brand-ink, var(--brand)); }
+.retro-link { display: inline-flex; align-items: center; gap: 8px; } .retro-link .ic { width: 18px; height: 18px; }

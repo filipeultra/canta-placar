@@ -447,6 +447,45 @@
     }
   }
 
+
+  // Retrospectiva (mês ou temporada): os números da pessoa no período, para o story. d.retro vem pronto do app.
+  const RETRO_TEMPLATES = [{ id: 'retro', name: 'Retrospectiva' }];
+  function retroTemplate(ctx, W, H, d) {
+    const r = d.retro, story = H > W * 1.2, P = W * 0.075;
+    darkBg(ctx, W, H, GREEN, '#FF5A1F');
+    const top = story ? H * 0.06 : H * 0.065;
+    wordmark(ctx, P, top, W * 0.062, '#FFFFFF');
+    label(ctx, r.period, W - P, top + W * 0.042, W * 0.024, 'rgba(255,255,255,0.55)', 'right');
+    let y = story ? H * 0.2 : H * 0.2;
+    label(ctx, 'Retrospectiva', P, y, W * 0.032, GREEN);
+    ctx.fillStyle = '#FFFFFF'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    const big = r.title.toUpperCase();
+    const size = fit(ctx, big, W - 2 * P, 900, W * (story ? 0.2 : 0.15), 40, 'cond');
+    ctx.fillText(big, P, y + W * 0.02 + size * 0.82);
+    y += size * 0.82 + W * 0.075;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; fit(ctx, r.who, W - 2 * P, 600, W * 0.042, 16); ctx.fillText(r.who, P, y);
+    // grade de números
+    const cells = r.cells.slice(0, story ? 6 : 4), cols = 2, cw = (W - 2 * P - W * 0.04) / cols, ch = W * (story ? 0.22 : 0.2);
+    y += W * (story ? 0.09 : 0.06);
+    cells.forEach((c, i) => {
+      const x = P + (i % cols) * (cw + W * 0.04), yy = y + Math.floor(i / cols) * (ch + W * 0.03);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'; rrect(ctx, x, yy, cw, ch, W * 0.035); ctx.fill();
+      ctx.fillStyle = i === 0 ? GREEN : '#FFFFFF'; ctx.textAlign = 'left';
+      const vs = fit(ctx, String(c[1]), cw - W * 0.08, 900, W * (story ? 0.12 : 0.1), 30, 'cond');
+      ctx.fillText(String(c[1]), x + W * 0.04, yy + W * 0.04 + vs * 0.82);
+      label(ctx, c[0], x + W * 0.04, yy + ch - W * 0.045, W * 0.026, 'rgba(255,255,255,0.6)');
+    });
+    y += Math.ceil(cells.length / cols) * (ch + W * 0.03) + W * 0.02;
+    if (story) {
+      ctx.textAlign = 'left';
+      for (const line of r.lines.slice(0, 2)) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'; fit(ctx, line, W - 2 * P, 600, W * 0.036, 14); ctx.fillText(line, P, y + W * 0.04); y += W * 0.065;
+      }
+      label(ctx, 'Marcado por voz no ULTRA PLAY', W / 2, H * 0.965, W * 0.024, 'rgba(255,255,255,0.5)', 'center');
+    }
+    ctx.textAlign = 'left';
+  }
+
   // scale < 1 desenha a mesma arte menor (miniaturas da escolha de modelo).
   function render(canvas, templateId, format, d, img, scale) {
     const [W, H] = SIZES[format] || SIZES.story;
@@ -455,7 +494,8 @@
     const ctx = canvas.getContext('2d');
     ctx.setTransform(k, 0, 0, k, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    if (templateId === 'conquista' || templateId === 'conquista-sticker') { if (d.ach) achievementTemplate(ctx, W, H, d, templateId === 'conquista-sticker'); }
+    if (templateId === 'retro') { if (d.retro) retroTemplate(ctx, W, H, d); }
+    else if (templateId === 'conquista' || templateId === 'conquista-sticker') { if (d.ach) achievementTemplate(ctx, W, H, d, templateId === 'conquista-sticker'); }
     else if (templateId === 'sticker') stickerTemplate(ctx, W, H, d);
     else if (templateId === 'foto') photoTemplate(ctx, W, H, d, img);
     else if (templateId === 'destaque') highlightTemplate(ctx, W, H, d);
@@ -468,5 +508,5 @@
     return new Promise((resolve, reject) => canvas.toBlob(b => (b ? resolve(b) : reject(new Error('o navegador não gerou a imagem'))), 'image/png'));
   }
 
-  root.CantaShare = { TEMPLATES, ACH_TEMPLATES, TRANSPARENT, SIZES, render, toBlob, draw: { wordmark, bolt, darkBg, label, fit, rrect, rgba, mix, font, cond, track, LOGO_RATIO } };
+  root.CantaShare = { TEMPLATES, ACH_TEMPLATES, RETRO_TEMPLATES, TRANSPARENT, SIZES, render, toBlob, draw: { wordmark, bolt, darkBg, label, fit, rrect, rgba, mix, font, cond, track, LOGO_RATIO } };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
