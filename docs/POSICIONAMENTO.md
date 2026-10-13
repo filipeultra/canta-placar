@@ -67,7 +67,7 @@ Opções que ficaram de reserva:
   >
   > Funciona sem internet na quadra. Beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei.
   >
-  > ULTRA PLAY Pro: vídeo de cada lance, momento ponto a ponto, replay em MP4 e GIF, análise por IA e histórico completo.
+  > ULTRA PLAY Pro: estatísticas completas com a evolução de cada número e a análise do dia, vídeo de cada lance, momento ponto a ponto, replay em MP4 e GIF e histórico completo.
 
 ### Google Play
 - **Descrição curta (80):** Placar, estatísticas e vídeo das suas partidas de beach tennis, padel e tênis. *(78)*

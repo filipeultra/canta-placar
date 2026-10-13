@@ -84,6 +84,7 @@ Aparecem no placar, no modo TV e, opcionalmente, falados.
 - Começar com 3 a 5 arenas parceiras; medir no painel as visitas pela origem `kit`. O cartaz A4 (`marketing/posts/08-cartaz.png`) serve de base para a arte.
 
 ### 6.3 Pro "borrado" para dar vontade de assinar
+- **Feito nas estatísticas completas (13/10/2026):** os 4 números do topo e o gráfico de aproveitamento ficam abertos; o resto aparece borrado com os números do perfil de exemplo, e o botão abre o Pro. Falta levar o mesmo para o resumo da partida e o grupo.
 - Nas telas de estatística (resumo da partida, perfil, grupo), mostrar os blocos Pro **com desfoque** e um cadeado: momento ponto a ponto, pontos decisivos, golpes por jogador, evolução no ano, análise por IA.
 - O conteúdo borrado deve ser **de mentira ou genérico** (não dá para "tirar o borrado" pelo inspetor e ver o dado real). Toque no bloco abre a tela do Pro já no recurso certo (`openPro('momento')`).
 - Medir no painel: `pro_view` por recurso → `pro_start`.
@@ -112,11 +113,29 @@ Aparecem no placar, no modo TV e, opcionalmente, falados.
   - Considerar uma 3ª aba: **Grupos** (partidas e resenha das suas turmas).
 - **Prints para as lojas no mesmo estilo:** título grande em 2 linhas, a 2ª em cinza ("Cada ponto. / Por voz."), e o celular com a tela real em fundo preto.
 
+### 6.7 Reel "vem aí" v2 (depois que o app estiver todo pronto)
+O reel atual (`marketing/reels/vem-ai.html`) ficou com "cara de IA". A versão 2 segue o padrão dos vídeos de motion profissionais de app:
+- **Um iPhone recente em mockup no centro**, com o app de verdade rodando dentro (gravação da tela, não print).
+- **O texto acima do celular, centralizado e curto**, uma frase por cena, grande o bastante para ler no celular. Nada de texto em cima da tela do app.
+- **Menos telas, mais movimento:** mostrar o uso como se alguém estivesse gravando uma partida ao vivo: toca em "Iniciar gravação", os pontos vão sendo marcados, os lances aparecem, e no fim os gráficos enchem e os números sobem.
+- Cenas sugeridas (10 a 15 s): 1) "Tava 5-4 ou 4-5?" com a quadra; 2) toque em Iniciar gravação; 3) três pontos marcados com o placar mudando; 4) estatísticas completas com as barras enchendo e o raio "on fire"; 5) logo + "Jogue no modo Ultra."
+- Movimento suave (easing de mola, sem efeitos chamativos), trilha com batida marcada e sons curtos de toque.
+
+### 6.8 Relógios e pulseiras: distância, calorias e batimentos
+- Sincronizar com Apple Saúde (HealthKit), Health Connect (Android), Garmin Connect, Strava e as pulseiras (Amazfit/Zepp, Xiaomi, Samsung Health) para trazer **km percorridos, kcal e frequência cardíaca** de cada partida.
+- Casar pelo horário: o treino do relógio que cobre o começo e o fim da partida vira os números dela (com a opção de desfazer).
+- No app: "Distância", "Calorias" e "Batimentos" entram nas estatísticas completas (por partida e na evolução) e no compartilhar.
+- Precisa de app nativo (HealthKit e Health Connect não são acessíveis pelo navegador); Garmin e Strava têm API web com OAuth.
+
+### 6.9 Análise do dia por IA no servidor
+- Hoje a análise do dia das estatísticas completas sai por regras no próprio aparelho (`fullstats.js`), uma vez por dia por esporte e só quando há partida nova.
+- Quando a IA estiver ligada (`AI_URL`), a mesma regra de "uma por dia, só com partida nova" vale no servidor: a função recebe só os números (`CantaFull.facts()`, sem nomes) e guarda o texto por pessoa e esporte, para não gastar IA à toa.
+
 ### Fila dos ajustes finais (tudo o que ficou "para depois")
 | # | O quê | Onde está o detalhe |
 |---|---|---|
 | 1 | Cidade por lista: país → estado → cidade (IBGE) | 6.4 |
-| 2 | Pro "borrado" nas estatísticas, com cadeado e atalho para o Pro | 6.3 |
+| 2 | Pro "borrado" no resumo da partida e no grupo (nas estatísticas completas já está) | 6.3 |
 | 3 | Seletor da timeline minimalista (e talvez a aba Grupos) | 6.6 |
 | 4 | Perfil com Instagram/TikTok, números no topo e calendário do mês | 6.6 |
 | 5 | Ranking em pódio (grupo, arena, cidade, geral) | 6.6 |
@@ -124,6 +143,9 @@ Aparecem no placar, no modo TV e, opcionalmente, falados.
 | 7 | Indicação para professores e influenciadores (comissão e metas) | 6.1 |
 | 8 | Kit ULTRA nas arenas (tripé e banner com QR Code) | 6.2 |
 | 9 | Prints das lojas no estilo do FitFolio | 6.6 |
+| 10 | Reel "vem aí" v2 com iPhone e uso ao vivo | 6.7 |
+| 11 | Relógios e pulseiras: km, kcal e batimentos | 6.8 |
+| 12 | Análise do dia por IA no servidor | 6.9 |
 
 ## Antes de abrir para o público (checklist)
 

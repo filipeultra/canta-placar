@@ -994,8 +994,8 @@
   }
 
   function renderStats() {
-    $('#statsBody').innerHTML = sumHTML(match, S.matchStats(match), true);
-    fillVideoPanels($('#statsBody'));
+    $('#fullBody').innerHTML = sumHTML(match, S.matchStats(match), true);
+    fillVideoPanels($('#fullBody'));
   }
 
   // Fim de jogo
@@ -1185,7 +1185,7 @@
     document.body.dataset.view = view;
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
     const sc0 = $('#view-' + view + ' .scroll'); if (sc0 && !back) sc0.scrollTop = 0; // antes de desenhar: depois forçaria recalcular a tela inteira
-    const tab = ['partida', 'atividade', 'perfil', 'notificacoes', 'entrar', 'grupo', 'grupos'].includes(view) ? 'inicio' : view;
+    const tab = ['partida', 'atividade', 'perfil', 'notificacoes', 'entrar', 'grupo', 'grupos'].includes(view) ? 'inicio' : view === 'stats' ? 'voce' : view;
     $$('.tabbar .tab').forEach(b => b.classList.toggle('on', b.dataset.go === tab));
     if (view === 'inicio') renderHome();
     if (view === 'partida') renderMatchView(id);
@@ -1197,6 +1197,7 @@
     if (view === 'grupos') renderGrupos();
     if (view === 'camera') renderCamera(id); else if (typeof camRelease === 'function' && !(cam.r && cam.r.state.recording)) camRelease();
     if (view === 'voce') renderMe();
+    if (view === 'stats') renderStats();
     if (view === 'jogar') { render(); renderVoice(); maybePlayTour(); }
     const hash = '#' + view + (id ? '-' + id : '');
     if (location.hash !== hash) history_replace(hash);
@@ -1217,7 +1218,7 @@
     if (h.startsWith('ver-')) return openStatLink(h.slice(4));
     if (h.startsWith('camera-')) return go('camera', h.slice(7));
     if (h.startsWith('grupo-')) return go('grupo', h.slice(6));
-    if (['inicio', 'jogar', 'voce', 'notificacoes', 'grupos'].includes(h)) return go(h);
+    if (['inicio', 'jogar', 'voce', 'stats', 'notificacoes', 'grupos'].includes(h)) return go(h);
     go('inicio');
   }
 
@@ -1433,7 +1434,8 @@
     // a Rafa (perfil de exemplo) publica as partidas do demo.js, com estatística completa
     extraActivities: () => (window.CantaDemo ? window.CantaDemo.history().map(m => toActivity(m, 'rafa')).concat((window.CantaDemo.guestMatches ? window.CantaDemo.guestMatches() : []).map(m => toActivity(m, m.ownerId))) : []),
   });
-  const TYPE_LABEL = Object.fromEntries(SO.TYPES.map(t => [t.id, t.label]));
+  const TYPE_EN = { amistoso: 'Friendly', treino: 'Practice', resenha: 'Casual', campeonato: 'Tournament', aula: 'Lesson', desafio: 'Challenge' };
+  const TYPE_LABEL = Object.fromEntries(SO.TYPES.map(t => [t.id, window.CantaI18n && window.CantaI18n.lang === 'en' ? TYPE_EN[t.id] || t.label : t.label]));
   const VIS_ICON = { todos: 'i-globe', seguidores: 'i-users', 'so-eu': 'i-lock' };
 
   // Seu nome na rede: o dos Ajustes; sem ele, o jogador mais frequente do histórico.
@@ -1468,10 +1470,12 @@
     let h = 0; for (const ch of String(n || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return NAME_COLORS[h % NAME_COLORS.length];
   };
-  function avatarHTML(id, size, extra) {
+  function avatarHTML(id, size, extra, plain) {
     const u = SO.user(id);
     const name = u ? u.name : '?';
-    return '<span class="av' + (size ? ' av-' + size : '') + '" style="--av:' + userColor(id) + '"' + (id && id !== 'me' && size !== 'xs' ? ' data-user="' + esc(id) + '"' : '') + (extra || '') + '>' + esc(initials(name)) + '</span>';
+    const lv = size !== 'xs' ? liveOf(id) : null;
+    const link = !plain; // jogando agora: anel verde + selo do esporte; o toque abre o placar ao vivo
+    return '<span class="av' + (size ? ' av-' + size : '') + (lv ? ' is-live' : '') + '" style="--av:' + userColor(id) + '"' + (lv && link ? ' data-live="' + esc(id) + '" role="button" tabindex="0" title="' + esc(L('Jogando ' + sportLabel(lv.sport) + ' agora', 'Playing ' + sportEN(lv.sport) + ' now')) + '"' : id && id !== 'me' && size !== 'xs' && link ? ' data-user="' + esc(id) + '"' : '') + (extra || '') + '>' + esc(initials(name)) + (lv ? liveBadgeHTML(lv) : '') + '</span>';
   }
   // nome de jogador na rede: "Você" para você, nome do usuário ou o texto livre
   const pName = (p, short) => (p.userId === 'me' ? 'Você' : short ? firstName(SO.nameOf(p)) : SO.nameOf(p));
@@ -1567,6 +1571,24 @@
       '<button class="zap-who" type="button" data-zaps="' + esc(a.id) + '"' + (z.length ? '' : ' disabled') + '><span class="faces">' + faces + '</span><span>' + who + '</span></button></div>';
   }
 
+  // vitórias seguidas de alguém, das partidas mais recentes para trás (para o raio "on fire" ao lado do nome)
+  const streakMemo = new Map();
+  function winStreakOf(id) {
+    if (id === 'me') { const nm = myName(); if (!nm) return 0; const c = profileOf(history(), nm).currentStreak; return c.kind === 'V' ? c.len : 0; }
+    const acts = SO.byUser(id);
+    const k = id + '|' + acts.length + '|' + (acts[0] ? acts[0].id : '');
+    if (streakMemo.has(k)) return streakMemo.get(k);
+    let n = 0;
+    for (const a of acts) {
+      if (!a.result || a.result.winner == null) continue;
+      const t = (a.teams || []).findIndex(tm => (tm.players || []).some(p => p.userId === id));
+      if (t < 0) continue;
+      if (a.result.winner === t) n++; else break;
+    }
+    if (streakMemo.size > 300) streakMemo.clear();
+    streakMemo.set(k, n);
+    return n;
+  }
   function actCardHTML(a) {
     const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
     const kp = [];
@@ -1577,7 +1599,7 @@
     else if (a.result && a.result.sets && a.result.sets.length > 1) kp.push(['Sets', String(a.result.sets.length)]);
     const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
     return '<article class="act" data-act="' + esc(a.id) + '">' +
-      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' +
+      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><span class="act-name"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' + fireHTML(winStreakOf(a.ownerId), true) + '</span>' +
       '<span>' + ic('s-' + a.sport) + esc(fmtWhen(a.playedAt)) + (a.place ? ' · ' + esc(a.place) : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + (a.groupId && SO.group(a.groupId) ? '<button class="mtag gtag" type="button" data-group="' + esc(a.groupId) + '">' + ic('i-users') + esc(SO.group(a.groupId).name) + '</button>' : typeBadge(a)) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h3 class="act-title">' + esc(actTitle(a)) + '</h3>' +
       (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
@@ -1603,7 +1625,7 @@
     const kind = prefs.feedKind === 'geral' ? 'geral' : 'seguindo';
     setRadio('feedKind', kind);
     const list = SO.feed(kind, myActivities()).slice(0, 60);
-    let h = kind === 'geral' ? '<p class="feed-note">' + ic('i-pin') + 'Partidas públicas de quem joga em <b>' + esc(SO.me().city) + '</b></p>' : '';
+    let h = kind === 'geral' ? '<p class="feed-note">' + ic('i-pin') + 'Partidas públicas de quem joga em <b>' + esc(SO.me().city) + '</b></p>' : liveStripHTML();
     if (!list.length) h += demoNet() ? '<div class="empty-state">' + ic('i-users') + '<b>Nada por aqui ainda</b><span>Siga pessoas que jogam perto de você para ver as partidas delas.</span></div>'
       : '<div class="empty-state">' + ic('i-flag') + '<b>Suas partidas aparecem aqui</b><span>Marque a primeira pelo placar ou lance uma que já jogou. Crie um grupo para a sua turma e convide pelo link.</span><button class="btn btn-brand" type="button" data-action="choose">' + ic('i-plus') + 'Nova partida</button></div>';
     // 12 por vez: o resto entra quando a pessoa chega perto do fim (a tela abre mais rápido)
@@ -1691,7 +1713,7 @@
     const wins = acts.filter(a => a.result && a.result.winner != null && a.teams[a.result.winner].players.some(p => p.userId === id)).length;
     const fs = isMe ? null : SO.followStatus(id);
     let h = isMe ? '<div class="preview-note">' + ic('i-info') + '<span><b>Prévia:</b> é assim que quem não segue você vê seu perfil (' + esc(PRIV_LBL[priv.level].toLowerCase()) + ').</span><button class="btn btn-sm" type="button" data-action="prefs">Mudar</button></div>' : '';
-    h += '<div class="panel me-card"><div class="me-head">' + avatarHTML(id, 'xl') + '<div class="me-id"><div class="me-name"><h2>' + esc(u.name) + '</h2>' + (priv.level === 'privado' ? '<span class="privtag" title="Perfil privado">' + ic('i-lock') + '</span>' : '') + '</div>' +
+    h += '<div class="panel me-card"><div class="me-head">' + avatarHTML(id, 'xl') + '<div class="me-id"><div class="me-name"><h2>' + esc(u.name) + '</h2>' + (can('estatisticas') ? fireHTML(winStreakOf(id)) : '') + (priv.level === 'privado' ? '<span class="privtag" title="Perfil privado">' + ic('i-lock') + '</span>' : '') + '</div>' +
       '<div class="me-meta"><button class="idchip" type="button" data-copy="' + esc(SO.publicId(id)) + '">' + esc(SO.publicId(id)) + ic('i-copy') + '</button><span>' + ic('i-pin') + esc(u.city) + '</span>' + (u.sports.length && can('estatisticas') ? '<span>' + ic('i-grid') + esc(u.sports.map(s => SPORT_SHORT[s] || sportLabel(s)).join(' · ')) + '</span>' : '') + '</div></div></div>' +
       (u.bio && can('estatisticas') ? '<p class="me-bio">' + esc(u.bio) + '</p>' : '') +
       '<div class="me-counts"><div><b>' + (can('partidas') ? acts.length : '–') + '</b><span>Partidas</span></div><div><b>' + (u.followers + (fs === 'seguindo' ? 1 : 0)) + '</b><span>Seguidores</span></div><div><b>' + u.following + '</b><span>Seguindo</span></div></div>' +
@@ -2602,7 +2624,7 @@
   const emptyRange = '<p class="hint">Sem partidas nesse período.</p>';
   let meDemo = null; // null = automático (exemplo quando ainda não há dados próprios)
   let meSport = ''; // '' = todos os esportes (como o seletor de esporte do Strava)
-  const one = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
+  const one = v => (Math.round(v * 10) / 10).toString().replace('.', window.CantaI18n && window.CantaI18n.lang === 'en' ? '.' : ',');
 
   function calendarHTML(cal) {
     const DAY = 86400000;
@@ -2683,8 +2705,8 @@
     if (useDemo) h += '<p class="demo-note">' + ic('i-info') + '<span>Atleta e partidas fictícias, para mostrar como fica um perfil com 4 meses de jogo.' + (known.length ? '' : ' O seu aparece aqui depois da primeira partida com o seu nome.') + '</span></p>';
 
     // cabeçalho
-    h += '<div class="panel me-card"><div class="me-head"><span class="me-avatar">' + esc(initials(p.name)) + '</span><div class="me-id">' +
-      '<div class="me-name"><h2>' + esc(p.name) + '</h2>' + (useDemo || isPro() ? '<span class="pro-badge">PRO</span>' : '') + '</div>' +
+    h += '<div class="panel me-card"><div class="me-head"><span class="me-avatar' + (!useDemo && liveOf('me') ? ' is-live" data-live="me" role="button" tabindex="0" title="' + esc(L('Você está jogando agora', 'You are playing now')) : '') + '">' + esc(initials(p.name)) + (!useDemo && liveOf('me') ? liveBadgeHTML(liveOf('me')) : '') + '</span><div class="me-id">' +
+      '<div class="me-name"><h2>' + esc(p.name) + '</h2>' + (cur.kind === 'V' ? fireHTML(cur.len) : '') + (useDemo || isPro() ? '<span class="pro-badge">PRO</span>' : '') + '</div>' +
       (!useDemo ? '<div class="me-privrow"><button class="privchip p-' + myPrivacy().level + '" type="button" data-action="prefs">' + ic(myPrivacy().level === 'privado' ? 'i-lock' : myPrivacy().level === 'personalizado' ? 'i-sliders' : 'i-globe') + esc(PRIV_LBL[myPrivacy().level]) + '</button><button class="linkish small" type="button" data-go-perfil-me>Ver como os outros veem</button></div>' : '') +
       '<div class="me-meta">' + (!useDemo ? '<button class="idchip" type="button" data-copy="' + esc(myUid()) + '" title="Seu ID: passe para alguém te achar">' + esc(myUid()) + ic('i-copy') + '</button>' : '') + (extra ? '<span>' + ic('i-pin') + esc(extra.city) + '</span><span>' + ic('i-calendar') + esc(extra.since.replace('jogando desde', 'Desde')) + '</span>' : (sportsTxt ? '<span>' + ic('i-grid') + esc(sportsTxt) + '</span>' : '')) + '</div>' +
       '</div></div>' +
@@ -2705,9 +2727,10 @@
     }
     // sequências
     h += '<div class="streaks">' +
-      '<div class="streak hot">' + ic('i-flame') + '<b>' + (cur.kind ? cur.len : '–') + '</b><span>' + (cur.kind === 'D' ? (cur.len === 1 ? 'derrota seguida' : 'derrotas seguidas') : (cur.len === 1 ? 'vitória seguida' : 'vitórias seguidas')) + '</span></div>' +
+      '<div class="streak hot' + (cur.kind === 'V' && cur.len >= 2 ? ' lit' : '') + '">' + ic('i-flame', 'ic flame') + '<b>' + (cur.kind ? cur.len : '–') + '</b><span>' + (cur.kind === 'D' ? (cur.len === 1 ? 'derrota seguida' : 'derrotas seguidas') : (cur.len === 1 ? 'vitória seguida' : 'vitórias seguidas')) + '</span></div>' +
       '<div class="streak">' + ic('i-calendar') + '<b>' + p.weekStreak + '</b><span>' + (p.weekStreak === 1 ? 'semana jogando' : 'semanas seguidas') + '</span></div>' +
       '<div class="streak">' + ic('i-target') + '<b>' + pct + '</b><span>aproveitamento</span></div></div>';
+    h += '<button class="st-entry" type="button" data-go="stats"><span class="st-entry-ic">' + ic('i-chart') + '</span><span class="st-entry-txt"><b>Estatísticas completas' + (isPro() || useDemo ? '' : '<span class="pro-badge">PRO</span>') + '</b><small translate="no">' + esc(meSport ? L('Os números de ' + sportLabel(meSport) + ', gráficos e a análise do dia', 'Your ' + sportEN(meSport) + ' numbers, charts and the daily analysis') : L('Gráficos, análise do dia e os números de cada esporte', 'Charts, the daily analysis and the numbers for each sport')) + '</small></span>' + ic('i-chev', 'ic chev') + '</button>';
     if (!useDemo) h += '<button class="cont-link retro-link" type="button" data-action="retro">' + ic('i-sparkles') + 'Retrospectiva do mês para o story</button>';
 
     // totais por período
@@ -2773,9 +2796,417 @@
     if (on && meSport) { const strip = on.parentElement; strip.scrollLeft = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2; } // só na horizontal: não mexe na rolagem da página
   }
 
+
+  // "on fire": raio da marca com +N quando a pessoa está numa sequência de vitórias (3 ou mais). Vale para todos, não só Pro.
+  function fireHTML(n, small) {
+    if (!(n >= 3)) return '';
+    return '<span class="onfire' + (small ? ' sm' : '') + (n >= 10 ? ' x10' : n >= 5 ? ' x5' : '') + '" translate="no" title="' + L(n + ' vitórias seguidas', n + ' wins in a row') + '" aria-label="' + L(n + ' vitórias seguidas', n + ' wins in a row') + '">' + ic('i-bolt', 'ic of-bolt') + '<b>+' + n + '</b><i class="of-p"></i><i class="of-p"></i><i class="of-p"></i><i class="of-p"></i></span>';
+  }
+
+  // ---------- Estatísticas completas (Pro: o começo fica aberto, o resto aparece borrado) ----------
+  // Filtros: esporte (Geral ou um esporte), período e tipo de partida (dá para tirar resenha e treino).
+  // Cada número abre o gráfico de evolução. A análise do dia sai uma vez por dia, por esporte, só com partida nova.
+  const F = window.CantaFull;
+  const EN = !!(window.CantaI18n && window.CantaI18n.lang === 'en');
+  const L = (pt, en) => (EN ? en : pt); // frase montada com números e nomes: sai pronta no idioma (e com translate="no")
+  const SHOT_EN = { voleio: 'volley', ataque: 'attack', bloqueio: 'block', saque: 'serve' };
+  const oppTxt = o => (EN ? String(o).replace(/ e /g, ' and ') : o);
+  const shotName = k => (EN ? SHOT_EN[k] || k : G.SHOT_LABEL[k] || k);
+  const stF = Object.assign({ period: '180', types: [], sport: '' }, prefs.statsF || {});
+  const ST_PERIODS = [['30', '30d'], ['90', '3m'], ['180', '6m'], ['365', '12m'], ['all', 'Sempre']];
+  const ST_PERIOD_LONG = { 30: 'últimos 30 dias', 90: 'últimos 3 meses', 180: 'últimos 6 meses', 365: 'últimos 12 meses', all: 'desde o começo' };
+  const FUN_TYPES = ['resenha', 'treino', 'aula'];
+  const ST_PERIOD_EN = { 30: 'last 30 days', 90: 'last 3 months', 180: 'last 6 months', 365: 'last 12 months', all: 'since the start' };
+  const sportEN = sp => (window.CantaI18n ? window.CantaI18n.t(sportLabel(sp)) : sportLabel(sp));
+  const xcData = new Map(); // gráficos interativos desenhados agora (id → pontos)
+  let stEvo = 'winRate', stDetail = null;
+  const fmtMt = (mt, v) => (v === null || v === undefined || !Number.isFinite(v) ? '–'
+    : mt.unit === 'pct' ? Math.round(v * 100) + '%' : mt.unit === 'ms' ? fmtDur(v) : mt.unit === 'signed' ? (v >= 0 ? '+' : '−') + one(Math.abs(v)) : mt.unit === 'int' ? String(Math.round(v)) : one(v));
+  const mtLabel = mt => (mt.shot ? (G.SHOT_LABEL[mt.shot] || mt.shot).replace(/^./, c => c.toUpperCase()) : mt.label);
+  const mtUnitTxt = mt => (mt.unit === 'per' ? 'por partida' : mt.unit === 'signed' ? 'por partida' : mt.unit === 'ms' ? 'no total' : '');
+  function deltaHTML(mt, v, pv) {
+    if (v === null || pv === null || v === undefined || pv === undefined || !Number.isFinite(v) || !Number.isFinite(pv)) return '';
+    const d = v - pv, eps = mt.unit === 'pct' ? 0.005 : mt.unit === 'ms' ? 60000 : 0.05;
+    if (Math.abs(d) < eps) return '<span class="dl flat" title="Igual ao período anterior">=</span>';
+    const good = mt.lower ? d < 0 : d > 0;
+    const txt = mt.unit === 'pct' ? Math.round(Math.abs(d) * 100) + '%' : mt.unit === 'ms' ? fmtDur(Math.abs(d)) : one(Math.abs(d));
+    return '<span class="dl ' + (good ? 'up' : 'down') + '" title="Em relação ao período anterior">' + (d > 0 ? '▲' : '▼') + ' ' + txt + '</span>';
+  }
+
+  // gráfico de evolução com toque/mouse/teclado: ponto por partida, linha com a média das últimas 5
+  function xChartHTML(mt, pts, big) {
+    if (pts.length < 2) return '<p class="hint">O gráfico aparece a partir da 2ª partida com esse número.</p>';
+    const id = 'xc' + Math.random().toString(36).slice(2, 8);
+    const W = 360, H = big ? 210 : 180, X0 = 30, R = 8, T = 12, B = 8;
+    const vals = pts.map(p => p.v);
+    let lo = 0, hi = mt.unit === 'pct' ? 1 : Math.max(1, ...vals) * 1.12;
+    if (mt.unit === 'signed') { const m = Math.max(2, ...vals.map(Math.abs)) * 1.12; lo = -m; hi = m; }
+    const n = pts.length;
+    const x = i => X0 + (W - X0 - R) * (i / (n - 1));
+    const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+    const sm = F.smooth(pts, mt.roll ? 1 : 5);
+    const line = sm.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+    const base = y(Math.max(lo, Math.min(hi, 0)));
+    const ticks = mt.unit === 'pct' ? [0, 0.5, 1] : mt.unit === 'signed' ? [lo, 0, hi] : [0, hi / 2, hi];
+    const tl = v => (mt.unit === 'pct' ? Math.round(v * 100) + '%' : mt.unit === 'ms' ? Math.round(v / 60000) + "'" : mt.unit === 'signed' ? (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v)) : String(Math.round(v * 10) / 10).replace('.', ','));
+    xcData.set(id, { mt: mt.id, pts, W, x: pts.map((p, i) => x(i) / W), y: pts.map(p => y(p.v) / H) });
+    const dot = (p, i) => '<circle class="xd' + (p.won === true ? ' w' : p.won === false ? ' l' : '') + '" cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) + '" r="' + (n > 40 ? 3 : 4) + '" style="--i:' + i + '"/>';
+    const first = pts[0], last = pts[n - 1];
+    return '<div class="xchart" id="' + id + '" data-xc="' + id + '" tabindex="0" role="img" translate="no" aria-label="' + esc(L(mtLabel(mt) + ': ' + n + ' partidas, de ' + fmtMt(mt, first.v) + ' para ' + fmtMt(mt, last.v) + '. Use as setas para ver cada partida.', (window.CantaI18n ? window.CantaI18n.t(mtLabel(mt)) : mtLabel(mt)) + ': ' + n + ' matches, from ' + fmtMt(mt, first.v) + ' to ' + fmtMt(mt, last.v) + '. Use the arrow keys to see each match.')) + '">' +
+      '<div class="xplot"><svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><defs><linearGradient id="' + id + 'g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--chart)" stop-opacity=".22"/><stop offset="1" stop-color="var(--chart)" stop-opacity="0"/></linearGradient></defs>' +
+      ticks.map(t => '<line class="xg" x1="' + X0 + '" x2="' + (W - R) + '" y1="' + y(t).toFixed(1) + '" y2="' + y(t).toFixed(1) + '"/>').join('') +
+      (mt.unit === 'pct' ? '<line class="xg mid" x1="' + X0 + '" x2="' + (W - R) + '" y1="' + y(0.5) + '" y2="' + y(0.5) + '"/>' : '') +
+      '<path class="xa" d="' + line + ' L' + x(n - 1).toFixed(1) + ' ' + base + ' L' + x(0) + ' ' + base + ' Z" fill="url(#' + id + 'g)"/>' +
+      '<path class="xl" d="' + line + '" pathLength="1"/>' +
+      pts.map(dot).join('') +
+      '<line class="xcross" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '"/></svg>' +
+      ticks.map(t => '<span class="xt" style="top:' + (y(t) / H * 100).toFixed(2) + '%">' + tl(t) + '</span>').join('') +
+      '<i class="xpin" hidden></i></div><div class="xbx"><span>' + esc(fmtDay(first.t)) + '</span><span>' + esc(fmtDay(last.t)) + '</span></div>' +
+      '<div class="xtip" hidden></div></div>' +
+      '<div class="xlegend"><span><i class="w"></i>Vitória</span><span><i class="l"></i>Derrota</span><span><i class="ln"></i>' + (mt.roll ? 'Média das últimas 5' : 'Média móvel de 5') + '</span></div>';
+  }
+  function xcShow(el, i) {
+    const d = xcData.get(el.dataset.xc); if (!d) return;
+    i = Math.max(0, Math.min(d.pts.length - 1, i)); el.dataset.i = i;
+    const p = d.pts[i], mt = F.metric(d.mt);
+    const tip = el.querySelector('.xtip'), pin = el.querySelector('.xpin'), cr = el.querySelector('.xcross');
+    cr.setAttribute('x1', d.x[i] * d.W); cr.setAttribute('x2', d.x[i] * d.W); cr.classList.add('on');
+    pin.hidden = false; pin.style.left = (d.x[i] * 100) + '%'; pin.style.top = (d.y[i] * 100) + '%'; pin.className = 'xpin' + (p.won === true ? ' w' : p.won === false ? ' l' : '');
+    tip.innerHTML = '<b>' + esc(fmtMt(mt, p.v)) + (mt.roll ? ' <em>' + L('nas últimas 5', 'over the last 5') + '</em>' : '') + '</b><span>' + esc(fmtDay(p.t)) + ' · ' + (p.won === true ? L('vitória', 'win') : p.won === false ? L('derrota', 'loss') : L('sem resultado', 'no result')) + '</span><small>' + L('contra ', 'vs ') + esc(oppTxt(p.opp)) + '</small>';
+    tip.hidden = false;
+    const w = el.clientWidth, tw = tip.offsetWidth, px = d.x[i] * w;
+    tip.style.left = Math.max(0, Math.min(w - tw, px - tw / 2)) + 'px';
+    tip.style.top = (d.y[i] * el.querySelector('.xplot').offsetHeight) + 'px';
+    tip.classList.toggle('below', d.y[i] < 0.45);
+  }
+  function xcHide(el) { const t = el.querySelector('.xtip'); if (t) t.hidden = true; const p = el.querySelector('.xpin'); if (p) p.hidden = true; const c = el.querySelector('.xcross'); if (c) c.classList.remove('on'); }
+  function xcIndex(el, clientX) {
+    const d = xcData.get(el.dataset.xc); if (!d) return 0;
+    const r = el.getBoundingClientRect(), fx = (clientX - r.left) / r.width;
+    let best = 0; d.x.forEach((v, i) => { if (Math.abs(v - fx) < Math.abs(d.x[best] - fx)) best = i; });
+    return best;
+  }
+  function wireXCharts() {
+    const at = e => e.target.closest && e.target.closest('.xchart');
+    document.addEventListener('pointermove', e => { const el = at(e); if (el) xcShow(el, xcIndex(el, e.clientX)); });
+    document.addEventListener('pointerdown', e => { const el = at(e); if (el) xcShow(el, xcIndex(el, e.clientX)); });
+    document.addEventListener('pointerout', e => { const el = at(e); if (el && e.pointerType === 'mouse' && !el.contains(e.relatedTarget)) xcHide(el); });
+    document.addEventListener('keydown', e => {
+      const el = at(e); if (!el || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      e.preventDefault(); const d = xcData.get(el.dataset.xc); if (!d) return;
+      const i = el.dataset.i == null ? d.pts.length - 1 : Number(el.dataset.i);
+      xcShow(el, e.key === 'Home' ? 0 : e.key === 'End' ? d.pts.length - 1 : i + (e.key === 'ArrowRight' ? 1 : -1));
+    });
+    document.addEventListener('focusout', e => { const el = at(e); if (el) xcHide(el); });
+  }
+
+  function statsSubject() {
+    const s = meSubject();
+    return Object.assign(s, { rows: F.rows(s.list, s.who) });
+  }
+  function saveStF() { prefs.statsF = { period: stF.period, types: stF.types.slice(), sport: stF.sport }; savePrefs(); }
+  // análise do dia: base é o esporte escolhido, sem resenha e aula (se sobrar o bastante); guardada por esporte
+  function dailyFor(rowsAll, sport, demo) {
+    const sp = rowsAll.filter(r => !sport || r.sport === sport);
+    const serious = sp.filter(r => r.type !== 'resenha' && r.type !== 'aula');
+    const base = serious.length >= 3 ? serious : sp;
+    const lastAt = base.length ? base[base.length - 1].endedAt : 0;
+    const key = (sport || 'geral') + (demo ? '|demo' : '');
+    const store = prefs.aiDaily || {};
+    const cache = store[key];
+    const lang = window.CantaI18n ? window.CantaI18n.lang : 'pt';
+    let status, data = cache;
+    if (F.needsAnalysis(cache, lastAt) || (cache && cache.lang !== lang && lastAt)) {
+      const an = F.analysis(base, sport, lang);
+      data = { day: F.dayKey(Date.now()), at: Date.now(), lastAt, items: an.items, short: an.short, n: base.length, lang, fun: base !== sp ? 0 : 1 };
+      if (isPro() && !an.short) { store[key] = data; prefs.aiDaily = store; savePrefs(); }
+      status = cache ? 'new' : 'first';
+    } else if (cache && lastAt > cache.lastAt) status = 'tomorrow';
+    else status = 'same';
+    return { data, status, lastAt };
+  }
+  function dailyHTML(rowsAll, sport, demo) {
+    const { data, status } = dailyFor(rowsAll, sport, demo);
+    if (!data || data.short || !data.items.length) return '<div class="panel ai-day">' + ph('i-sparkles', 'Análise do dia') + '<p class="hint" translate="no">' + esc(L('A análise aparece a partir da 3ª partida' + (sport ? ' de ' + sportLabel(sport) : '') + '.', 'The analysis shows up from your 3rd ' + (sport ? sportEN(sport) + ' ' : '') + 'match.')) + '</p></div>';
+    const when = new Date(data.at);
+    const st = status === 'tomorrow' ? L('Partida nova registrada. A próxima análise sai amanhã.', 'New match logged. The next analysis comes out tomorrow.')
+      : status === 'same' ? L('Sem partidas novas desde ' + fmtDay(data.lastAt) + ': a análise continua valendo.', 'No new matches since ' + fmtDay(data.lastAt) + ', so this analysis still holds.')
+        : L('Atualizada hoje com ' + (data.n === 1 ? 'a partida' : 'as ' + data.n + ' partidas') + (sport ? ' de ' + sportLabel(sport) : '') + (data.fun ? '' : ', sem as resenhas e aulas') + '.',
+          'Updated today with your ' + (data.n === 1 ? '' : data.n + ' ') + (sport ? sportEN(sport) + ' ' : '') + (data.n === 1 ? 'match' : 'matches') + (data.fun ? '' : ', leaving out casual games and lessons') + '.');
+    return '<div class="panel ai-day">' + ph('i-sparkles', 'Análise do dia', '<span class="sec-meta">' + esc(fmtDay(when.getTime())) + '</span>') +
+      '<p class="ai-status" translate="no">' + ic(status === 'tomorrow' ? 'i-clock' : status === 'same' ? 'i-check' : 'i-sparkles') + '<span>' + esc(st) + '</span></p>' +
+      '<div class="ai-items" translate="no">' + data.items.map((it, k) => '<div class="ai-item t-' + it.tone + '" style="--k:' + k + '"><span class="ai-ic">' + ic(it.ic) + '</span><div><b>' + esc(it.title) + '</b><p>' + esc(it.text) + '</p></div></div>').join('') + '</div></div>';
+  }
+
+  function renderStats() {
+    const body = $('#fullBody'); if (!body) return;
+    xcData.clear();
+    const { rows: R, useDemo, who } = statsSubject();
+    const sportsCount = {}; R.forEach(r => { sportsCount[r.sport] = (sportsCount[r.sport] || 0) + 1; });
+    const sports = Object.keys(sportsCount).sort((a, b) => sportsCount[b] - sportsCount[a]);
+    if (stF.sport && !sportsCount[stF.sport]) stF.sport = '';
+    const typesCount = {}; R.filter(r => !stF.sport || r.sport === stF.sport).forEach(r => { typesCount[r.type] = (typesCount[r.type] || 0) + 1; });
+    const types = SO.TYPES.map(t => t.id).filter(t => typesCount[t]);
+    stF.types = stF.types.filter(t => typesCount[t]);
+    const cur = F.filter(R, stF), prev = F.previous(R, stF);
+    const a = F.agg(cur), pa = prev && prev.length ? F.agg(prev) : null;
+    const pro = isPro() || useDemo;
+    const mts = F.metricsFor(stF.sport);
+    const M = id => F.metric(id);
+    const v = (mt, x) => (x ? F.value(mt, x) : null);
+    let h = '';
+    if (useDemo) h += '<p class="demo-note" translate="no">' + ic('i-info') + '<span>' + esc(L('Exemplo com as partidas fictícias da ' + firstName(who) + '. As suas aparecem aqui depois da primeira partida com o seu nome.', 'A sample with ' + firstName(who) + '\'s made-up matches. Yours show up here after your first match with your name on it.')) + '</span></p>';
+    // filtros
+    h += '<div class="st-filters">';
+    if (sports.length > 1) h += '<div class="sport-filter" role="radiogroup" aria-label="Esporte"><button class="sf' + (stF.sport ? '' : ' on') + '" type="button" role="radio" aria-checked="' + !stF.sport + '" data-stsport="">' + ic('i-grid') + '<span>Visão geral</span></button>' +
+      sports.map(sp => '<button class="sf' + (stF.sport === sp ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (stF.sport === sp) + '" data-stsport="' + sp + '">' + ic('s-' + sp) + '<span>' + esc(SPORT_SHORT[sp] || sportLabel(sp)) + '</span></button>').join('') + '</div>';
+    h += '<div class="st-row"><div class="seg seg-sm st-period" role="radiogroup" aria-label="Período">' + ST_PERIODS.map(([val, l]) => '<label><input type="radio" name="stPeriod" value="' + val + '"' + (stF.period === val ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div></div>';
+    if (types.length > 1) {
+      const fun = types.filter(t => FUN_TYPES.includes(t));
+      const seriousOn = fun.length && stF.types.length && fun.every(t => !stF.types.includes(t)) && types.filter(t => !FUN_TYPES.includes(t)).every(t => stF.types.includes(t));
+      h += '<div class="st-types" role="group" aria-label="Tipo de partida"><button class="fchip' + (!stF.types.length ? ' on' : '') + '" type="button" data-sttype="" aria-pressed="' + !stF.types.length + '">Todas</button>' +
+        (fun.length && types.length > fun.length ? '<button class="fchip fchip-ic' + (seriousOn ? ' on' : '') + '" type="button" data-sttype="@serio" aria-pressed="' + !!seriousOn + '">' + ic('i-trophy') + 'Só pra valer</button>' : '') +
+        types.map(t => '<button class="fchip' + (stF.types.includes(t) ? ' on' : '') + '" type="button" data-sttype="' + t + '" aria-pressed="' + stF.types.includes(t) + '">' + esc(TYPE_LABEL[t]) + '<small>' + typesCount[t] + '</small></button>').join('') + '</div>';
+    }
+    h += '<p class="st-sum" translate="no">' + ic('i-filter') + '<span>' + a.matches + L(a.matches === 1 ? ' partida' : ' partidas', a.matches === 1 ? ' match' : ' matches') + ' · ' + esc(EN ? ST_PERIOD_EN[stF.period] : ST_PERIOD_LONG[stF.period]) + (stF.types.length ? ' · ' + esc(stF.types.map(t => TYPE_LABEL[t]).join(', ')) : '') + '</span></p></div>';
+
+    if (!a.matches) {
+      body.innerHTML = h + '<div class="empty-state">' + ic('i-chart') + '<b>Nenhuma partida com esses filtros</b><span>Aumente o período ou escolha outros tipos de partida.</span></div>';
+      return;
+    }
+    // aberto para todos: os 4 números do topo e o gráfico de aproveitamento
+    const top = [['winRate', 'Aproveitamento'], ['matches'], ['wins'], ['ms']];
+    h += '<div class="st-kpis">' + top.map(([id]) => {
+      if (id === 'matches') return '<div class="st-kpi"><span class="st-ic">' + ic('i-flag') + '</span><em>Partidas</em><b>' + a.matches + '</b>' + (pa ? deltaHTML({ unit: 'int' }, a.matches, pa.matches) : '') + '</div>';
+      if (id === 'wins') return '<div class="st-kpi"><span class="st-ic">' + ic('i-medal') + '</span><em>Vitórias</em><b>' + a.wins + '<small> · ' + a.losses + L('D', 'L') + '</small></b>' + (pa ? deltaHTML({ unit: 'int' }, a.wins, pa.wins) : '') + '</div>';
+      const mt = M(id);
+      return '<button class="st-kpi" type="button" data-stat="' + id + '"><span class="st-ic">' + ic(mt.ic) + '</span><em>' + esc(id === 'ms' ? 'Tempo em quadra' : mt.label) + '</em><b>' + esc(fmtMt(mt, v(mt, a))) + '</b>' + (pa ? deltaHTML(mt, v(mt, a), v(mt, pa)) : '') + '</button>';
+    }).join('') + '</div>';
+    const fire = (() => { let n = 0; for (let i = R.length - 1; i >= 0 && R[i].won !== false; i--) if (R[i].won === true) n++; return n; })();
+    if (fire >= 3) h += '<div class="st-fire" translate="no">' + fireHTML(fire) + '<span>' + L('<b>' + fire + ' vitórias seguidas.</b> Você está on fire.', '<b>' + fire + ' wins in a row.</b> You are on fire.') + '</span></div>';
+
+    const evo = M(stEvo) && mts.includes(M(stEvo)) ? M(stEvo) : M('winRate');
+    const evoOpts = ['winRate', 'ptsPct', 'pts', 'winners', 'errors'].map(M).filter(mt => mts.includes(mt));
+    h += '<div class="panel">' + ph('i-trend', 'Evolução') +
+      '<div class="st-chips" role="radiogroup" aria-label="Número do gráfico">' + evoOpts.map(mt => {
+        const locked = !pro && mt.id !== 'winRate';
+        return '<button class="fchip' + (mt === evo ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (mt === evo) + '" data-stevo="' + mt.id + '"' + (locked ? ' data-locked="1"' : '') + '>' + (locked ? ic('i-lock') : '') + esc(mt.label) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="st-evo-head"><b>' + esc(fmtMt(evo, v(evo, a))) + '</b><span>' + esc(evo.help) + '</span></div>' +
+      xChartHTML(evo, F.series(cur, evo)) + '</div>';
+
+    // a partir daqui, Pro. Sem Pro, o que aparece borrado é o perfil de exemplo (não dá para ler os números reais pelo inspetor)
+    const grid = mts.filter(mt => !['winRate', 'ms'].includes(mt.id));
+    const demoArgs = () => {
+      const dR = F.rows(DM.history(), DM.ATHLETE.name), f = { period: 'all', types: [], sport: dR.some(r => r.sport === stF.sport) ? stF.sport : '' };
+      const dc = F.filter(dR, f);
+      return [dR, dc, F.agg(dc), null, true];
+    };
+    const z = ((R, cur, a, pa, useDemo) => {
+    let z = '';
+    z += dailyHTML(R, stF.sport, useDemo);
+    const attrOK = a.attributed > 0;
+    z += '<div class="panel">' + ph('i-gauge', stF.sport ? L('Números de ' + sportLabel(stF.sport), sportEN(stF.sport) + ' numbers') : 'Números gerais', '<span class="sec-meta">toque para ver a evolução</span>') +
+      (!attrOK ? '<p class="hint">' + ic('i-info') + ' Para ver aces, winners e erros, marque quem fez cada ponto (no painel de lances ou falando o nome).</p>' : '') +
+      (stF.sport ? '' : '<p class="hint">Escolha um esporte acima para ver aces, break points, ataques e o que é só dele.</p>') +
+      '<div class="st-grid">' + grid.filter(mt => mt.need !== 'attr' || attrOK).map((mt, k) => {
+        const val = v(mt, a), pv = v(mt, pa), s = F.series(cur, mt).slice(-12);
+        const fr = mt.frac ? mt.frac(a) : null;
+        return '<button class="st-tile" type="button" data-stat="' + mt.id + '" style="--k:' + k + '"><span class="st-ic">' + ic(mt.ic) + '</span><em>' + esc(mt.label) + '</em><b>' + esc(fmtMt(mt, val)) + '</b><small>' + esc(fr ? fr[0] + ' de ' + fr[1] : mtUnitTxt(mt)) + '</small>' + deltaHTML(mt, val, pv) + sparkBars(s, mt) + '</button>';
+      }).join('') + '</div></div>';
+    // como saem os pontos e os erros
+    if (attrOK) {
+      const other = Math.max(0, a.pts - a.aces - a.winners);
+      const kind = stF.sport ? F.kindOf(stF.sport) : 'games';
+      const ptsParts = (kind === 'games' ? [['Aces', a.aces, 'p1']] : []).concat([['Winners', a.winners, 'p2'], ['Outros pontos', other, 'p3']]);
+      const errParts = [['Na rede', a.rede, 'e1'], ['Fora', a.fora, 'e2']].concat(kind === 'games' ? [['Duplas faltas', a.df, 'e3']] : []);
+      const noType = Math.max(0, a.errors - a.rede - a.fora); if (noType) errParts.push(['Sem tipo', noType, 'e4']);
+      z += '<div class="panel">' + ph('i-layers', 'Como saem seus pontos e erros') + stackHTML('Seus pontos', ptsParts) + stackHTML('Seus erros', errParts) + '</div>';
+      const shotKeys = (stF.sport ? F.SHOT_SPORTS[kind] : S.SHOTS).filter(k => a.shots[k]);
+      if (shotKeys.length) {
+        const per = k => a.shots[k] / a.attributed, mx = Math.max(...shotKeys.map(per));
+        const best = shotKeys.filter(k => k !== 'saque' || kind === 'rally' || shotKeys.length === 1).sort((x, y) => per(y) - per(x))[0];
+        z += '<div class="panel">' + ph('i-racket', 'Golpes de ponto', '<span class="sec-meta">pontos por partida</span>') + '<p class="st-lead" translate="no">' + ic('i-star') + '<span>' + L('Seu melhor golpe: <b>' + esc(shotName(best)) + '</b>, com ' + esc(one(per(best))) + ' pontos por partida.', 'Your best shot: <b>' + esc(shotName(best)) + '</b>, with ' + esc(one(per(best)).replace(',', '.')) + ' points per match.') + '</span></p><div class="bars1 st-shots">' +
+          shotKeys.sort((x, y) => per(y) - per(x)).map((k, i) => '<button class="bar1" type="button" data-stat="shot:' + k + '" style="--k:' + i + '"><span>' + esc(G.SHOT_LABEL[k] || k) + '</span><u><em class="liq" style="width:' + Math.round(per(k) / mx * 100) + '%"></em></u><b>' + esc(one(per(k))) + '</b></button>').join('') + '</div></div>';
+      }
+    }
+    // vitórias e derrotas por mês
+    const months = F.byMonth(cur);
+    if (months.length) {
+      const mx = Math.max(...months.map(m => m.w + m.l), 1);
+      z += '<div class="panel">' + ph('i-calendar', 'Vitórias e derrotas por mês') + '<div class="st-months" role="img" aria-label="Vitórias e derrotas por mês">' + months.map((m, i) => {
+        const lbl = new Date(m.y, m.m, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+        return '<div class="stm" style="--k:' + i + '" title="' + esc(lbl + ': ' + m.w + 'V · ' + m.l + 'D') + '"><div class="stm-bar"><i class="w liq-v" style="height:' + (m.w / mx * 100) + '%"></i><i class="l liq-v" style="height:' + (m.l / mx * 100) + '%"></i></div><b>' + m.w + '<span>' + L('V', 'W') + '</span> ' + m.l + '<span>' + L('D', 'L') + '</span></b><small>' + esc(lbl) + '</small></div>';
+      }).join('') + '</div><div class="xlegend"><span><i class="w"></i>Vitórias</span><span><i class="lb"></i>Derrotas</span></div></div>';
+    }
+    return z;
+    })(...(pro ? [R, cur, a, pa, useDemo] : demoArgs()));
+    if (pro) h += z;
+    else h += '<div class="pro-zone"><div class="pz-content" inert aria-hidden="true">' + z + '</div><div class="pz-cta"><span class="pz-lock">' + ic('i-lock') + '</span><b>O resto é do Pro</b><p translate="no">' + esc(L('Análise do dia, ' + grid.length + ' números ' + (stF.sport ? 'de ' + sportLabel(stF.sport) : 'do seu jogo') + ' com a evolução de cada um, golpes, erros e o mês\u00a0a\u00a0mês.', 'Daily analysis, ' + grid.length + ' ' + (stF.sport ? sportEN(stF.sport) + ' ' : '') + 'numbers with how each one is trending, shots, errors and month\u00a0by\u00a0month.')) + '</p><button class="btn btn-brand" type="button" data-pro="estatisticas">' + ic('i-bolt') + 'Conhecer o Pro</button></div></div>';
+    body.innerHTML = h;
+    const on = body.querySelector('.sport-filter .sf.on');
+    if (on && stF.sport) { const strip = on.parentElement; strip.scrollLeft = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2; }
+  }
+  // barrinhas das últimas partidas dentro de cada número
+  function sparkBars(s, mt) {
+    if (s.length < 3) return '';
+    const vals = s.map(p => p.v), lo = mt.unit === 'signed' ? Math.min(0, ...vals) : 0, hi = mt.unit === 'pct' ? 1 : Math.max(...vals, lo + 1);
+    return '<span class="st-spark" aria-hidden="true">' + s.map((p, i) => '<i class="liq-v' + (p.won === false ? ' l' : '') + '" style="height:' + Math.max(8, Math.round((p.v - lo) / (hi - lo) * 100)) + '%;--i:' + i + '"></i>').join('') + '</span>';
+  }
+  function stackHTML(label, parts) {
+    const tot = parts.reduce((n, p) => n + p[1], 0);
+    if (!tot) return '';
+    return '<div class="stack"><div class="stack-h"><span>' + esc(label) + '</span><b>' + tot + '</b></div><div class="stack-bar">' + parts.filter(p => p[1]).map(p => '<i class="' + p[2] + ' liq" style="width:' + (p[1] / tot * 100).toFixed(1) + '%" title="' + esc(p[0] + ': ' + p[1]) + '"></i>').join('') + '</div>' +
+      '<div class="stack-leg">' + parts.filter(p => p[1]).map(p => '<span><i class="' + p[2] + '"></i>' + esc(p[0]) + ' <b>' + Math.round(p[1] / tot * 100) + '%</b></span>').join('') + '</div></div>';
+  }
+  // detalhe de um número: gráfico maior, média, melhor, últimas 5 e a lista das partidas
+  function openStatDetail(id) {
+    const mt = F.metric(id); if (!mt) return;
+    const { rows: R, useDemo } = statsSubject();
+    if (!isPro() && !useDemo && id !== 'winRate') { openPro('estatisticas', () => openStatDetail(id)); return; }
+    stDetail = id;
+    const cur = F.filter(R, stF), prev = F.previous(R, stF);
+    const a = F.agg(cur), pa = prev && prev.length ? F.agg(prev) : null;
+    const s = F.series(cur, mt);
+    const val = F.value(mt, a);
+    const vs = s.map(p => p.v);
+    const best = vs.length ? (mt.lower ? Math.min(...vs) : Math.max(...vs)) : null;
+    const l5 = s.slice(-5), b5 = s.slice(-10, -5);
+    const avg = x => (x.length ? x.reduce((n, p) => n + p.v, 0) / x.length : null);
+    $('#statTitle').textContent = mtLabel(mt);
+    let h = '<div class="sd-head"><span class="st-ic big">' + ic(mt.ic) + '</span><div><b>' + esc(fmtMt(mt, val)) + '</b><span>' + esc(mtUnitTxt(mt) || (EN ? ST_PERIOD_EN[stF.period] : ST_PERIOD_LONG[stF.period])) + '</span></div>' + deltaHTML(mt, val, pa ? F.value(mt, pa) : null) + '</div>' +
+      '<p class="hint">' + esc(mt.help) + '</p>' + xChartHTML(mt, s, true);
+    if (s.length >= 2) h += '<div class="kpis">' + [['Melhor partida', fmtMt(mt, best)], ['Últimas 5', fmtMt(mt, avg(l5))], ['5 anteriores', b5.length ? fmtMt(mt, avg(b5)) : '–']].map(([l, x]) => '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(x) + '</b></div>').join('') + '</div>';
+    if (s.length) h += '<h4 class="sd-sub">Partida a partida</h4><div class="recs">' + s.slice(-12).reverse().map(p => '<button class="rec-row" type="button" data-open="' + esc(p.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + p.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(p.t)) + '<span class="res-dot ' + (p.won === true ? 'w' : p.won === false ? 'l' : '') + '">' + (p.won === true ? 'V' : p.won === false ? 'D' : '–') + '</span></span><small translate="no">' + L('contra ', 'vs ') + esc(oppTxt(p.opp)) + ' · ' + esc(TYPE_LABEL[p.type] || '') + '</small></span><b>' + esc(fmtMt(mt, p.v)) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div>';
+    $('#statBody').innerHTML = h;
+    openSheet('#sheetStat');
+  }
+  function wireStats() {
+    const body = $('#fullBody');
+    body.addEventListener('change', e => { if (e.target.name === 'stPeriod') { stF.period = e.target.value; saveStF(); renderStats(); } });
+    body.addEventListener('click', e => {
+      const sp = e.target.closest('[data-stsport]');
+      if (sp) { stF.sport = sp.dataset.stsport; saveStF(); renderStats(); return; }
+      const ty = e.target.closest('[data-sttype]');
+      if (ty) {
+        const t = ty.dataset.sttype;
+        const present = $$('[data-sttype]', body).map(b => b.dataset.sttype).filter(x => x && x[0] !== '@');
+        if (!t) stF.types = [];
+        else if (t === '@serio') stF.types = stF.types.length && !stF.types.some(x => FUN_TYPES.includes(x)) ? [] : present.filter(x => !FUN_TYPES.includes(x));
+        else { stF.types = stF.types.includes(t) ? stF.types.filter(x => x !== t) : stF.types.concat(t); if (stF.types.length === present.length) stF.types = []; }
+        saveStF(); renderStats(); return;
+      }
+      const ev = e.target.closest('[data-stevo]');
+      if (ev) { if (ev.dataset.locked) { openPro('estatisticas'); return; } stEvo = ev.dataset.stevo; renderStats(); return; }
+      const st = e.target.closest('[data-stat]');
+      if (st) { openStatDetail(st.dataset.stat); return; }
+      const pr = e.target.closest('[data-pro]');
+      if (pr) openPro(pr.dataset.pro, () => { if (currentView === 'stats') renderStats(); });
+    });
+    wireXCharts();
+  }
+
+
+  // ---------- Jogando agora: anel verde no avatar + selo do esporte; toque abre o placar ao vivo ----------
+  // Regras de privacidade (as mesmas que o servidor vai aplicar, ver supabase/README.md):
+  //  · quem desliga "Mostrar quando estou jogando" não aparece jogando para ninguém;
+  //  · o placar ao vivo só aparece se o dono permitir; se outra pessoa da partida não permitir, o placar aparece
+  //    mas os nomes dos outros ficam escondidos (vale a escolha mais fechada entre os jogadores);
+  //  · só quem segue a pessoa vê (amigos).
+  // Na rede de demonstração, as 3 primeiras pessoas que você segue estão jogando, uma em cada situação.
+  const LIVE_SCEN = [{ min: 24, rule: 'aberto' }, { min: 41, rule: 'nomes' }, { min: 12, rule: 'so-jogando' }];
+  const LIVE_CYCLE = 80 * 60000;
+  let liveMemo = null;
+  function liveRng(seed) { let x = seed >>> 0; return () => { x = (x * 1664525 + 1013904223) >>> 0; return x / 4294967296; }; }
+  function liveGames() {
+    const now = Date.now();
+    if (liveMemo && now - liveMemo.at < 4000) return liveMemo.list;
+    const list = [];
+    const fol = SO.following().map(u => u.id).filter(id => !SO.isBlocked(id)).slice(0, LIVE_SCEN.length);
+    const others = SO.users().filter(u => u.id !== 'me' && !fol.includes(u.id)).map(u => u.id);
+    fol.forEach((id, i) => {
+      const u = SO.user(id), sc = LIVE_SCEN[i];
+      const sport = (u.sports || []).find(sp => E.SPORTS[sp]) || 'beach';
+      const pick = k => others.length ? others[(i * 3 + k) % others.length] : null;
+      const teams = [[id, pick(0)], [pick(1), pick(2)]].map(t => t.filter(Boolean));
+      // a partida começa a cada 80 min (demonstração): o placar anda sozinho, um ponto a cada ~50 s
+      const base = Math.floor((now + sc.min * 60000) / LIVE_CYCLE) * LIVE_CYCLE - sc.min * 60000;
+      const startedAt = base;
+      const c = E.makeConfig(Object.assign({ sport, firstServer: i % 2 }, E.SPORTS[sport].defaults));
+      const s = E.initialState(c);
+      const r = liveRng(base / 60000 + i * 97);
+      let t = startedAt + 90000, last = startedAt;
+      while (t < now && !s.done) {
+        const snap = JSON.stringify(s);
+        E.applyEvent(s, c, { type: 'point', team: r() < 0.53 ? 0 : 1, t });
+        if (s.done) { Object.assign(s, JSON.parse(snap)); break; } // na demonstração a partida nunca termina
+        last = t; t += 38000 + Math.round(r() * 30000);
+      }
+      list.push({ id: 'live-' + id, owner: id, sport, rule: sc.rule, startedAt, lastAt: last, place: u.place || '', teams, state: s, cfg: c });
+    });
+    liveMemo = { at: now, list };
+    return list;
+  }
+  const myLive = () => (match && match.events.length && !match.finished ? match : null);
+  // a partida em que a pessoa está jogando agora (ou null)
+  function liveOf(id) {
+    if (!id) return null;
+    if (id === 'me') return prefs.showOnline === false || !myLive() ? null : { me: true, sport: E.makeConfig(match.cfgInput).sport };
+    if (SO.followStatus(id) !== 'seguindo') return null;
+    return liveGames().find(g => g.owner === id) || null;
+  }
+  function liveBadgeHTML(lv) { return '<i class="live-badge" aria-hidden="true">' + ic('s-' + lv.sport) + '</i>'; }
+  function ago(ms) { const m = Math.max(0, Math.round((Date.now() - ms) / 60000)); return m < 1 ? L('agora', 'just now') : L('há ' + m + ' min', m + ' min ago'); }
+
+  let liveTimer = null, liveOpen = null;
+  function openLive(id) {
+    if (id === 'me') { closeAllSheets(); go('jogar'); return; }
+    liveOpen = id;
+    renderLive();
+    openSheet('#sheetLive');
+    clearInterval(liveTimer);
+    liveTimer = setInterval(() => { if ($('#sheetLive').hidden) { clearInterval(liveTimer); liveTimer = null; return; } renderLive(); }, 5000);
+  }
+  function renderLive() {
+    const g = liveOf(liveOpen), u = SO.user(liveOpen);
+    const body = $('#liveBody');
+    if (!u) return;
+    let h = '<div class="live-head">' + avatarHTML(liveOpen, 'lg', '', true) + '<div><b>' + esc(u.name) + '</b><span>' + (g ? '<i class="live-dot"></i>' + esc(L('Jogando agora', 'Playing now')) + ' · ' + ic('s-' + g.sport) + esc(sportLabel(g.sport)) : esc(L('Não está jogando agora', 'Not playing right now'))) + '</span>' +
+      (g ? '<small>' + esc(L('Começou ', 'Started ') + ago(g.startedAt)) + (g.place ? ' · ' + esc(g.place) : '') + '</small>' : '') + '</div></div>';
+    if (!g) {
+      h += '<p class="hint">' + esc(L('A partida acabou. O resultado aparece na timeline quando for publicado.', 'The match is over. The result shows up on the timeline once it is posted.')) + '</p>';
+    } else if (g.rule === 'so-jogando') {
+      h += '<div class="empty-state lock-state">' + ic('i-lock') + '<b>' + esc(L(firstName(u.name) + ' está jogando ' + sportLabel(g.sport) + ' agora', firstName(u.name) + ' is playing ' + sportEN(g.sport) + ' right now')) + '</b><span>' + esc(L('O placar ao vivo desta partida é só para quem está nela.', 'The live score for this match is only for the people in it.')) + '</span></div>';
+    } else {
+      const s = g.state, hide = g.rule === 'nomes';
+      const nm = (pid, k) => (pid === g.owner || !hide ? esc(SO.user(pid) ? SO.user(pid).name : '?') : '<span class="masked" aria-label="' + esc(L('Nome escondido', 'Hidden name')) + '">' + esc(L('Jogador ', 'Player ') + k) + '</span>');
+      let k = 1;
+      const rows = g.teams.map((t, ti) => {
+        const names = t.map(pid => (pid === g.owner ? nm(pid) : nm(pid, ++k))).join('<i class="sep"> · </i>');
+        const sets = s.sets.map(x => '<span class="' + ((x.matchTb && x.tb ? x.tb : x.games)[ti] > (x.matchTb && x.tb ? x.tb : x.games)[1 - ti] ? 'w' : '') + '">' + (x.matchTb && x.tb ? x.tb : x.games)[ti] + '</span>').join('');
+        const pl = E.pointLabels(s, g.cfg);
+        const cur = g.cfg.kind === 'games' ? (s.isMatchTb ? '' : '<span class="g">' + s.games[ti] + '</span>') + '<span class="p">' + pl[ti] + '</span>' : '<span class="p">' + s.points[ti] + '</span>';
+        return '<div class="live-row' + (s.server === ti ? ' srv' : '') + '"><span class="live-names">' + names + '</span><span class="live-sc">' + sets + cur + '</span></div>';
+      }).join('');
+      h += '<div class="live-board" translate="no">' + rows + '</div>' +
+        '<p class="live-meta">' + ic('i-activity') + '<span>' + esc(L('Último ponto ', 'Last point ') + ago(g.lastAt)) + ' · ' + esc(L('atualiza sozinho', 'updates by itself')) + '</span></p>';
+      if (hide) h += '<p class="hint live-note">' + ic('i-lock') + '<span>' + esc(L('Alguém nesta partida não mostra o jogo ao vivo, então os nomes dos outros jogadores ficam escondidos.', 'Someone in this match keeps their games private, so the other players\' names are hidden.')) + '</span></p>';
+    }
+    h += '<button class="btn" type="button" data-user="' + esc(liveOpen) + '">' + ic('i-user') + esc(L('Ver perfil de ' + firstName(u.name), 'See ' + firstName(u.name) + '\'s profile')) + '</button>';
+    body.innerHTML = h;
+  }
+  // quem você segue e está jogando agora (faixa no topo da timeline)
+  function liveStripHTML() {
+    const list = liveGames().filter(g => liveOf(g.owner));
+    if (!list.length) return '';
+    return '<section class="live-strip" aria-label="' + esc(L('Jogando agora', 'Playing now')) + '"><div class="sec-head"><h2><i class="live-dot"></i>' + esc(L('Jogando agora', 'Playing now')) + '</h2></div><div class="live-row-av">' +
+      list.map(g => '<button class="live-pill" type="button" data-live="' + esc(g.owner) + '">' + avatarHTML(g.owner, 'lg', '', true) + '<b>' + esc(firstName(SO.user(g.owner).name)) + '</b><small>' + esc(SPORT_SHORT[g.sport] || sportLabel(g.sport)) + '</small></button>').join('') + '</div></section>';
+  }
+
   // ---------- ULTRA Pro (simulado: sem cobrança, só para demonstrar) ----------
   const isPro = () => !!prefs.pro;
   const PRO_FEATURES = { analise: 'a análise do jogo por IA',
+    estatisticas: 'as estatísticas completas',
     momento: 'Momento ponto a ponto',
     exportar: 'Exportar planilha (CSV) e dados (JSON)',
     video: 'Vídeo animado da partida (MP4 e GIF)',
@@ -2788,6 +3219,7 @@
     $('#proBody').innerHTML =
       '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
       '<ul class="pro-list">' +
+      '<li><svg><use href="#i-chart"/></svg><span><b>Estatísticas completas</b>Os números do seu esporte (aces, break points, saque, ataques, golpes, erros na rede e fora), a evolução de cada um em gráfico e a análise do dia, que se atualiza quando há partida nova. Filtre por período e tire resenhas e treinos.</span></li>' +
       '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Cada ponto no gráfico e na lista, game a game: quem fez, ace, winner, erro, golpe e o placar naquele instante. Filtre por jogador ou tipo de lance.</span></li>' +
       '<li><svg><use href="#i-camera"/></svg><span><b>Gravar a partida em vídeo</b>Com este celular (miniatura no canto) ou com outro aparelho pelo QR Code. Cada ponto marcado vira um lance em vídeo para assistir e mandar.</span></li>' +
       '<li><svg><use href="#i-film"/></svg><span><b>Vídeo animado da partida</b>O replay ponto a ponto vira vídeo MP4 ou GIF para o story: gráfico, placar e lances evoluindo, com fundo de quadra, foto ou vídeo seu, ou transparente.</span></li>' +
@@ -2806,6 +3238,7 @@
     if (on && proBack) { const b = proBack; proBack = null; b(); }
     if (currentView === 'partida') renderMatchView(currentMatchId);
     if (currentView === 'voce') renderMe();
+    if (currentView === 'stats') renderStats();
     setFeedback('', 'ok', on ? 'ULTRA PLAY Pro ativado (demonstração)' : 'ULTRA PLAY Pro desligado');
   }
 
@@ -4472,6 +4905,12 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13f', date: '13/10/2026', title: 'Estatísticas completas, on fire e jogando agora', items: [
+      'Estatísticas completas (Pro): em Você, os números do seu esporte com gráfico de evolução de cada um. Filtre por período e tire resenhas e treinos.',
+      'Análise do dia: sai uma vez por dia, por esporte, e só quando há partida nova.',
+      'Raio “on fire” ao lado do nome em sequência de 3 vitórias ou mais, para todo mundo.',
+      'Jogando agora: anel verde no avatar de quem você segue. Toque para ver o placar ao vivo. Em Ajustes, escolha se aparece e se mostra o placar.',
+    ] },
     { id: '2026-10-13e', date: '13/10/2026', title: 'Lançar no centro, ajustes da câmera e inglês', items: [
       'O botão principal do placar agora é Lançar, com um botão para cada lance: ace, winner, erro. A voz fica à direita, para quem quiser.',
       'Gravando com este celular: o botão na miniatura abre zoom (de 0.5× até o máximo do celular) e brilho, sem parar a gravação.',
@@ -4987,6 +5426,8 @@
       if (fo) { onFollow(fo.dataset.follow); return; }
       const pe = e.target.closest('[data-people]');
       if (pe) { openPeople(pe.dataset.people === 'followers' ? 'Seguidores' : 'Seguindo', (pe.dataset.people === 'followers' ? SO.followers() : SO.following()).map(u => u.id)); return; }
+      const lvv = e.target.closest('[data-live]');
+      if (lvv) { e.stopPropagation(); openLive(lvv.dataset.live); return; }
       const us = e.target.closest('[data-user]');
       if (us && !e.target.closest('.picker')) { closeAllSheets(); go('perfil', us.dataset.user); return; }
       const sv = e.target.closest('[data-save]');
@@ -5082,6 +5523,8 @@
     $('#infoBody').addEventListener('change', e => { if (e.target.name === 'fbKind') { const k = e.target.value; $('#fbText').placeholder = k === 'problema' ? 'O que aconteceu? Em que tela? Dá para repetir?' : k === 'elogio' ? 'O que você mais curtiu? Podemos usar como depoimento?' : 'O que faria o ULTRA PLAY ficar melhor para você?'; } });
     wireGroups();
     wireTour();
+    wireStats();
+    document.addEventListener('keydown', e => { const t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[data-live][role="button"]')) { e.preventDefault(); openLive(t.dataset.live); } });
     if (match && match.camTopic && match.events.length) linkOpenPlacar(); // partida em andamento com câmera conectada: volta a ouvir
     wireClips();
     wireRemote();
@@ -5119,6 +5562,11 @@
     });
 
     // Ajustes
+    $('#pOnline').checked = prefs.showOnline !== false;
+    $('#pLiveView').checked = prefs.liveView !== false;
+    $('#pOnline').addEventListener('change', e => { prefs.showOnline = e.target.checked; savePrefs(); $('#pLiveView').disabled = !e.target.checked; toast(e.target.checked ? 'Quem segue você vê quando você está jogando' : 'Ninguém vê quando você está jogando'); });
+    $('#pLiveView').disabled = prefs.showOnline === false;
+    $('#pLiveView').addEventListener('change', e => { prefs.liveView = e.target.checked; savePrefs(); toast(e.target.checked ? 'Amigos podem ver o placar ao vivo' : 'O placar ao vivo fica só com quem está na partida'); });
     $('#pTts').addEventListener('change', e => { prefs.tts = e.target.checked; speaker.enabled = prefs.tts; savePrefs(); });
     $('#pBeep').addEventListener('change', e => { prefs.beep = e.target.checked; earcon.enabled = prefs.beep; savePrefs(); });
     $('#pWake').addEventListener('change', e => { prefs.wake = e.target.checked; ctx = buildCtx(); voice.phrases = voicePhrases(); if (voice.wanted) voice.reopen(); savePrefs(); renderVoice(); });

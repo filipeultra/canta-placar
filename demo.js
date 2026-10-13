@@ -80,7 +80,7 @@
         : sport === 'padel' ? { sport, setsToWin: 2, gamesPerSet: 6, deuce: 'star', decider: 'supertb', firstServer: n % 2 }
           : Object.assign({ sport, firstServer: n % 2 }, E.SPORTS.peteca.defaults, { setsToWin: 1 });
       const played = playMatch(r, cfgInput, teams, start.getTime(), edge);
-      if (played.endedAt < now) list.push({ id: 'demo-' + n, createdAt: start.getTime(), endedAt: played.endedAt, cfgInput, teams, events: played.events, redo: [], finished: true, demo: true });
+      if (played.endedAt < now) list.push({ id: 'demo-' + n, createdAt: start.getTime(), endedAt: played.endedAt, cfgInput, teams, events: played.events, redo: [], finished: true, demo: true, demoType: n % 9 === 0 ? 'campeonato' : n % 5 === 0 ? 'treino' : sport === 'peteca' || n % 4 === 0 ? 'resenha' : n % 7 === 0 ? 'desafio' : 'amistoso' });
       day -= 1 + Math.floor(r() * 4); // 2 a 3 jogos por semana
     }
     cache = { now, list };

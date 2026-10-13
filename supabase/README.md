@@ -50,6 +50,18 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
   - **Limite conhecido:** qualquer um pode mandar eventos de visita (é assim que o site conta visitas sem login). Isso não dá acesso a nada, mas alguém mal-intencionado pode inflar os números de visitas; o Supabase limita a taxa de pedidos por IP e o painel mostra a origem para identificar.
 - **Primeiro admin:** depois de criar sua conta no app, rode no SQL Editor: `insert into admins (user_id) select id from auth.users where email = 'seu@email.com';`
 
+## Jogando agora (presença e placar ao vivo) · ainda não está no banco
+No app já funciona com a rede de demonstração. Para valer com pessoas reais, o modelo é este:
+- **Tabela `live_matches`:** `match_id`, `owner_id`, `sport`, `started_at`, `last_point_at`, `score` (jsonb com sets, games e pontos), `players` (ids de quem tem conta). Some quando a partida termina ou fica 30 min sem ponto.
+- **Escolhas de cada pessoa em `profiles`:** `show_online` (aparece jogando) e `live_view` (amigos veem o placar), as duas ligadas por padrão.
+- **Quem vê (RLS):** só quem segue o dono, e só se o dono tiver `show_online`. Sem isso, a linha nem aparece.
+- **O placar e os nomes saem por uma função (`live_for_viewer`)**, nunca direto da tabela:
+  - dono com `live_view` desligado: só "está jogando <esporte>", sem placar;
+  - alguém da partida com `live_view` desligado: o placar sai, mas os nomes dos outros jogadores vêm como "Jogador 2", "Jogador 3" (vale a escolha mais fechada entre os jogadores);
+  - todos permitem: placar e nomes.
+- **Tempo real:** Supabase Realtime no canal da partida, só para quem passou na função acima.
+- **Testes a escrever (como os de `tests/admin.sql`):** quem não segue não vê; `show_online` desligado esconde; um jogador com `live_view` desligado esconde os nomes; ninguém consegue ler `players` direto.
+
 ## Como ligar (passo a passo)
 
 1. Criar o projeto em supabase.com (região São Paulo, `sa-east-1`). O plano grátis serve para o lançamento; o Pro custa US$ 25 por mês quando passar dos limites.
