@@ -2605,3 +2605,4 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .install-steps .ic { width: 18px; height: 18px; vertical-align: -3px; }
 .install-card > .ic { color: var(--brand-ink, var(--brand)); }
 .retro-link { display: inline-flex; align-items: center; gap: 8px; } .retro-link .ic { width: 18px; height: 18px; }
+.consent-a { display: flex; flex-direction: column; gap: 6px; flex: none; }

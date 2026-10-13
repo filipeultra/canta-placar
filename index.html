@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- segurança: só roda script do próprio app (e do motor de voz offline); bloqueia código injetado em textos -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net blob: 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' https://ntfy.sh https://cdn.jsdelivr.net https://ccoreilly.github.io blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net blob: 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' https://*.supabase.co https://ntfy.sh https://cdn.jsdelivr.net https://ccoreilly.github.io blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#F3F4F1" media="(prefers-color-scheme: light)">
 <link rel="preload" href="fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -135,6 +135,7 @@
         <div id="liveCard"></div>
         <div id="streakCard"></div>
         <div id="installCard"></div>
+        <div id="consentCard"></div>
         <div id="draftCard"></div>
         <div id="groupStrip"></div>
         <div class="feed-bar">
@@ -602,6 +603,7 @@
         <div class="list">
           <div class="row"><span class="row-ic"><svg><use href="#i-sparkles"/></svg></span><span>Novidades<small>O que mudou nas últimas versões</small></span><button class="btn" type="button" data-action="news">Ver</button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-help"/></svg></span><span>Enviar sugestão ou problema<small>Fale direto com a equipe do ULTRA PLAY</small></span><button class="btn" type="button" data-action="feedback">Escrever</button></div>
+          <label class="row" id="analyticsRow" hidden><span class="row-ic"><svg><use href="#i-chart"/></svg></span><span>Estatísticas de uso anônimas<small>Ajuda a equipe a ver o que funciona: telas e recursos usados, sem nomes nem partidas</small></span><input class="switch" type="checkbox" id="pAnalytics"></label>
           <div class="row"><span class="row-ic"><svg><use href="#i-user-plus"/></svg></span><span>Convidar parceiros<small>Link do app com o seu código</small></span><button class="btn" type="button" data-action="invite">Convidar</button></div>
         </div>
       </section>
@@ -939,6 +941,8 @@
 <script src="share.js"></script>
 <script src="vendor/gifenc.js"></script>
 <script src="motion.js"></script>
+<script src="config.js"></script>
+<script src="telemetry.js"></script>
 <script src="relay.js"></script>
 <script src="video.js"></script>
 <script src="social.js"></script>

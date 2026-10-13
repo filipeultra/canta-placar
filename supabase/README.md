@@ -7,6 +7,8 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 | `schema.sql` | Tabelas, índices, gatilhos e regras por linha (RLS): pessoas, seguir, bloquear, lugares e quadras, temporadas da arena, **grupos** (membros, papéis, autorização temporária, resenha), partidas, lances, jogadores marcados, pedidos de convidado, zaps, notificações, vídeos (Pro), assinatura e denúncias. |
 | `storage.sql` | Pastas de arquivos: fotos de perfil (públicas) e vídeos (privados, Pro). |
 | `tests/regras.sql` | 28 verificações das regras, rodadas num Postgres 16 local em 13/10/2026: todas passaram. |
+| `admin.sql` | Estatísticas de uso e painel de admin (ver abaixo). |
+| `tests/admin.sql` | Verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê o painel. |
 | `tests/supabase-stub.sql` | Simula o que o Supabase já traz (`auth.users`, `auth.uid()`), para rodar os testes fora dele. |
 
 ## O que as regras garantem (testado)
@@ -18,13 +20,33 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 - **Ninguém se dá Pro**, troca de time numa partida, cria notificação falsa ou dá zap em nome de outra pessoa. O campo do Pro só muda pelo servidor de pagamento.
 - **Ranking do grupo** (`group_ranking`): só membros, só partidas aceitas, com período.
 
+## Painel de admin (`admin/`)
+
+Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkado no app e o Google não indexa.
+- **Sem servidor:** mostra **dados de demonstração** (fictícios), para ver o painel funcionando. Com o servidor ligado, `?demo=1` no endereço volta à demonstração.
+- **Com servidor:** entra com o e-mail de uma conta admin (link mágico do Supabase). Só lê os números quem estiver na tabela `admins`; para os outros, a função `admin_metrics` recusa.
+- **O que mostra (7, 30 ou 90 dias, comparando com o período anterior):**
+  - visitas, pessoas ativas, contas e novas contas;
+  - assinantes Pro (pagando e cortesia) e receita mensal (MRR, pelos preços de `plan_prices`);
+  - partidas, grupos e denúncias abertas;
+  - gráficos por dia: visitas, ativos, novas contas e partidas;
+  - funil (abriu → criou conta → começou partida → terminou → compartilhou → Pro);
+  - partidas por esporte, de onde vêm as pessoas (utm, convite `?ref=`, direto) e assinantes por plano;
+  - custo estimado da IA, retenção por semana de chegada e eventos mais comuns.
+- **De onde vêm os números:** `admin.sql` (tabelas `app_events`, `admins`, `plan_prices` e a função `admin_metrics`), testado em `tests/admin.sql`.
+  - O app e o site mandam eventos por `telemetry.js`, mas só quando `config.js` estiver preenchido.
+  - **Sem consentimento**, só a visita, com um id que some ao fechar.
+  - **Com consentimento** (o app pergunta uma vez, depois da 1ª partida; e em Ajustes → Estatísticas de uso), os eventos de uso, com um id sorteado do aparelho.
+  - Nenhum nome, e-mail ou partida vai nos eventos.
+- **Primeiro admin:** depois de criar sua conta no app, rode no SQL Editor: `insert into admins (user_id) select id from auth.users where email = 'seu@email.com';`
+
 ## Como ligar (passo a passo)
 
 1. Criar o projeto em supabase.com (região São Paulo, `sa-east-1`). O plano grátis serve para o lançamento; o Pro custa US$ 25 por mês quando passar dos limites.
-2. No **SQL Editor**, rodar `schema.sql` e depois `storage.sql`.
+2. No **SQL Editor**, rodar `schema.sql`, depois `storage.sql` e `admin.sql`.
 3. Em **Authentication → Providers**, ligar Google, Apple e telefone (SMS ou WhatsApp, com um provedor como Twilio). Em **URL Configuration**, pôr o endereço do app.
-4. Copiar a **URL do projeto** e a **chave anon** (pública) para o app. A chave **service role** nunca vai para o app: fica só no servidor de pagamento.
-5. No app, liberar o endereço do projeto na política de segurança (`connect-src` em `index.html`).
+4. Copiar a **URL do projeto** e a **chave anon** (pública) para `config.js` (vale para o app, o site e o painel). A chave **service role** nunca vai para o app: fica só no servidor de pagamento.
+5. A política de segurança já libera `https://*.supabase.co` no app, no site e no painel.
 6. Trocar as funções de `social.js` pelas chamadas ao banco. As telas não mudam: o app só fala com a rede por essas funções. O mapa função → tabela está em `docs/SOCIAL.md`. A ordem sugerida:
    1. login e perfil;
    2. subir as partidas do aparelho (fila offline, id gerado no aparelho, sem duplicar);

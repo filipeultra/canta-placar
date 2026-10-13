@@ -14,6 +14,8 @@
     { id: 'rosa', name: 'Rosa' }, { id: 'roxo', name: 'Roxo' }, { id: 'amarelo', name: 'Amarelo' },
   ];
   const DEFAULT_TEAMS = () => [{ name: 'Verde', color: 'verde', players: [] }, { name: 'Laranja', color: 'laranja', players: [] }];
+  // estatística de uso (telemetry.js): não faz nada sem servidor configurado; sem consentimento, só conta a visita
+  const trk = (n, p) => { try { if (window.CantaTrack) window.CantaTrack.track(n, p); } catch (e) { /* estatística nunca atrapalha o jogo */ } };
   const colorVar = id => 'var(--c-' + (PALETTE.some(p => p.id === id) ? id : 'verde') + ')';
   const colorName = id => (PALETTE.find(p => p.id === id) || PALETTE.find(p => p.id === 'verde') || PALETTE[0]).name;
   const TAGS = { ace: 'ace', df: 'dupla falta', winner: 'winner', error: 'erro' };
@@ -904,6 +906,7 @@
   }
 
   function startMatch(ci, teams) {
+    trk('match_start', { sport: ci.sport });
     if (!archiveCurrent()) return; // sem espaço para guardar a atual: não troca (antes a partida sumia)
     match = newMatch(ci, teams);
     endShownFor = null;
@@ -1370,6 +1373,7 @@
     renderDrafts();
     renderNewsCard();
     renderInstallCard();
+    renderConsentCard();
     $('#streakCard').innerHTML = streakHTML();
     renderGroupStripNow();
     renderFeed();
@@ -2335,6 +2339,7 @@
     }
   }
   async function openStatLink(code) {
+    trk('link_open', {});
     try {
       const m = await unpackMatch(code);
       keepLink(m);
@@ -2524,6 +2529,7 @@
       if (!prefs.privacy) prefs.privacy = { level: 'aberto' }; // toda conta nova começa com perfil aberto
       savePrefs(); myUid();
       hideWelcome('Conta criada. Bem-vindo, ' + firstName(n) + '!');
+      trk('signup', { sports: (prefs.mySports || []).length });
     });
     const h = location.hash || '';
     if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar') && !h.startsWith('#ver-') && !h.startsWith('#partida-link-') && !h.startsWith('#camera-') && !h.startsWith('#grupo-convite-')) showWelcome();
@@ -2772,6 +2778,7 @@
   };
   let proBack = null; // depois de ativar, volta para onde estava (ex.: gerar o vídeo)
   function openPro(feature, back) {
+    trk('pro_view', { feature: feature || '' });
     proBack = back || null;
     $('#proBody').innerHTML =
       '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
@@ -2789,6 +2796,7 @@
   }
   function setPro(on) {
     prefs.pro = !!on; savePrefs();
+    if (on) trk('pro_start', {});
     closeSheet('#sheetPro');
     if (on && proBack) { const b = proBack; proBack = null; b(); }
     if (currentView === 'partida') renderMatchView(currentMatchId);
@@ -3017,6 +3025,7 @@
     hist.unshift(saved);
     if (!writeHist(hist)) return false; // cota cheia: a partida continua ao vivo, nada se perde
     if (linkP.ch) linkClosePlacar(true); // avisa a câmera conectada que acabou
+    { const pts = saved.events.filter(e => e.type === 'point'); trk('match_end', { sport: E.makeConfig(saved.cfgInput).sport, points: pts.length, voice: pts.length ? Math.round(100 * pts.filter(e => e.src === 'voz').length / pts.length) : 0, group: !!saved.groupId }); }
     if (voice.wanted) voice.stop();
     match = newMatch(Object.assign({}, match.cfgInput), match.teams.map(t => Object.assign({}, t)));
     endShownFor = null; lastVoicePointAt = 0;
@@ -3151,6 +3160,7 @@
     return new File([blob], base + '-' + share.tpl + '.png', { type: 'image/png' });
   }
   async function doShare(kind) {
+    trk('share', { kind: 'imagem_' + kind });
     const canvas = $('#shareCanvas');
     try {
       if (kind === 'copy') {
@@ -3339,6 +3349,7 @@
     return new File([r.blob], vidName() + '.' + r.ext, { type: r.type });
   }
   async function vidShare(kind) {
+    trk('share', { kind: 'video_' + kind });
     if (!vid.result) return;
     const file = vidFile();
     try {
@@ -3474,6 +3485,7 @@
     if (!(await roomForVideo())) return;
     closeSheet('#sheetCam');
     recState.matchId = match.id;
+    trk('rec_start', { device: 'placar' });
     recState.r = CVd.createRecorder({ matchId: match.id, label: match.teams[0].name + ' × ' + match.teams[1].name, device: 'placar', preview: $('#recPreview'), orient: vidOrient(), flags: vidFlags(), overlay: () => overlayNow(false),
       onState: s => { if (s.error) toast(s.error); renderRecDock(); } });
     try { await recState.r.start(); } catch (e) { recState.r = null; renderRecDock(); return; }
@@ -3638,6 +3650,7 @@
     if (!(await roomForVideo())) return;
     camRelease();
     if (cam.pcomp) { cam.pcomp.stop(); cam.pcomp = null; }
+    trk('rec_start', { device: 'camera' });
     cam.r = CVd.createRecorder({ matchId: cam.info.id, label: cam.info.names.join(' × '), device: 'camera', facing: cam.facing, preview: $('#camVideo'), orient: vidOrient(), flags: vidFlags(), overlay: () => linkC.ov, onState: st => { if (st.error) toast(st.error); renderCamState(); } });
     try { await cam.r.start(); } catch (e) { cam.r = null; renderCamState(); return; }
     requestWakeLock();
@@ -4104,7 +4117,7 @@
     if (!name) { const er = $('#gfErr'); er.textContent = 'Dê um nome ao grupo.'; er.hidden = false; return; }
     const d = { name, sport: getRadio('gfSport') || 'beach', place: $('#gfPlace').value.trim().slice(0, 60), when: $('#gfWhen').value.trim().slice(0, 40), desc: $('#gfDesc').value.trim().slice(0, 160), color: gColor(getRadio('gfColor')), open: getRadio('gfOpen') === '1' };
     let id = gEdit;
-    if (id) SO.updateGroup(id, d); else id = SO.createGroup(d);
+    if (id) SO.updateGroup(id, d); else { id = SO.createGroup(d); trk('group_create', { sport: d.sport }); }
     closeSheet('#sheetGroup');
     gUI.id = null; gUI.tab = gEdit ? 'membros' : 'membros';
     go('grupo', id);
@@ -4164,9 +4177,9 @@
       const hit = sel => t.closest(sel);
       let el;
       if ((el = hit('[data-gcreate]'))) { e.stopPropagation(); closeAllSheets(); openGroupForm(); return; }
-      if ((el = hit('[data-gjoin]'))) { e.stopPropagation(); const st = SO.joinGroup(el.dataset.gjoin); toast(st === 'membro' ? 'Você entrou no grupo' : 'Pedido enviado ao organizador'); if (currentView === 'grupos') renderGrupos(); else renderGrupo(el.dataset.gjoin); renderGroupStripNow(); return; }
+      if ((el = hit('[data-gjoin]'))) { e.stopPropagation(); const st = SO.joinGroup(el.dataset.gjoin); trk('group_join', {}); toast(st === 'membro' ? 'Você entrou no grupo' : 'Pedido enviado ao organizador'); if (currentView === 'grupos') renderGrupos(); else renderGrupo(el.dataset.gjoin); renderGroupStripNow(); return; }
       if ((el = hit('[data-gcancel]'))) { e.stopPropagation(); SO.cancelJoin(el.dataset.gcancel); renderGrupo(el.dataset.gcancel); return; }
-      if ((el = hit('[data-gaccept]'))) { e.stopPropagation(); const d = parseGroupInvite(el.dataset.gaccept); if (!d) return; const id = SO.importGroup(d); toast('Você entrou no grupo ' + d.name); go('grupo', id, true); if (!prefs.onboarded) setTimeout(showWelcome, 900); return; }
+      if ((el = hit('[data-gaccept]'))) { e.stopPropagation(); const d = parseGroupInvite(el.dataset.gaccept); if (!d) return; const id = SO.importGroup(d); trk('group_join', { via: 'convite' }); toast('Você entrou no grupo ' + d.name); go('grupo', id, true); if (!prefs.onboarded) setTimeout(showWelcome, 900); return; }
       if ((el = hit('[data-gnew]'))) { e.stopPropagation(); openGroupMatch(el.dataset.gnew); return; }
       if ((el = hit('[data-ginvite]'))) { e.stopPropagation(); shareGroupInvite(el.dataset.ginvite); return; }
       if ((el = hit('[data-gdeleg]'))) {
@@ -4377,6 +4390,7 @@
   async function aiCoach(id, btn) {
     const m = findMatch(id); if (!m) return;
     if (!isPro()) { openPro('analise', () => aiCoach(id)); return; }
+    trk('ai_analysis', {});
     const box = $('#coachAi-' + id); const pl = aiPayload(m); if (!box || !pl) return;
     box.hidden = false; box.innerHTML = '<p class="hint">Analisando…</p>'; if (btn) btn.disabled = true;
     try {
@@ -4402,6 +4416,7 @@
       'Aviso de game, set e troca de lado menor, com OK e barra de tempo. Tocar fora só fecha o aviso, não marca ponto.',
       'Instale na tela inicial pelo aviso no Início. Novidades, sugestões e convite com o seu código ficam em Ajustes.',
       'Retrospectiva do mês para o story, em Você.',
+      'Estatísticas de uso anônimas (com o seu consentimento) para a equipe saber o que funciona: liga e desliga em Ajustes.',
     ] },
     { id: '2026-10-13a', date: '13/10/2026', title: 'Grupos e câmera conectada', items: [
       'Grupos para a sua turma: ranking, partidas, resenha e convite pelo WhatsApp.',
@@ -4447,6 +4462,7 @@
     if (!txt) { toast('Escreva a mensagem'); return; }
     const body = '[ULTRA PLAY · ' + { sugestao: 'Sugestão', problema: 'Problema', elogio: 'Elogio' }[kind] + ']\n' + txt + ($('#fbDiag').checked ? '\n\n— ' + diagText() : '') + (prefs.myName ? '\n— ' + prefs.myName + ' (' + myUid() + ')' : '');
     closeSheet('#sheetInfo');
+    trk('feedback', { kind });
     if (FEEDBACK_WHATSAPP) { window.open('https://wa.me/' + FEEDBACK_WHATSAPP + '?text=' + encodeURIComponent(body), '_blank', 'noopener'); return; }
     if (FEEDBACK_EMAIL) { location.href = 'mailto:' + FEEDBACK_EMAIL + '?subject=' + encodeURIComponent('ULTRA PLAY · ' + kind) + '&body=' + encodeURIComponent(body); return; }
     if (navigator.share) navigator.share({ text: body }).catch(() => {}); else copyText(body);
@@ -4455,6 +4471,7 @@
   // convite com código de quem convidou (para saber de onde vêm as pessoas; com o servidor, vira recompensa)
   const inviteURL = () => location.origin + location.pathname + '?ref=' + encodeURIComponent(myUid()) + '&utm_source=convite&utm_medium=app';
   function shareInvite() {
+    trk('invite', {});
     const url = inviteURL(), text = 'Marca o placar falando "ponto verde" e vê as estatísticas do jogo. Bora usar no próximo?';
     if (navigator.share) navigator.share({ title: 'ULTRA PLAY', text, url }).catch(() => {}); else copyText(url);
   }
@@ -4500,7 +4517,7 @@
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; renderInstallCard(); });
-  window.addEventListener('appinstalled', () => { installEvt = null; prefs.installed = true; savePrefs(); renderInstallCard(); toast('ULTRA PLAY instalado na tela inicial'); });
+  window.addEventListener('appinstalled', () => { trk('install', {}); installEvt = null; prefs.installed = true; savePrefs(); renderInstallCard(); toast('ULTRA PLAY instalado na tela inicial'); });
   function installReady() {
     if (isStandalone() || prefs.installed || SCREEN) return false;
     if (prefs.installHideUntil && Date.now() < prefs.installHideUntil) return false;
@@ -4540,8 +4557,16 @@
     const r = retroData();
     if (!r) { toast('Jogue umas partidas com o seu nome nos times para ter a retrospectiva'); return; }
     share.retro = r; share.ach = null; share.id = null;
+    trk('retro', {});
     $('#shareTitle').textContent = 'Sua retrospectiva';
     openShareWith();
+  }
+
+  // pedido de consentimento das estatísticas de uso: uma vez, depois da 1ª partida salva (só com servidor configurado)
+  function renderConsentCard() {
+    const el = $('#consentCard'); if (!el) return;
+    const show = window.CantaTrack && window.CantaTrack.configured() && prefs.analytics === undefined && history().some(m => !m.demo && !isDraft(m));
+    el.innerHTML = show ? '<div class="news-card">' + ic('i-chart') + '<span><b>Ajude a melhorar o ULTRA PLAY</b>Enviar estatísticas de uso anônimas (telas e recursos usados), sem nomes nem partidas? Dá para mudar em Ajustes.</span><span class="consent-a"><button class="btn btn-sm btn-brand" type="button" data-consent="1">Pode</button><button class="btn btn-sm" type="button" data-consent="0">Não</button></span></div>' : '';
   }
 
   function deleteMatch(id, btn) {
@@ -4746,6 +4771,8 @@
       if (rs) { closeSheet('#sheetReplay'); openShare(rs.dataset.replayShare, 'video'); return; }
       const sh = e.target.closest('[data-share]');
       if (sh) { e.stopPropagation(); openShare(sh.dataset.share); return; }
+      const cs = e.target.closest('[data-consent]');
+      if (cs) { prefs.analytics = cs.dataset.consent === '1'; savePrefs(); $('#pAnalytics').checked = prefs.analytics; renderConsentCard(); if (prefs.analytics) { trk('app_open', { consent: true }); toast('Obrigado!'); } return; }
       const lv = e.target.closest('[data-love]');
       if (lv) { onLove(lv.dataset.love); return; }
       const fbk = e.target.closest('[data-fb]');
@@ -4803,6 +4830,10 @@
     ['pointerdown', 'click'].forEach(ev => $('#banner').addEventListener(ev, e => { if (!$('#banner').classList.contains('show')) return; e.preventDefault(); e.stopPropagation(); if (ev === 'click') hideBanner(); }));
     wireCam();
     noteOrigin();
+    if (window.CantaTrack) { window.CantaTrack.init({ consent: () => prefs.analytics === true, deviceId: () => { if (!prefs.did) { prefs.did = window.CantaTrack.newDeviceId(); savePrefs(); } return prefs.did; }, version: APP_VERSION }); trk('app_open', { standalone: isStandalone() }); }
+    $('#pAnalytics').checked = prefs.analytics === true;
+    $('#analyticsRow').hidden = !(window.CantaTrack && window.CantaTrack.configured());
+    $('#pAnalytics').addEventListener('change', e => { prefs.analytics = e.target.checked; savePrefs(); renderConsentCard(); toast(prefs.analytics ? 'Obrigado! Estatísticas de uso anônimas ligadas' : 'Estatísticas de uso desligadas'); });
     $('#infoBody').addEventListener('submit', e => { if (e.target.id === 'fbForm') { e.preventDefault(); sendFeedback(); } });
     $('#infoBody').addEventListener('change', e => { if (e.target.name === 'fbKind') { const k = e.target.value; $('#fbText').placeholder = k === 'problema' ? 'O que aconteceu? Em que tela? Dá para repetir?' : k === 'elogio' ? 'O que você mais curtiu? Podemos usar como depoimento?' : 'O que faria o ULTRA PLAY ficar melhor para você?'; } });
     wireGroups();

@@ -223,6 +223,8 @@ Para dúvidas ou outros pedidos, escreva para [E-MAIL DE CONTATO] ou para o enca
 
 16.3. Se um dia adotarmos analytics, cookies não essenciais ou anúncios, **pediremos seu consentimento antes**, com opção de recusar sem perder as funções principais, e atualizaremos esta Política.
 
+16.4. **Estatísticas de uso (quando o servidor for ligado).** [Implementado no app, desligado até existir servidor.] Sem consentimento, o app e o site contam só a visita, com um identificador sorteado que vale para aquela visita e é apagado ao fechar o navegador, mais a origem do link (utm e código de convite). Com o seu consentimento (pedido uma vez no app e mudável em Ajustes → Estatísticas de uso), o app passa a enviar eventos de uso (abriu, começou ou terminou uma partida, compartilhou, criou grupo, viu o Pro) com um identificador sorteado do aparelho. Os eventos **não levam** nome, e-mail, texto digitado nem os dados das partidas. Servem para medir o funil, a retenção e o que funciona, e só a equipe do ULTRA PLAY tem acesso. [A revisão jurídica deve confirmar a base legal da contagem de visitas sem consentimento (legítimo interesse, dado sem identificação) e o prazo de guarda dos eventos.]
+
 ## 17. Segurança
 
 17.1. **Hoje:** como os dados ficam no seu aparelho, a segurança depende também de você. Recomendamos usar bloqueio de tela, manter o navegador e o sistema atualizados, não emprestar o aparelho desbloqueado e guardar backups JSON em local seguro, pois eles não são criptografados. O app é servido só por conexão segura (HTTPS) e tem política de segurança de conteúdo (CSP) que impede a execução de código de fora.

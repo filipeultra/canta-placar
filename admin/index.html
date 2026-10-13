@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>ULTRA PLAY Admin</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<svg width="0" height="0" class="sprite" aria-hidden="true"><defs>
+  <symbol id="logo" viewBox="0 0 182 46"><path fill="currentColor" d="M0.595607 22.7648L13.3915 0.583801H26.1638L10.5924 27.5398H4.19444C0.689691 27.5398 -0.956837 25.3758 0.57208 22.7413L0.595607 22.7648Z"/><path fill="currentColor" d="M45.8045 23.0471L33.0087 45.2282H20.2363L35.8078 18.2722H42.2057C45.7105 18.2722 47.357 20.4362 45.8281 23.0706L45.8045 23.0471Z"/><path fill="currentColor" d="M26.1874 13.4737V0.583801H45.9928L35.7843 18.2722H32.5618C29.057 18.2722 26.1639 16.1082 26.1639 13.4737H26.1874Z"/><path fill="currentColor" d="M20.2128 32.3382V45.2282H0.407471L10.6159 27.5398H13.8384C17.3432 27.5398 20.2364 29.7038 20.2364 32.3382H20.2128Z"/><path fill="currentColor" d="M64.2158 44.7909C58.0965 44.7909 53.8067 40.6272 53.8067 34.4448V0H60.4938V34.4448C60.4938 37.0313 62.0709 32.96 64.2158 32.96C66.3608 32.96 67.9379 37.0313 67.9379 34.4448V0H74.4988V34.4448C74.4988 40.6272 70.3352 44.7909 64.2158 44.7909Z"/><path fill="currentColor" d="M79.0124 44.16V0H85.6995V37.8514H97.6227V44.16H79.0124Z"/><path fill="currentColor" d="M94.0583 6.30857L91.2001 3.15429L94.0583 0H115.381L112.4 3.15429L115.381 6.30857H108.063V44.16H101.376V6.30857H94.0583Z"/><path fill="currentColor" d="M139.968 44.16H133.029L128.171 25.9282H124.702V44.16H118.015V0H128.487C134.859 0 138.959 4.16366 138.959 10.5353V15.3929C138.959 19.4935 137.256 22.6478 134.354 24.4142L139.968 44.16ZM124.702 6.30857V19.6197H128.171C130.758 19.6197 132.272 18.1056 132.272 15.5191V10.4091C132.272 7.82263 130.758 6.30857 128.171 6.30857H124.702Z"/><path fill="currentColor" d="M157.542 44.16L156.091 34.3817L152.495 32.16L148.9 34.3817L147.449 44.16H140.761L148.079 0H157.038L164.356 44.16H157.542ZM149.783 27.947H155.208L152.495 9.46286L149.783 27.947Z"/><path fill="currentColor" d="M161.007 38.4H179.407L175.8 44.156L161.007 44.1564V38.4Z"/></symbol>
+</defs></svg>
+
+<header class="top">
+  <div class="wrap top-in">
+    <span class="brand"><svg class="logo" viewBox="0 0 182 46" aria-label="ULTRA PLAY" role="img"><use href="#logo"/></svg><span class="chip">Admin</span></span>
+    <span class="who" id="who"></span>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <section class="login card" id="login" hidden>
+    <h1>Entrar no painel</h1>
+    <p class="muted">Só contas cadastradas como administradoras. Você recebe um link de acesso no e-mail.</p>
+    <form id="loginForm"><label class="field"><span>E-mail</span><input type="email" id="email" required autocomplete="email" placeholder="voce@exemplo.com"></label><button class="btn brand" type="submit">Enviar link de acesso</button></form>
+    <p class="msg" id="loginMsg" role="status"></p>
+    <p class="muted small">Ainda sem servidor? <a href="?demo=1">Ver o painel com dados de demonstração</a>.</p>
+  </section>
+
+  <section id="dash" hidden>
+    <div class="notice" id="notice" hidden></div>
+    <div class="filters" role="toolbar" aria-label="Filtros">
+      <div class="seg" role="radiogroup" aria-label="Período">
+        <label><input type="radio" name="days" value="7"><span>7 dias</span></label>
+        <label><input type="radio" name="days" value="30" checked><span>30 dias</span></label>
+        <label><input type="radio" name="days" value="90"><span>90 dias</span></label>
+      </div>
+      <button class="btn" type="button" id="refresh">Atualizar</button>
+      <span class="muted small" id="stamp"></span>
+    </div>
+
+    <h2 class="sr-only">Indicadores</h2>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid two">
+      <article class="card"><header class="card-h"><h2>Visitas e pessoas ativas por dia</h2><button class="link" type="button" data-table="daily">Ver tabela</button></header><div class="legend" id="lgDaily"></div><div class="chart" id="chDaily"></div><div class="tbl" id="tbDaily" hidden></div></article>
+      <article class="card"><header class="card-h"><h2>Funil do período</h2></header><p class="muted small">Aparelhos com estatísticas ligadas que chegaram a cada etapa.</p><div id="chFunnel"></div></article>
+    </div>
+    <div class="grid two">
+      <article class="card"><header class="card-h"><h2>Novas contas por dia</h2></header><div class="chart short" id="chSignups"></div></article>
+      <article class="card"><header class="card-h"><h2>Partidas por dia</h2></header><div class="chart short" id="chMatches"></div></article>
+    </div>
+    <div class="grid three">
+      <article class="card"><header class="card-h"><h2>Partidas por esporte</h2></header><div id="chSports"></div></article>
+      <article class="card"><header class="card-h"><h2>De onde vêm as pessoas</h2></header><div class="tbl" id="tbSources"></div></article>
+      <article class="card"><header class="card-h"><h2>Assinantes por plano</h2></header><div class="tbl" id="tbPlans"></div><p class="muted small" id="aiCost"></p></article>
+    </div>
+    <article class="card"><header class="card-h"><h2>Retenção por semana de chegada</h2></header><p class="muted small">De quem abriu o app pela 1ª vez em cada semana, quantos % voltaram nas semanas seguintes.</p><div class="tbl" id="tbRetention"></div></article>
+    <article class="card"><header class="card-h"><h2>Eventos mais comuns</h2></header><div class="tbl" id="tbEvents"></div></article>
+    <p class="muted small foot">Sem consentimento, cada visita conta uma vez (id da visita, apagado ao fechar). Funil, ativos e retenção só contam quem ligou as estatísticas de uso. Detalhes em <code>supabase/admin.sql</code>.</p>
+  </section>
+</main>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script src="../config.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
