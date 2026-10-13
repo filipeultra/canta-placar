@@ -234,6 +234,62 @@ update public.groups set avatar_url = 'x' where id = :'gid';
 select pg_temp.ok((select avatar_url from public.groups where id = :'gid') like 'avatars/%', '45. membro comum não troca a foto do grupo');
 update public.profiles set tag_policy = 'conexoes' where id = auth.uid();
 select pg_temp.ok((select tag_policy from public.profiles where id = auth.uid()) = 'conexoes', '46. cada um muda quem pode marcar');
+-- ---------- correção de placar e prazos ----------
+\o /dev/null
+select pg_temp.u('a1');
+\o
+insert into public.matches (id, owner_id, sport, played_at, result) values ('p6', auth.uid(), 'beach', now(), '{"sets":[[6,2]],"winner":0}');
+insert into public.match_players (match_id, team, slot, user_id) values ('p6', 0, 0, auth.uid()), ('p6', 0, 1, pg_temp.id('b1')), ('p6', 1, 0, pg_temp.id('e1'));
+\o /dev/null
+select pg_temp.u('b1');
+\o
+update public.match_players set tag_status = 'aceito', responded_at = now() where match_id = 'p6' and user_id = auth.uid();
+\o /dev/null
+select pg_temp.u('e1');
+\o
+update public.match_players set tag_status = 'aceito', responded_at = now() where match_id = 'p6' and user_id = auth.uid();
+\o /dev/null
+select pg_temp.u('b1');
+\o
+select pg_temp.ok(public.request_score_correction('p6', '{"sets":[[6,4]],"winner":0}', 'foi 6-4') = 'aberto', '51. Bia sugere a correção do placar: fica aberta até todos responderem');
+\o /dev/null
+select pg_temp.u('e1');
+\o
+select pg_temp.ok((select count(*) from public.notifications where user_id = auth.uid() and kind = 'fix_request') = 1, '52. Eva recebe o pedido de correção');
+select pg_temp.ok(public.vote_score_correction((select id from public.match_corrections where match_id = 'p6' and status = 'aberto'), false) = 'recusado', '53. Eva recusa: o placar fica');
+select pg_temp.ok((select result->'sets'->0->>1 from public.matches where id = 'p6') = '2', '54. placar continua 6-2');
+\o /dev/null
+select pg_temp.u('b1');
+select public.request_score_correction('p6', '{"sets":[[6,4]],"winner":0}', 'foi 6-4 mesmo');
+select pg_temp.u('a1');
+select public.vote_score_correction((select id from public.match_corrections where match_id = 'p6' and status = 'aberto'), true);
+select pg_temp.u('e1');
+\o
+select pg_temp.ok(public.vote_score_correction((select id from public.match_corrections where match_id = 'p6' and status = 'aberto'), true) = 'aprovado', '55. todos aceitaram a correção');
+select pg_temp.ok((select result->'sets'->0->>1 from public.matches where id = 'p6') = '4' and (select corrected_at from public.matches where id = 'p6') is not null, '56. o placar mudou (mesmo travado) e a partida ganhou o selo de corrigida');
+\o /dev/null
+select pg_temp.u('a1');
+\o
+select pg_temp.err($$update public.matches set result = '{"sets":[[6,0]],"winner":0}' where id = 'p6'$$, 'placar_travado', '57. fora da correção, o placar continua travado');
+\o /dev/null
+select pg_temp.u('b1');
+\o
+select pg_temp.ok(public.request_score_correction('p6', '{"sets":[[6,3]],"winner":0}') = 'aberto', '58. nova sugestão de correção');
+select pg_temp.ok(public.request_match_deletion('p6', 'duplicada') = 'aberto', '59. e um pedido de exclusão');
+reset role;
+update public.match_corrections set created_at = now() - interval '15 days' where match_id = 'p6' and status = 'aberto';
+update public.match_delete_requests set created_at = now() - interval '15 days' where match_id = 'p6' and status = 'aberto';
+set role authenticated;
+\o /dev/null
+select pg_temp.u('e1');
+\o
+select pg_temp.ok(public.vote_score_correction((select id from public.match_corrections where match_id = 'p6' and status = 'aberto'), true) = 'expirado' and (select result->'sets'->0->>1 from public.matches where id = 'p6') = '4', '60. passou 14 dias sem resposta: a correção expira e o placar fica');
+select pg_temp.err($$select public.expire_open_requests()$$, 'permission denied', '61. só o servidor roda a limpeza de prazos');
+reset role;
+select pg_temp.ok(public.expire_open_requests() = 1, '62. a limpeza agendada fecha o pedido de exclusão vencido');
+select pg_temp.ok((select status from public.match_delete_requests where match_id = 'p6' order by created_at desc limit 1) = 'expirado' and exists (select 1 from public.matches where id = 'p6' and deleted_at is null), '63. pedido expirado: a partida fica');
+select pg_temp.ok((select count(*) from public.notifications where user_id = '00000000-0000-0000-0000-0000000000b1' and kind in ('fix_expired', 'delete_expired')) = 2, '64. Bia fica sabendo que os dois pedidos expiraram');
+set role authenticated;
 -- ---------- conta apagada ----------
 \o /dev/null
 select pg_temp.u('a1');
@@ -254,3 +310,52 @@ select pg_temp.ok(exists (select 1 from public.my_stats_matches() where id = 'p5
 select pg_temp.ok((select guest_name from public.match_players where match_id = 'p5' and team = 0) = 'Ana Dona' and (select user_id from public.match_players where match_id = 'p5' and team = 0) is null, '48. o nome dela fica na partida, sem link para a conta');
 select pg_temp.ok((select owner_id from public.matches where id = 'p5') is null, '49. a partida não foi junto com a conta da dona');
 select pg_temp.ok(public.leave_match('p5') = 'apagada', '50. Eva também exclui: sem ninguém com conta, a partida some de vez');
+-- ---------- o servidor manda nas respostas, e ninguém trava pedidos ao apagar a conta ----------
+reset role;
+insert into auth.users (id, raw_user_meta_data) values
+ ('00000000-0000-0000-0000-0000000000a3', '{"name":"Gil Dono"}'), ('00000000-0000-0000-0000-0000000000a4', '{"name":"Iara Marcada"}'),
+ ('00000000-0000-0000-0000-0000000000a5', '{"name":"Juca Recusa"}');
+set role authenticated;
+\o /dev/null
+select pg_temp.u('a3');
+\o
+insert into public.matches (id, owner_id, sport, played_at, result) values ('p7', auth.uid(), 'padel', now(), '{"sets":[[6,2]],"winner":0}');
+insert into public.match_players (match_id, team, slot, user_id) values ('p7', 0, 0, auth.uid()), ('p7', 1, 0, pg_temp.id('a4')), ('p7', 1, 1, pg_temp.id('a5'));
+\o /dev/null
+select pg_temp.u('a4');
+\o
+select pg_temp.err($$delete from public.match_players where match_id = 'p7' and user_id = auth.uid()$$, 'use_sair_da_partida', '65. quem foi marcado não apaga a própria linha (recusa ou sai pela partida)');
+update public.match_players set tag_status = 'aceito', responded_at = '2020-01-01' where match_id = 'p7' and user_id = auth.uid();
+select pg_temp.ok((select responded_at from public.match_players where match_id = 'p7' and user_id = auth.uid()) > now() - interval '1 minute', '66. a hora do aceite é a do servidor, não a que o aparelho mandou');
+\o /dev/null
+select pg_temp.u('a5');
+\o
+update public.match_players set tag_status = 'recusado' where match_id = 'p7' and user_id = auth.uid();
+select pg_temp.err($$update public.match_players set tag_status = 'pendente' where match_id = 'p7' and user_id = auth.uid()$$, 'ja_respondida', '67. recusou: não volta para pendente (zerar a contagem de recusas)');
+\o /dev/null
+select pg_temp.u('a3');
+\o
+select pg_temp.ok(public.request_score_correction('p7', '{"sets":[[6,3]],"winner":0}') = 'aberto', '68. Gil pede correção; Iara precisa aceitar');
+\o /dev/null
+select pg_temp.u('a4');
+\o
+update public.profiles set deleted_at = now() where id = auth.uid();
+\o /dev/null
+select pg_temp.u('a3');
+\o
+select pg_temp.ok((select status from public.match_corrections where match_id = 'p7') = 'aprovado', '69. Iara apagou a conta: o pedido não fica preso esperando por ela');
+select pg_temp.ok((select result->'sets'->0->>1 from public.matches where id = 'p7') = '3', '70. e a correção de Gil vale');
+select pg_temp.ok(public.request_match_deletion('p7', 'dup') = 'aprovado', '71. só sobrou o Gil confirmado: o pedido de exclusão dele já vale');
+insert into public.matches (id, owner_id, sport, played_at, result) values ('p8', auth.uid(), 'padel', now(), '{"winner":1}');
+insert into public.match_players (match_id, team, slot, user_id) values ('p8', 0, 0, auth.uid()), ('p8', 1, 0, pg_temp.id('a5'));
+\o /dev/null
+select pg_temp.u('a5');
+\o
+select pg_temp.err($$select public.request_match_deletion('p8', 'antes de aceitar')$$, 'só quem está', '72. quem ainda não aceitou a marcação não pede exclusão');
+update public.match_players set tag_status = 'aceito' where match_id = 'p8' and user_id = auth.uid();
+select pg_temp.ok(public.request_match_deletion('p8', 'duplicada') = 'aberto', '73. Juca aceitou e pede exclusão; falta o Gil');
+\o /dev/null
+select pg_temp.u('a3');
+\o
+select pg_temp.err($$select public.request_match_deletion('p8', 'de novo')$$, 'pedido_em_andamento', '74. dois pedidos de exclusão na mesma partida: o segundo recebe um aviso claro');
+select pg_temp.ok(exists (select 1 from public.feed_following() where id = 'p8') and not exists (select 1 from public.feed_following() where id = 'p7'), '75. a timeline Seguindo mostra a partida aberta e não mostra a apagada');

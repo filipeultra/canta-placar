@@ -237,7 +237,8 @@
     function allOthers() {
       if (!demoOn()) return [];
       if (!others) others = buildOthers().concat(o.extraActivities ? o.extraActivities() : []);
-      return others.filter(a => a.playedAt <= now());
+      const fx = (store.fix && store.fix.applied) || {};
+      return others.filter(a => a.playedAt <= now()).map(a => (fx[a.id] ? Object.assign({}, a, { result: fx[a.id], fixedAt: 1 }) : a));
     }
 
     // ---------- seguir ----------
@@ -314,10 +315,38 @@
     const dz = () => { if (!store.del) store.del = { mine: {}, votes: {}, gone: {} }; return store.del; };
     function requestDeletion(id, reason, voters) { dz().mine[id] = { at: now(), reason: reason || '', voters: (voters || []).slice(0, 12) }; persist(); }
     function cancelDeletion(id) { delete dz().mine[id]; persist(); }
+    const REQ_DAYS = 14; // pedido de exclusão ou de correção sem resposta de todos expira (a partida/o placar fica)
     function deletionStatus(id) {
       const r = dz().mine[id]; if (!r) return null;
       const yes = demoOn() ? r.voters.filter((u, k) => now() - r.at > (k + 1) * MIN).length : 0;
-      return { at: r.at, reason: r.reason, voters: r.voters, yes, total: r.voters.length, status: yes >= r.voters.length ? 'aprovado' : 'aberto' };
+      const status = yes >= r.voters.length ? 'aprovado' : now() - r.at > REQ_DAYS * 24 * HOUR ? 'expirado' : 'aberto';
+      return { at: r.at, reason: r.reason, voters: r.voters, yes, total: r.voters.length, status, until: r.at + REQ_DAYS * 24 * HOUR };
+    }
+
+    // ---------- correção de placar (todos aceitam; docs/REGRAS-PARTIDAS.md) ----------
+    const fz = () => { if (!store.fix) store.fix = { mine: {}, votes: {}, applied: {} }; return store.fix; };
+    function requestFix(id, result, reason, voters) { fz().mine[id] = { at: now(), result, reason: reason || '', voters: (voters || []).slice(0, 12) }; persist(); }
+    function cancelFix(id) { delete fz().mine[id]; persist(); }
+    function fixStatus(id) {
+      const r = fz().mine[id]; if (!r) return null;
+      const yes = demoOn() ? r.voters.filter((u, k) => now() - r.at > (k + 1) * MIN).length : 0;
+      const status = yes >= r.voters.length ? 'aprovado' : now() - r.at > REQ_DAYS * 24 * HOUR ? 'expirado' : 'aberto';
+      return { at: r.at, result: r.result, reason: r.reason, voters: r.voters, yes, total: r.voters.length, status, until: r.at + REQ_DAYS * 24 * HOUR };
+    }
+    const myFixes = () => Object.keys(fz().mine).map(id => Object.assign({ id }, fixStatus(id)));
+    // pedido que chega: na demonstração, a Lu sugere corrigir o placar de um treino antigo seu com ela (4-6 virou 5-7)
+    function incomingFixes() {
+      if (!demoOn()) return [];
+      const a = (others || buildOthers()).find(x => x.id === 'tag-lu-old');
+      if (!a || tagStatus(a, 'me') !== 'aceito') return [];
+      const t = a.playedAt + 26 * HOUR;
+      if (t > now()) return [];
+      return [{ id: a.id, activity: a, actor: a.ownerId, t, result: { sets: [[5, 7]], final: null, winner: 1 }, reason: 'o set foi 5-7', status: fz().votes[a.id] || 'pendente' }];
+    }
+    function voteFix(id, yes) {
+      fz().votes[id] = yes ? 'sim' : 'nao';
+      if (yes) { const f = incomingFixes().find(x => x.id === id); if (f) fz().applied[id] = f.result; } // os outros já tinham aceitado
+      persist();
     }
     const myDeletions = () => Object.keys(dz().mine).map(id => Object.assign({ id }, deletionStatus(id)));
     // pedidos que chegam: na demonstração, o dono de uma partida em que você está pede para apagar (placar errado)
@@ -409,6 +438,10 @@
         }
       }
       for (const d of incomingDeletions()) out.push({ id: 'delreq:' + d.id, kind: 'delReq', t: d.t, actor: d.actor, activity: d.activity, reason: d.reason, status: d.status });
+      for (const f of incomingFixes()) out.push({ id: 'fixreq:' + f.id, kind: 'fixReq', t: f.t, actor: f.actor, activity: f.activity, result: f.result, reason: f.reason, status: f.status });
+      for (const f of myFixes()) if (f.status === 'aprovado') out.push({ id: 'fixdone:' + f.id, kind: 'fixDone', t: f.at + f.total * MIN, actor: f.voters[f.voters.length - 1], matchId: f.id });
+      for (const d of myDeletions()) if (d.status === 'expirado') out.push({ id: 'delexp:' + d.id, kind: 'delExpired', t: d.until, actor: d.voters[0], matchId: d.id });
+      for (const f of myFixes()) if (f.status === 'expirado') out.push({ id: 'fixexp:' + f.id, kind: 'fixExpired', t: f.until, actor: f.voters[0], matchId: f.id });
       for (const d of myDeletions()) if (d.status === 'aprovado') out.push({ id: 'deldone:' + d.id, kind: 'delDone', t: d.at + d.total * MIN, actor: d.voters[d.voters.length - 1], matchId: d.id });
       for (const c of incomingClaims(mine)) if (c.activity) out.push({ id: 'claimreq:' + c.id, kind: 'claimReq', t: c.t, actor: c.userId, activity: c.activity, claim: c, status: c.status });
       for (const c of myClaims()) {
@@ -418,7 +451,7 @@
       [['ju', 1, 13, 10], ['gui', 3, 21, 5], ['duda', 6, 8, 40]].forEach(([u, d, h, m]) => out.push({ id: 'follow:' + u, kind: 'follow', t: at(d, h, m), actor: u }));
       return out.filter(n => n.t <= now()).sort((x, y) => y.t - x.t);
     }
-    const unread = mine => notifications(mine).filter(n => n.t > store.readUntil || ((n.kind === 'tag' || n.kind === 'claimReq' || n.kind === 'delReq') && n.status === 'pendente')).length;
+    const unread = mine => notifications(mine).filter(n => n.t > store.readUntil || ((n.kind === 'tag' || n.kind === 'claimReq' || n.kind === 'delReq' || n.kind === 'fixReq') && n.status === 'pendente')).length;
     function markRead() { store.readUntil = now(); persist(); }
 
     // ---------- entrar numa partida pelo código (convidado vira você) ----------
@@ -554,7 +587,7 @@
       following: () => (demoOn() ? store.follows.map(user).filter(Boolean) : []),
       followers: () => (demoOn() ? SEED_FOLLOWERS.map(user).filter(Boolean) : []),
       canSee, involves, tagStatus, respondTag, canTag, tagPolicyOf,
-      report, reported, requestDeletion, cancelDeletion, deletionStatus, myDeletions, incomingDeletions, voteDeletion, isGone,
+      report, reported, requestFix, cancelFix, fixStatus, myFixes, incomingFixes, voteFix, requestDeletion, cancelDeletion, deletionStatus, myDeletions, incomingDeletions, voteDeletion, isGone,
       zaps, hasZapped, toggleZap,
       feed, byUser, activity, suggestions,
       notifications, unread, markRead, reset,

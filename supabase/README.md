@@ -4,10 +4,13 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 
 | Arquivo | O que é |
 |---|---|
-| `schema.sql` | Tabelas, índices, gatilhos e regras por linha (RLS): pessoas, seguir, bloquear, lugares e quadras, temporadas da arena, **grupos** (membros, papéis, foto, resenha), partidas, lances, jogadores marcados, pedidos de convidado, zaps, notificações, vídeos (Pro), assinatura, denúncias e as **regras da partida entre várias pessoas** (quem pode marcar, placar travado, excluir para mim, pedido de exclusão para todos, conta apagada). |
+| `schema.sql` | Tabelas, índices, gatilhos e regras por linha (RLS): pessoas, seguir, bloquear, lugares e quadras, temporadas da arena, **grupos** (membros, papéis, foto, resenha), partidas, lances, jogadores marcados, pedidos de convidado, zaps, notificações, vídeos (Pro), assinatura, denúncias e as **regras da partida entre várias pessoas** (quem pode marcar, placar travado, excluir para mim, pedido de exclusão para todos, correção de placar, prazos de 14 dias, conta apagada). |
 | `storage.sql` | Pastas de arquivos: fotos de perfil (públicas) e vídeos (privados, Pro). |
 | `tests/regras.sql` | 28 verificações das regras, rodadas num Postgres 16 local em 13/10/2026: todas passaram. |
-| `tests/partidas.sql` | 53 verificações das regras da partida entre várias pessoas (ver `docs/REGRAS-PARTIDAS.md`): quem pode marcar, grupo, flood, placar travado, excluir para mim, exclusão para todos, conta apagada, bloqueio, denúncias e foto do grupo. Todas passando em 13/10/2026. |
+| `tests/partidas.sql` | 75 verificações das regras da partida entre várias pessoas (ver `docs/REGRAS-PARTIDAS.md`): quem pode marcar, grupo, flood, placar travado, excluir para mim, exclusão para todos, correção de placar, prazos, conta apagada, bloqueio, denúncias e foto do grupo. Todas passando em 13/10/2026. |
+| `tests/carga.sql` | Teste de carga: 5.000 pessoas, 200 mil "seguir", 100 mil partidas e 400 mil marcações; mede as telas e ações mais usadas (resultado abaixo). |
+| `tests/sobrecarga/` | Scripts do `pgbench` para 50 pessoas usando ao mesmo tempo (80% leitura, 20% lançar e marcar). |
+| `tests/corrida.sh` | Dois votos no mesmo segundo no pedido de exclusão: os dois têm que contar. |
 | `admin.sql` | Estatísticas de uso e painel de admin (ver abaixo). |
 | `tests/admin.sql` | 21 verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê nem age; busca, cortesia, denúncias (tirar do ar) e registro de ações. |
 | `tests/supabase-stub.sql` | Simula o que o Supabase já traz (`auth.users`, `auth.uid()`), para rodar os testes fora dele. |
@@ -70,6 +73,38 @@ Testes em `tests/formato.sql` (11 verificações).
 - **`match_players.nickname`:** apelido só naquela partida, quando dois jogadores têm o mesmo nome (o `user_id` continua o mesmo, então as estatísticas vão para a pessoa certa).
 - **`format_presets`:** formato salvo com nome no padrão `BT1-Amigos de Segunda` (prefixo do esporte + número + até 18 letras). Cada um só vê e grava as suas; o servidor confere o prefixo e o limite do plano (grátis 1 por esporte, Pro 3).
 
+## Carga e sobrecarga (13/10/2026, Postgres 16, 4 CPUs)
+
+Com 100 mil partidas na base, cada tela ou ação, medida como a pessoa logada (com as regras por linha ligadas):
+
+| Tela ou ação | Tempo |
+|---|---|
+| Timeline Geral (30 mais recentes) | 5 ms |
+| Timeline Seguindo por `feed_following()` | 5 ms (pela regra de linha: 39 ms) |
+| Estatísticas, confronto, contadores do perfil, notificações, ranking do grupo | 0,5 a 2 ms |
+| Lançar partida, marcar 3 pessoas, excluir para mim, pedir exclusão, pedir correção | 1 a 5 ms |
+| Apagar conta com centenas de partidas | 18 ms |
+
+**50 pessoas ao mesmo tempo** (`pgbench`, 30 s): 513 operações por segundo, nenhuma falha. A leitura (4 consultas) leva 111 ms em média e lançar e marcar leva 44 ms. Antes da `feed_following()`, eram 104 por segundo, com leitura de 583 ms.
+
+Para ter uma ideia: 10 mil pessoas ativas no dia, abrindo o app 5 vezes cada, dão cerca de 1 operação por segundo, ou 10 no horário de pico. A margem é de dezenas de vezes.
+
+**O que a auditoria corrigiu:**
+- **Votos ao mesmo tempo:** se as duas últimas pessoas votavam no mesmo segundo, cada uma via o voto da outra como pendente e o pedido ficava aberto para sempre. Agora o pedido é travado durante o voto (`for update`), e `tests/corrida.sh` confere.
+- **Código curto repetido:** com ~50 mil partidas, o código `P-XXXXXX` sorteado repetia e o insert falhava. Agora o gatilho `unique_code` sorteia de novo.
+- **Lançar partida com `returning`:** a regra de leitura não enxergava a linha nova e o Supabase (`insert().select()`) recusava. O dono agora passa direto.
+- **Apagar a própria conta:** a regra de leitura escondia o próprio perfil e recusava a marcação de conta apagada. Agora a pessoa sempre lê o próprio perfil.
+- **Hora da resposta:** quem aceita ou recusa não escolhe mais a hora. O servidor grava, e isso protege o prazo de 30 dias e a contagem de recusas. Recusou: não volta para pendente.
+- **Apagar a própria marcação:** o marcado não apaga a linha dele. Ele recusa ou usa "Excluir para mim".
+- **Conta apagada no meio de um pedido:** os pedidos de exclusão e correção que só esperavam por ela se resolvem na hora.
+- **Limite de 60 convites por dia:** conta pelos avisos de marcação, que só o servidor grava. Antes, a contagem varria as marcações do dia de todo mundo.
+- **Índices:** 23 índices novos nas chaves estrangeiras e nos limites por dia. Sem eles, apagar uma conta ou uma partida varreria as tabelas inteiras.
+- **Dois pedidos na mesma partida:** o segundo recebe `pedido_em_andamento`, e não mais um erro de chave.
+
+**Para depois (com mais de 100 mil pessoas):**
+- busca por nome com índice de trigramas (`pg_trgm`): hoje leva 10 ms com 5 mil pessoas e cresce junto com a base;
+- agendar `expire_open_requests()` uma vez por dia (pg_cron).
+
 ## Como ligar (passo a passo)
 
 1. Criar o projeto em supabase.com (região São Paulo, `sa-east-1`). O plano grátis serve para o lançamento; o Pro custa US$ 25 por mês quando passar dos limites.
@@ -80,11 +115,12 @@ Testes em `tests/formato.sql` (11 verificações).
 6. Trocar as funções de `social.js` pelas chamadas ao banco. As telas não mudam: o app só fala com a rede por essas funções. O mapa função → tabela está em `docs/SOCIAL.md`. A ordem sugerida:
    1. login e perfil;
    2. subir as partidas do aparelho (fila offline, id gerado no aparelho, sem duplicar);
-   3. seguir, zap, marcações e notificações;
+   3. seguir, zap, marcações e notificações (a timeline Seguindo usa `feed_following(antes, quantas)`);
    4. grupos: `group_by_code`, `join_group_by_code`, `group_posts`, `group_ranking`;
    5. vídeo na nuvem (Pro).
 7. **Placar ↔ câmera:** trocar o ntfy.sh por um canal do Supabase Realtime (`match:<id>`), sem tabela. Só muda o `relay.js`.
-8. **Pagamento:** um webhook (Edge Function) do Mercado Pago ou do Stripe grava em `subscriptions` e `profiles.pro_until` com a service role.
+8. **Prazos:** agendar `select public.expire_open_requests();` uma vez por dia (Database → Cron). Ela fecha pedidos de exclusão e correções vencidos.
+9. **Pagamento:** um webhook (Edge Function) do Mercado Pago ou do Stripe grava em `subscriptions` e `profiles.pro_until` com a service role.
 
 ## Para rodar os testes num Postgres local
 
@@ -95,4 +131,9 @@ psql -d ultraplay_teste -f supabase/schema.sql
 psql -d ultraplay_teste -f supabase/tests/regras.sql
 psql -d ultraplay_teste -f supabase/tests/ao-vivo.sql   # jogando agora e análise do dia (numa base nova)
 psql -d ultraplay_teste -f supabase/tests/formato.sql   # predefinições e apelido (numa base nova)
+psql -d ultraplay_teste -f supabase/tests/partidas.sql  # regras da partida entre várias pessoas (numa base nova)
+psql -d ultraplay_carga -f supabase/tests/carga.sql     # carga (numa base nova, depois do stub e do schema)
+psql -d ultraplay_carga -f supabase/tests/sobrecarga/setup.sql
+pgbench -n -c 50 -j 4 -T 30 -f supabase/tests/sobrecarga/read.sql@8 -f supabase/tests/sobrecarga/write.sql@2 ultraplay_carga
+sh supabase/tests/corrida.sh ultraplay_corrida          # numa base vazia
 ```

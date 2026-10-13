@@ -3527,6 +3527,8 @@ body.plp-on { overflow: hidden; }
 .del-two .btn-brand { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; }
 .del-pend { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--fill); color: var(--fg-2); font-size: 13px; }
 .del-pend .ic { width: 16px; height: 16px; flex: none; }
+.del-pend.fixed-note { background: var(--brand-soft); color: var(--fg); }
+.del-pend.fixed-note .ic { color: var(--brand-ink); }
 /* notificações: várias marcações do mesmo grupo numa só, e o aviso com Desfazer */
 .ntg .gbadge { flex: none; }
 .ntg-list { margin-top: 8px; }
@@ -3555,3 +3557,34 @@ body.plp-on { overflow: hidden; }
 .ph-big.grp .ic { width: 56px; height: 56px; }
 .ph-big.grp .av-img { border-radius: 32px; }
 .ghead-top .me-av-wrap { flex: none; }
+
+/* ===== v41 · avisos com ícone e ações de "erro" em laranja ===== */
+.toast { display: flex; align-items: center; justify-content: center; gap: 9px; text-align: center; }
+.toast > .ic { flex: none; width: 18px; height: 18px; color: var(--brand); }
+.toast.warn > .ic { color: #FF8A5B; }
+.toast > span { display: grid; gap: 2px; }
+.toast small { font: 500 12.5px/1.3 var(--font); opacity: 0.78; }
+.btn-warn, .btn-danger { background: #D23F00 !important; color: #FFFFFF !important; border: 0 !important; }
+.btn-warn:disabled, .btn-danger:disabled { opacity: 0.45; }
+.btn-warn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-warn > svg, .btn-warn .ic { width: 16px; height: 16px; }
+.undo-toast.warn .xct-txt > .ic { color: #FF8A5B; }
+.undo-toast .xct-txt small { display: block; font-size: 12px; opacity: 0.78; }
+.undo-toast.warn .xct-bar { background: #FF8A5B; }
+.linkish.warn { color: #C23A00; }
+:root[data-theme="dark"] .linkish.warn { color: #FF8A5B; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .linkish.warn { color: #FF8A5B; } }
+.del-ic.info { background: var(--fill); color: var(--fg-2); }
+/* correção de placar */
+.fix-box { display: grid; gap: 12px; }
+.fix-head, .fix-row { display: grid; grid-template-columns: 52px 1fr 18px 1fr 36px; align-items: center; gap: 8px; }
+.fix-head b { font: 700 12.5px/1.2 var(--font-display); text-align: center; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fix-sets { display: grid; gap: 8px; }
+.fix-lbl { font: 500 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-2); }
+.fix-row input { width: 100%; height: 48px; border: 0; border-radius: 12px; background: var(--fill); color: var(--fg); text-align: center; font: 800 22px/1 var(--font-cond); }
+.fix-row > b { text-align: center; color: var(--fg-3); }
+.fix-box .linkish { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.fix-box .btn-brand { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; }
+.match-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
+.fix-link { color: var(--fg-2) !important; }
+.kpi b.kpi-txt { font-size: clamp(15px, 4.6vw, 20px) !important; line-height: 1.15 !important; white-space: normal; overflow-wrap: anywhere; }

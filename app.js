@@ -174,6 +174,10 @@
     const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
     const m = { id: typeof raw.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw.id) ? raw.id : uid(), createdAt: num(raw.createdAt) || Date.now(), endedAt: num(raw.endedAt), cfgInput: cfg, teams, events, redo: [], finished: true, post };
     if (manual) m.manual = manual;
+    const fx = raw.fix && typeof raw.fix === 'object' ? raw.fix : null;   // placar corrigido (todos aceitaram)
+    if (fx) m.fix = { sets: Array.isArray(fx.sets) ? fx.sets.filter(x => Array.isArray(x) && x.length === 2).slice(0, 7).map(x => [cInt(x[0], 0, 99), cInt(x[1], 0, 99)]) : [],
+      final: Array.isArray(fx.final) && fx.final.length === 2 ? [cInt(fx.final[0], 0, 999), cInt(fx.final[1], 0, 999)] : null,
+      winner: fx.winner === 0 || fx.winner === 1 ? fx.winner : null, at: num(fx.at) || 0 };
     if (typeof raw.groupId === 'string' && /^g[-a-z0-9]{1,40}$/.test(raw.groupId)) m.groupId = raw.groupId;
     const vk = raw.vid || raw.oid;
     if (typeof vk === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(vk)) m.vid = vk; // vídeo gravado com o id original da partida
@@ -1586,7 +1590,7 @@
   const ID_VIEWS = ['partida', 'atividade', 'perfil', 'camera', 'grupo'];
   const OPT_ID_VIEWS = ['entrar'];
   function go(view, id, back) {
-    try { settleDeletions(); } catch (e) { console.info('[exclusão] não deu para conferir os pedidos', e); }
+    try { settleDeletions(); settleFixes(); } catch (e) { console.info('[exclusão/correção] não deu para conferir os pedidos', e); }
     if (SCREEN) view = 'jogar';
     if (ID_VIEWS.includes(view) && !id) view = 'inicio';
     if (!back && (view !== currentView || (id || null) !== currentMatchId) && currentView !== 'jogar') { navStack.push([currentView, currentMatchId]); if (navStack.length > 30) navStack.shift(); }
@@ -1693,7 +1697,7 @@
   }
 
   function kpiHTML(items, big) {
-    return '<div class="kpis' + (big ? ' big' : '') + '">' + items.map(([l, v, teams]) => (l === 'Placar' && String(v).trim().includes(' ') ? scoreKpiHTML(String(v).trim(), teams) : '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>')).join('') + '</div>';
+    return '<div class="kpis' + (big ? ' big' : '') + '">' + items.map(([l, v, teams]) => (l === 'Placar' && String(v).trim().includes(' ') ? scoreKpiHTML(String(v).trim(), teams) : '<div class="kpi"><span>' + esc(l) + '</span><b' + (/[A-Za-zÀ-ÿ]{4,}/.test(String(v)) ? ' class="kpi-txt"' : '') + '>' + esc(v) + '</b></div>')).join('') + '</div>';
   }
   // Placar com vários sets: a fonte diminui para caber; com muitos sets, mostra os dois primeiros e uma setinha que abre todas as parciais.
   function scoreKpiHTML(v, teams) {
@@ -1725,6 +1729,22 @@
 
   // Corpo do resumo (usado no resumo salvo e nas estatisticas ao vivo)
   // embed: estatística de outra pessoa dentro da tela de atividade (sem placar repetido, sem compartilhar/excluir)
+  // selo "placar corrigido" (fica no topo, junto do placar)
+  function fixedNoteHTML(st) {
+    if (!st.fixed) return '';
+    const d = st.fixed.at ? new Date(st.fixed.at) : null;
+    return '<p class="del-pend fixed-note">' + ic('i-check') + '<span>' + esc(d ? L('Placar corrigido em ' + d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }), 'Score fixed on ' + d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })) : L('Placar corrigido', 'Score fixed')) + '</span></p>';
+  }
+  // pedidos abertos (exclusão, correção) e as ações da partida: igual na partida ao vivo e na lançada à mão
+  function matchFootHTML(m, live, embed) {
+    let h = '';
+    const dreq = !live && !embed && !m.demo ? SO.deletionStatus(m.id) : null;
+    if (dreq && dreq.status === 'aberto') h += '<p class="del-pend">' + ic('i-clock') + '<span>' + esc(L('Exclusão pedida para todos · ' + dreq.yes + ' de ' + dreq.total + ' aceitaram', 'Deletion requested · ' + dreq.yes + ' of ' + dreq.total + ' accepted')) + '</span></p>';
+    const freq = !live && !embed && !m.demo ? SO.fixStatus(m.id) : null;
+    if (freq && freq.status === 'aberto') h += '<p class="del-pend">' + ic('i-edit') + '<span>' + esc(L('Correção de placar pedida · ' + freq.yes + ' de ' + freq.total + ' aceitaram', 'Score correction requested · ' + freq.yes + ' of ' + freq.total + ' accepted')) + '</span></p>';
+    if (!live && !embed && !m.demo) h += '<div class="match-tools"><button class="del-link fix-link" type="button" data-fixmatch="' + esc(m.id) + '">' + ic('i-edit') + esc(L('Corrigir placar', 'Fix score')) + '</button><button class="del-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">' + ic('i-trash') + esc(L('Excluir partida', 'Delete match')) + '</button></div>';
+    return h;
+  }
   function sumHTML(m, st, live, embed) {
     if (st.manual) return manualSumHTML(m, st);
     const T = st.teams;
@@ -1732,7 +1752,7 @@
     if (!embed) h += '<div class="panel"><div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) +
       '</b><span>' + esc(fmtWhen(m.endedAt || m.createdAt)) + ' · ' + esc(formatSummary(st.cfg)) + '</span></span></div>' +
       '<h2 class="card-title">' + titleFor(m, st) + ' ' + (live ? '<span class="badge">Ao vivo</span>' : st.winner == null ? '<span class="badge muted">Encerrada</span>' : '') + '</h2>' +
-      resultHTML(m, st) +
+      resultHTML(m, st) + fixedNoteHTML(st) +
       (live ? '' : '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button>') + '</div>';
     const won = live || embed ? [] : achievementsIn(m);
     if (won.length) h += '<div class="panel ach-won">' + ph('i-medal', won.length === 1 ? 'Conquista nesta partida' : 'Conquistas nesta partida') + '<div class="ach">' + won.map(achItemHTML).join('') + '</div></div>';
@@ -1770,9 +1790,7 @@
       h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
     }
     // exportar planilha (CSV) e dados (JSON) saiu da partida em 13/10/2026: volta depois nas estatísticas gerais (ver ROADMAP)
-    const dreq = !live && !embed && !m.demo ? SO.deletionStatus(m.id) : null;
-    if (dreq && dreq.status === 'aberto') h += '<p class="del-pend">' + ic('i-clock') + '<span>' + esc(L('Exclusão pedida para todos · ' + dreq.yes + ' de ' + dreq.total + ' aceitaram', 'Deletion requested · ' + dreq.yes + ' of ' + dreq.total + ' accepted')) + '</span></p>';
-    if (!live && !embed && !m.demo) h += '<button class="del-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">' + ic('i-trash') + 'Excluir partida</button>';
+    h += matchFootHTML(m, live, embed);
     if (m.demo) h += '<p class="hint center">Partida do perfil de exemplo (fictícia).</p>';
     return h + '</div>';
   }
@@ -2190,7 +2208,7 @@
   const actCache = new Map();
   function toActivity(m, ownerId) {
     const p = m.post || {};
-    const key = m.id + '|' + ownerId + '|' + (m.groupId || '') + '|' + (m.endedAt || 0) + '|' + m.events.length + '|' + JSON.stringify(p) + '|' + JSON.stringify(m.manual || null) + '|' + myName();
+    const key = m.id + '|' + ownerId + '|' + (m.groupId || '') + '|' + (m.endedAt || 0) + '|' + m.events.length + '|' + JSON.stringify(p) + '|' + JSON.stringify(m.manual || null) + '|' + JSON.stringify(m.fix || null) + '|' + myName();
     if (actCache.has(key)) return actCache.get(key);
     const st = S.matchStats(m);
     const mine = ownerId === 'me';
@@ -2420,8 +2438,8 @@
     if (a.ownerId !== 'me') {
       // recusou sem querer? dá para voltar atrás (até 30 dias depois, como no servidor)
       const mine = (a.tagged || []).find(t => t.userId === 'me');
-      if (mine && SO.tagStatus(a, 'me') === 'recusado' && Date.now() - (a.playedAt || 0) < 30 * 864e5) h += '<div class="panel undo-dec">' + ic('i-undo') + '<span><b>' + esc(L('Você recusou esta marcação', 'You declined this tag')) + '</b><small>' + esc(L('Se foi sem querer, ainda dá para aceitar: a partida entra no seu perfil.', 'If it was by mistake, you can still accept: the match goes on your profile.')) + '</small></span><button class="btn btn-sm btn-brand" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">' + esc(L('Desfazer recusa e aceitar', 'Undo and accept')) + '</button></div>';
-      h += '<div class="perfil-safety"><button class="linkish" type="button" data-report="' + esc(a.id) + '" data-report-kind="partida">' + esc(L('Denunciar partida', 'Report match')) + '</button></div>';
+      if (mine && SO.tagStatus(a, 'me') === 'recusado' && Date.now() - (a.playedAt || 0) < 30 * 864e5) h += '<div class="panel undo-dec">' + ic('i-undo') + '<span><b>' + esc(L('Você recusou esta marcação', 'You declined this tag')) + '</b><small>' + esc(L('Se foi sem querer, ainda dá para aceitar: a partida entra no seu perfil.', 'If it was by mistake, you can still accept: the match goes on your profile.')) + '</small></span><button class="btn btn-sm btn-warn" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">' + esc(L('Desfazer recusa e aceitar', 'Undo and accept')) + '</button></div>';
+      h += '<div class="perfil-safety"><button class="linkish warn" type="button" data-report="' + esc(a.id) + '" data-report-kind="partida">' + esc(L('Denunciar partida', 'Report match')) + '</button></div>';
     }
     $('#actBody').innerHTML = h;
   }
@@ -2464,7 +2482,7 @@
       const hidden = SO.PRIVACY_ITEMS.filter(i => i[0] !== 'geral' && !can(i[0]));
       if (hidden.length) h += '<p class="hint center">' + ic('i-lock') + ' ' + (isMe ? 'Escondido de quem não segue você: ' : 'Privado por ' + esc(firstName(u.name)) + ': ') + esc(hidden.map(i => i[1].toLowerCase()).join(', ')) + '.</p>';
     }
-    if (!isMe) h += '<div class="perfil-safety"><button class="linkish" type="button" data-block="' + esc(id) + '">' + (blocked ? 'Desbloquear' : 'Bloquear') + '</button><span>·</span><button class="linkish" type="button" data-report="' + esc(id) + '">Denunciar perfil</button></div>';
+    if (!isMe) h += '<div class="perfil-safety"><button class="linkish" type="button" data-block="' + esc(id) + '">' + (blocked ? 'Desbloquear' : 'Bloquear') + '</button><span>·</span><button class="linkish warn" type="button" data-report="' + esc(id) + '">Denunciar perfil</button></div>';
     $('#perfilBody').innerHTML = h;
   }
 
@@ -2546,7 +2564,7 @@
       '<div class="rep-opts" role="radiogroup" aria-label="' + esc(L('Motivo', 'Reason')) + '">' + REPORT_OPTS[kind].map((c, i) => '<label class="rep-opt"><input type="radio" name="repCat" value="' + c + '"' + (i ? '' : ' checked') + '><span>' + esc(L.apply(null, REPORT_LBL[c])) + '</span></label>').join('') + '</div>' +
       '<label class="field"><span>' + esc(L('Conte mais (opcional)', 'Tell us more (optional)')) + '</span><textarea id="repTxt" maxlength="500" rows="3" placeholder="' + esc(L('Ex.: criou 10 partidas comigo que não aconteceram', 'E.g.: logged 10 matches with me that never happened')) + '"></textarea></label>' +
       (kind === 'perfil' && !SO.isBlocked(id) ? '<label class="row rep-block"><span>' + esc(L('Também bloquear', 'Also block')) + '<small>' + esc(L('A pessoa não vê o seu perfil, não marca você e não acha você na busca', 'They won\'t see your profile, tag you or find you in search')) + '</small></span><input class="switch" type="checkbox" id="repBlock" checked></label>' : '') +
-      '<button class="btn btn-danger" type="button" data-reportsend="' + esc(kind + '|' + id) + '">' + ic('i-alert') + esc(L('Enviar denúncia', 'Send report')) + '</button>' +
+      '<button class="btn btn-warn" type="button" data-reportsend="' + esc(kind + '|' + id) + '">' + ic('i-alert') + esc(L('Enviar denúncia', 'Send report')) + '</button>' +
       '<p class="hint small">' + esc(L('A equipe analisa em até 48 horas. Quem foi denunciado não fica sabendo quem denunciou.', 'The team reviews within 48 hours. The reported person isn\'t told who reported them.')) + '</p></div>');
   }
   function sendReport(key) {
@@ -2604,8 +2622,13 @@
           : '<div class="notif-st st-' + esc(n.status) + '">' + (n.status === 'aceito' ? ic('i-check') + 'Aceito · as estatísticas foram para ' + esc(firstName(SO.user(n.actor).name)) : 'Recusado') + '</div>');
       if (n.kind === 'claimOk') return row(n, '<p>' + who(n.actor) + ' aceitou: <b>“' + esc(n.guest) + '”</b> agora é você. As estatísticas entraram no seu perfil.</p>', '<div class="notif-act"><button class="btn btn-sm" type="button" data-act="' + esc(a.id) + '">Ver partida</button></div>');
       if (n.kind === 'delReq') return row(n, '<p>' + who(n.actor) + ' ' + esc(L('pediu para excluir para todos a partida', 'asked everyone to delete the match')) + ' <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button> · ' + esc(n.reason) + '</p>',
-        n.status === 'pendente' ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-delvote="nao" data-delid="' + esc(a.id) + '">' + esc(L('Manter', 'Keep')) + '</button><button class="btn btn-sm btn-brand" type="button" data-delvote="sim" data-delid="' + esc(a.id) + '">' + ic('i-trash') + esc(L('Aceitar exclusão', 'Accept deletion')) + '</button></div>'
+        n.status === 'pendente' ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-delvote="nao" data-delid="' + esc(a.id) + '">' + esc(L('Manter', 'Keep')) + '</button><button class="btn btn-sm btn-warn" type="button" data-delvote="sim" data-delid="' + esc(a.id) + '">' + ic('i-trash') + esc(L('Aceitar exclusão', 'Accept deletion')) + '</button></div>'
           : '<div class="notif-st st-' + (n.status === 'sim' ? 'aceito' : 'recusado') + '">' + esc(n.status === 'sim' ? L('Você aceitou: a partida foi excluída', 'You accepted: the match was deleted') : L('Você recusou: a partida continua', 'You declined: the match stays')) + '</div>');
+      if (n.kind === 'fixReq') { const sc = (n.result.sets || []).map(s => s[0] + '-' + s[1]).join(' '); return row(n, '<p>' + who(n.actor) + ' ' + esc(L('sugeriu corrigir o placar de', 'suggested fixing the score of')) + ' <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button>: <b>' + esc(actScore(a)) + '</b> → <b>' + esc(sc) + '</b> · ' + esc(n.reason) + '</p>',
+        n.status === 'pendente' ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-fixvote="nao" data-fixid="' + esc(a.id) + '">' + esc(L('Manter', 'Keep')) + '</button><button class="btn btn-sm btn-brand" type="button" data-fixvote="sim" data-fixid="' + esc(a.id) + '">' + ic('i-check') + esc(L('Aceitar correção', 'Accept correction')) + '</button></div>'
+          : '<div class="notif-st st-' + (n.status === 'sim' ? 'aceito' : 'recusado') + '">' + esc(n.status === 'sim' ? L('Você aceitou: placar corrigido', 'You accepted: score fixed') : L('Você recusou: o placar fica', 'You declined: the score stays')) + '</div>'); }
+      if (n.kind === 'fixDone') return row(n, '<p>' + esc(L('Todos aceitaram a sua correção: o placar mudou para todo mundo.', 'Everyone accepted your correction: the score changed for everyone.')) + '</p>');
+      if (n.kind === 'delExpired' || n.kind === 'fixExpired') return row(n, '<p>' + esc(n.kind === 'delExpired' ? L('O seu pedido de exclusão expirou: passou 14 dias sem a resposta de todos. A partida continua.', 'Your deletion request expired: 14 days passed without everyone answering. The match stays.') : L('O seu pedido de correção expirou: passou 14 dias sem a resposta de todos. O placar fica como estava.', 'Your correction request expired: 14 days passed without everyone answering. The score stays as it was.')) + '</p>');
       if (n.kind === 'delDone') return row(n, '<p>' + esc(L('Todos aceitaram o seu pedido: a partida foi excluída de todos os lugares.', 'Everyone accepted your request: the match was deleted everywhere.')) + '</p>');
       if (n.kind === 'follow') return row(n, '<p>' + who(n.actor) + ' começou a seguir você</p>', SO.isFollowing(n.actor) ? '' : '<div class="notif-act"><button class="btn btn-sm btn-brand follow" type="button" data-follow="' + esc(n.actor) + '">' + ic('i-user-plus') + 'Seguir de volta</button></div>');
       return '';
@@ -2659,7 +2682,7 @@
     haptic(resp === 'aceito' ? 'pub' : 'tap');
     refreshSocial();
     if (o.silent) return prev;
-    undoToast(resp === 'aceito' ? L('Partida aceita: já está no seu perfil', 'Match accepted: it\'s on your profile') : L('Marcação recusada', 'Tag declined'), () => { setTag(id, prev || 'pendente'); refreshSocial(); });
+    undoToast(resp === 'aceito' ? L('Partida aceita!', 'Match accepted!') : L('Marcação recusada', 'Tag declined'), () => { setTag(id, prev || 'pendente'); refreshSocial(); }, resp === 'aceito' ? L('Já disponível no seu perfil.', 'Already on your profile.') : L('Ela não entra no seu perfil.', 'It won\'t go on your profile.'), resp === 'aceito' ? '' : 'warn');
     return prev;
   }
   // aceitar ou recusar várias de uma vez (marcações do mesmo grupo)
@@ -2668,17 +2691,19 @@
     ids.forEach(id => setTag(id, resp));
     haptic(resp === 'aceito' ? 'pub' : 'tap');
     refreshSocial();
-    undoToast(L(ids.length + (resp === 'aceito' ? ' partidas aceitas' : ' marcações recusadas'), ids.length + (resp === 'aceito' ? ' matches accepted' : ' tags declined')), () => { prevs.forEach(([id, p]) => setTag(id, p || 'pendente')); refreshSocial(); });
+    undoToast(L(ids.length + (resp === 'aceito' ? ' partidas aceitas!' : ' marcações recusadas'), ids.length + (resp === 'aceito' ? ' matches accepted!' : ' tags declined')), () => { prevs.forEach(([id, p]) => setTag(id, p || 'pendente')); refreshSocial(); }, resp === 'aceito' ? L('Já disponíveis no seu perfil.', 'Already on your profile.') : '', resp === 'aceito' ? '' : 'warn');
   }
   // aviso de 3 s com barra e "Desfazer"
   let undoTimer = null, undoFn = null;
-  function undoToast(text, onUndo) {
+  function undoToast(text, onUndo, sub, tone) {
     let t = $('#undoToast');
     if (!t) { t = document.createElement('div'); t.id = 'undoToast'; t.className = 'xc-toast undo-toast'; t.setAttribute('role', 'status'); t.setAttribute('translate', 'no'); document.body.appendChild(t);
       t.addEventListener('click', e => { if (e.target.closest('[data-undo]') && undoFn) { const f = undoFn; undoFn = null; hide(); f(); toast(L('Desfeito', 'Undone')); } else if (e.target.closest('[data-undox]')) hide(); }); }
     function hide() { clearTimeout(undoTimer); t.classList.remove('show'); setTimeout(() => { if (!t.classList.contains('show')) t.hidden = true; }, 220); }
     undoFn = onUndo;
-    t.innerHTML = '<span class="xct-txt">' + ic('i-check') + '<span><b>' + esc(text) + '</b></span></span><button class="btn btn-sm undo-btn" type="button" data-undo>' + esc(L('Desfazer', 'Undo')) + '</button><button class="xct-x" type="button" data-undox aria-label="' + esc(L('Fechar', 'Close')) + '">' + ic('i-x') + '</button><i class="xct-bar"></i>';
+    const plain = $('#toast'); if (plain) { clearTimeout(toastTimer); plain.classList.remove('show'); plain.hidden = true; }
+    t.classList.toggle('warn', tone === 'warn');
+    t.innerHTML = '<span class="xct-txt">' + ic(tone === 'warn' ? 'i-x' : 'i-check') + '<span><b>' + esc(text) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span></span><button class="btn btn-sm btn-warn undo-btn" type="button" data-undo>' + esc(L('Desfazer', 'Undo')) + '</button><button class="xct-x" type="button" data-undox aria-label="' + esc(L('Fechar', 'Close')) + '">' + ic('i-x') + '</button><i class="xct-bar"></i>';
     t.hidden = false; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
     clearTimeout(undoTimer); undoTimer = setTimeout(() => { undoFn = null; hide(); }, 3200);
     t.__hide = hide;
@@ -2736,9 +2761,17 @@
   window.addEventListener('unhandledrejection', onCrash);
 
   let toastTimer = null;
+  // aviso curto, centralizado e com ícone (o ícone sai do texto quando não vem: excluir, salvar, denúncia, bloqueio…)
+  const TOAST_ICONS = [[/exclu|apagad|removid|descartad/i, 'i-trash', 'warn'], [/denúncia|report/i, 'i-shield', ''], [/bloquead|blocked/i, 'i-lock', ''], [/recus|cancelad|declin|cancel/i, 'i-x', 'warn'], [/não |não$|erro|limite|couldn|can't|error/i, 'i-alert', 'warn'], [/salv|aceit|corrigid|enviad|pront|saved|accepted|fixed|sent|copiad|copied/i, 'i-check', '']];
   function toast(msg, opts) {
     const t = $('#toast');
-    t.textContent = msg; t.hidden = false;
+    const o = opts || {};
+    const ut = $('#undoToast'); if (ut && !ut.hidden && ut.__hide) ut.__hide(); // um aviso por vez, sem um em cima do outro
+    const auto = !o.icon && o.icon !== false ? TOAST_ICONS.find(([rx]) => rx.test(msg)) : null;
+    const icon = o.icon || (auto && auto[1]), tone = o.tone != null ? o.tone : auto ? auto[2] : '';
+    t.className = 'toast' + (tone ? ' ' + tone : '');
+    t.innerHTML = (icon ? ic(icon) : '') + '<span>' + esc(msg) + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</span>';
+    t.hidden = false;
     t.classList.toggle('top', !!(opts && opts.top)); // no alto: quando embaixo há algo que não pode ser coberto (miniatura da gravação)
     requestAnimationFrame(() => t.classList.add('show'));
     clearTimeout(toastTimer);
@@ -3052,10 +3085,10 @@
   // Resumo de partida lançada à mão (sem lances, então sem gráficos de ponto a ponto).
   function manualSumHTML(m, st) {
     const a = toActivity(m, 'me');
-    let h = '<div class="sum"><div class="panel">' + actResultHTML(a) + '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button></div>';
+    let h = '<div class="sum"><div class="panel">' + actResultHTML(a) + fixedNoteHTML(st) + '<button class="btn-primary" type="button" data-action="share"><svg><use href="#i-share"/></svg>Compartilhar</button></div>';
     h += '<div class="panel">' + kpiHTML([['Placar', actScore(a) || '–', m.teams.map(t => t.name)], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], ['Sets', st.state.sets.length ? String(st.state.sets.length) : '–']], true) +
       '<p class="hint">' + ic('i-pencil-line') + ' Lançada depois do jogo. Para ter momento, golpes e comparativo, marque a próxima ao vivo.</p></div>';
-    h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
+    h += matchFootHTML(m, false, false);
     return h + '</div>';
   }
 
@@ -3232,7 +3265,7 @@
     });
     const p = m.post || {};
     const data = { v: 1, c: m.cfgInput, tm: m.teams.map(t => ({ n: t.name, c: t.color, p: t.players })), e, t0, a: m.createdAt, z: m.endedAt, by: prefs.myName || '',
-      p: { type: p.type, title: p.title, caption: p.caption, place: p.place }, man: m.manual || null, oid: videoKey(m) };
+      p: { type: p.type, title: p.title, caption: p.caption, place: p.place }, man: m.manual || null, fx: m.fix || undefined, oid: videoKey(m) };   // fx: placar corrigido (o link mostra o placar certo)
     const raw = new TextEncoder().encode(JSON.stringify(data));
     if (window.CompressionStream) { try { return 'z' + b64url(await zip(raw, true)); } catch (err) { console.warn('[link] compressão falhou, vai sem', err); } }
     return 'j' + b64url(raw);
@@ -3247,7 +3280,7 @@
       id: 'link-' + h.toString(36), createdAt: d.a, endedAt: d.z, cfgInput: d.c,
       teams: Array.isArray(d.tm) ? d.tm.map(t => ({ name: t && t.n, color: t && t.c, players: t && t.p })) : null,
       events: Array.isArray(d.e) ? d.e.map(ev => Object.assign({}, ev, ev && typeof ev.t === 'number' ? { t: t0 + ev.t * 100 } : {})) : null,
-      post: Object.assign({}, d.p || {}, { status: 'publicada' }), manual: d.man || undefined, vid: d.oid,
+      post: Object.assign({}, d.p || {}, { status: 'publicada' }), manual: d.man || undefined, fix: d.fx && typeof d.fx === 'object' ? d.fx : undefined, vid: d.oid,
     });
     if (!m) throw new Error('partida inválida no link');
     m.sharedBy = cTxt(d.by, 40); m.fromLink = true;
@@ -5790,8 +5823,8 @@
       if (cand.length) h += '<div class="panel">' + ph('i-user-plus', 'Adicionar quem você segue') + '<div class="chips-pick">' + cand.map(u => '<button class="gm-chip" type="button" data-gadd="' + esc(u.id) + '">' + ic('i-plus') + esc(u.name) + '</button>').join('') + '</div><p class="hint">Ou mande o link de convite: quem abrir entra direto.</p></div>';
     }
     const own = gr.local && gr.myRole === 'admin' && !gr.invitedBy;
-    if (gr.myRole) h += '<div class="perfil-safety">' + (own ? '<button class="linkish" type="button" data-gedit="' + esc(gr.id) + '">Editar grupo</button><span>·</span>' : '') + '<button class="linkish" type="button" data-gleave="' + esc(gr.id) + '">' + (own ? 'Apagar grupo' : 'Sair do grupo') + '</button>' + (own ? '' : '<span>·</span><button class="linkish" type="button" data-report="' + esc(gr.id) + '" data-report-kind="grupo">' + esc(L('Denunciar grupo', 'Report group')) + '</button>') + '</div>';
-    else h += '<div class="perfil-safety"><button class="linkish" type="button" data-report="' + esc(gr.id) + '" data-report-kind="grupo">' + esc(L('Denunciar grupo', 'Report group')) + '</button></div>';
+    if (gr.myRole) h += '<div class="perfil-safety">' + (own ? '<button class="linkish" type="button" data-gedit="' + esc(gr.id) + '">Editar grupo</button><span>·</span>' : '') + '<button class="linkish" type="button" data-gleave="' + esc(gr.id) + '">' + (own ? 'Apagar grupo' : 'Sair do grupo') + '</button>' + (own ? '' : '<span>·</span><button class="linkish warn" type="button" data-report="' + esc(gr.id) + '" data-report-kind="grupo">' + esc(L('Denunciar grupo', 'Report group')) + '</button>') + '</div>';
+    else h += '<div class="perfil-safety"><button class="linkish warn" type="button" data-report="' + esc(gr.id) + '" data-report-kind="grupo">' + esc(L('Denunciar grupo', 'Report group')) + '</button></div>';
     return h;
   }
   function groupWallHTML(gr) {
@@ -6201,6 +6234,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13m', date: '13/10/2026', title: 'Correção de placar e prazos', items: [
+      'Corrigir placar: ajuste os sets de uma partida já confirmada. Quando todos aceitam, o placar muda para todos, com o selo Placar corrigido. Vale também para as partidas lançadas à mão.',
+      'Pedidos de exclusão e de correção expiram em 14 dias sem resposta. A partida fica como estava.',
+      'Avisos mais claros: centralizados, com ícone, e em laranja quando é algo para desfazer ou denunciar.',
+    ] },
     { id: '2026-10-13l', date: '13/10/2026', title: 'Partidas entre várias pessoas: regras claras', items: [
       'Você joga sempre no 1º time. Para registrar a partida de um grupo sem jogar, use Partida de grupo e desligue Estou jogando.',
       'Seletor de jogadores em tela própria: busca no topo e a lista inteira, sem ficar escondida pelo teclado.',
@@ -6616,10 +6654,11 @@
       setTimeout(() => { const i = $('#delWord'); if (i) i.focus(); }, 80);
       return;
     }
+    if (req && req.status === 'expirado') SO.cancelDeletion(id); // venceu sem resposta: pode pedir de novo
     if (req && req.status === 'aberto') {
       openInfo(L('Exclusão pedida', 'Deletion requested'), '<div class="del-box" translate="no"><span class="del-ic">' + ic('i-clock') + '</span>' +
         '<p><b>' + esc(L(req.yes + ' de ' + req.total + ' já aceitaram', req.yes + ' of ' + req.total + ' have accepted')) + '</b></p><p class="hint">' + esc(L('Quando todos aceitarem, a partida some de todos os lugares. Se alguém recusar, ela fica.', 'When everyone accepts, the match disappears everywhere. If anyone declines, it stays.')) + '</p>' +
-        '<button class="btn" type="button" data-delcancel="' + esc(id) + '">' + esc(L('Cancelar o pedido', 'Cancel the request')) + '</button></div>');
+        '<button class="btn btn-warn" type="button" data-delcancel="' + esc(id) + '">' + esc(L('Cancelar o pedido', 'Cancel the request')) + '</button></div>');
       return;
     }
     delMode = 'me';
@@ -6633,7 +6672,7 @@
       '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type excluir de vez')) + '">' +
       '<button class="btn btn-danger" type="button" id="delGo" data-delmid="' + esc(id) + '" disabled>' + ic('i-trash') + esc(L('Excluir para mim', 'Delete for me')) + '</button></div>' +
       '<div id="delAll" hidden><label class="del-why"><span>' + esc(L('Motivo', 'Reason')) + '</span><select id="delWhy">' + DEL_REASONS.map(([v, l]) => '<option value="' + v + '">' + esc(L.apply(null, l)) + '</option>').join('') + '</select></label>' +
-      '<button class="btn btn-brand" type="button" data-delask="' + esc(id) + '">' + ic('i-send') + esc(L('Enviar o pedido', 'Send the request')) + '</button></div></div>');
+      '<button class="btn btn-warn" type="button" data-delask="' + esc(id) + '">' + ic('i-send') + esc(L('Enviar o pedido', 'Send the request')) + '</button></div></div>');
   }
   function askDeletion(id) {
     const m = findMatch(id); if (!m) return;
@@ -6657,6 +6696,72 @@
     toast(yes ? L('Partida excluída para todos', 'Match deleted for everyone') : L('Você recusou: a partida continua', 'You declined: the match stays'));
     renderNotifs();
   }
+  // ---------- correção de placar: sem ninguém mais confirmado, corrige direto; com outros, todos precisam aceitar ----------
+  function fixRows(m) {
+    const st = S.matchStats(m);
+    const sets = st.state.sets.length ? st.state.sets.map(x => (x.matchTb && x.tb ? x.tb : x.games)) : [];
+    const fin = st.manual && st.manual.final ? st.manual.final : null;
+    return { sets: sets.length ? sets : fin ? [] : [[0, 0]], final: fin, kind: st.cfg.kind, names: m.teams.map(t => t.name) };
+  }
+  function fixRowHTML(i, s, names) {
+    return '<div class="fix-row" data-fixrow="' + i + '"><span class="fix-lbl">' + esc(L('Set ' + (i + 1), 'Set ' + (i + 1))) + '</span>' +
+      '<input type="number" inputmode="numeric" min="0" max="99" value="' + (s[0] || 0) + '" data-fixv="0" aria-label="' + esc(names[0] + ', set ' + (i + 1)) + '"><b>×</b>' +
+      '<input type="number" inputmode="numeric" min="0" max="99" value="' + (s[1] || 0) + '" data-fixv="1" aria-label="' + esc(names[1] + ', set ' + (i + 1)) + '">' +
+      '<button class="icon-btn sm" type="button" data-fixdel="' + i + '" aria-label="' + esc(L('Tirar set', 'Remove set')) + '">' + ic('i-x') + '</button></div>';
+  }
+  function openFix(id) {
+    const m = findMatch(id); if (!m) return;
+    const others = confirmedOthers(m), req = SO.fixStatus(id), f = fixRows(m);
+    if (req && req.status === 'aberto') {
+      openInfo(L('Correção pedida', 'Correction requested'), '<div class="del-box" translate="no"><span class="del-ic info">' + ic('i-clock') + '</span><p><b>' + esc(L(req.yes + ' de ' + req.total + ' já aceitaram', req.yes + ' of ' + req.total + ' have accepted')) + '</b></p><p class="hint">' + esc(L('Quando todos aceitarem, o placar muda para todo mundo. Se alguém recusar, ou se passar 14 dias sem resposta, ele fica como está.', 'When everyone accepts, the score changes for everyone. If anyone declines, or 14 days pass without an answer, it stays as it is.')) + '</p><button class="btn btn-warn" type="button" data-fixcancel="' + esc(id) + '">' + esc(L('Cancelar o pedido', 'Cancel the request')) + '</button></div>');
+      return;
+    }
+    const names = f.names.map(n => n || '');
+    openInfo(L('Corrigir placar', 'Fix score'), '<div class="fix-box" translate="no" data-fixid="' + esc(id) + '"><p class="hint">' + esc(others.length ? L('Ajuste o placar certo. ' + namesList(others) + (others.length === 1 ? ' precisa' : ' precisam') + ' aceitar; aí ele muda para todos. Sem resposta em 14 dias, o pedido expira.', 'Enter the right score. ' + namesList(others) + ' must accept; then it changes for everyone. With no answer in 14 days, the request expires.') : L('Ninguém mais confirmou esta partida: o placar muda na hora.', 'No one else confirmed this match: the score changes right away.')) + '</p>' +
+      '<div class="fix-head"><span></span><b>' + esc(names[0]) + '</b><span></span><b>' + esc(names[1]) + '</b><span></span></div>' +
+      '<div class="fix-sets" id="fixSets">' + (f.sets.length ? f.sets.map((s, i) => fixRowHTML(i, s, names)).join('') : '') + '</div>' +
+      '<button class="linkish" type="button" data-fixadd>' + ic('i-plus') + esc(L('Adicionar set', 'Add set')) + '</button>' +
+      (others.length ? '<label class="del-why"><span>' + esc(L('Motivo', 'Reason')) + '</span><select id="fixWhy"><option value="placar">' + esc(L('Placar marcado errado', 'Score logged wrong')) + '</option><option value="set">' + esc(L('Faltou um set', 'A set is missing')) + '</option><option value="lado">' + esc(L('Pontos no time errado', 'Points on the wrong team')) + '</option><option value="outro">' + esc(L('Outro motivo', 'Other reason')) + '</option></select></label>' : '') +
+      '<button class="btn btn-brand" type="button" data-fixsend="' + esc(id) + '">' + ic(others.length ? 'i-send' : 'i-check') + esc(others.length ? L('Enviar para todos', 'Send to everyone') : L('Salvar placar', 'Save score')) + '</button></div>');
+  }
+  function readFix() {
+    const sets = $$('#fixSets .fix-row').map(r => [0, 1].map(k => Math.max(0, Math.min(99, parseInt((r.querySelector('[data-fixv="' + k + '"]') || {}).value, 10) || 0))));
+    const won = [0, 1].map(t => sets.filter(s => s[t] > s[1 - t]).length);
+    return { sets, final: null, winner: won[0] === won[1] ? null : won[0] > won[1] ? 0 : 1 };
+  }
+  function applyFix(id, res, at) {
+    const hist = readHist(), m = hist.find(x => x.id === id); if (!m) return false;
+    m.fix = { sets: res.sets, final: res.final || null, winner: res.winner, at: at || Date.now() };
+    if (m.manual) m.manual = Object.assign({}, m.manual, { sets: res.sets, winner: res.winner, final: res.final || null });
+    return writeHist(hist);
+  }
+  function sendFix(id) {
+    const m = findMatch(id); if (!m) return;
+    const res = readFix();
+    if (!res.sets.length) { toast(L('Coloque pelo menos um set', 'Add at least one set')); return; }
+    if (res.winner == null) { toast(L('O placar precisa ter um vencedor', 'The score needs a winner')); return; }
+    const others = confirmedOthers(m);
+    if (!others.length) { if (applyFix(id, res)) { closeAllSheets(); toast(L('Placar corrigido', 'Score fixed'), { icon: 'i-check' }); renderMatchView(id); } return; }
+    SO.requestFix(id, res, ($('#fixWhy') || {}).value || 'outro', others);
+    closeAllSheets();
+    toast(L('Pedido enviado para ' + namesList(others), 'Request sent to ' + namesList(others)), { icon: 'i-send' });
+    renderMatchView(id);
+  }
+  // seus pedidos de correção que todos aceitaram: o placar muda aqui
+  function settleFixes() {
+    let done = 0;
+    SO.myFixes().forEach(f => { if (f.status !== 'aprovado') return; const m = readHist().find(x => x.id === f.id); if (m && !(m.fix && m.fix.at === f.at)) { applyFix(f.id, f.result, f.at); done++; } });
+    if (done) toast(L('Todos aceitaram: placar corrigido', 'Everyone accepted: score fixed'), { icon: 'i-check' });
+  }
+  function voteFix(id, yes) {
+    const f = SO.incomingFixes().find(x => x.id === id);
+    SO.voteFix(id, yes);
+    if (yes && f) { const own = readHist().find(m => m.post && m.post.fromActivity === id); if (own) applyFix(own.id, f.result); }
+    haptic('tap');
+    toast(yes ? L('Placar corrigido para todos', 'Score fixed for everyone') : L('Você recusou: o placar fica como está', 'You declined: the score stays'), { icon: yes ? 'i-check' : 'i-x', tone: yes ? '' : 'warn' });
+    renderNotifs();
+  }
+
   async function deleteMatchNow(id) {
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
     try { if (CVd && CVd.removeMatch) await CVd.removeMatch(id); } catch (e) { console.info('[excluir] vídeo não apagado', e); }
@@ -6858,6 +6963,8 @@
       if (tr) { respondTag(tr.dataset.tagact, tr.dataset.tagresp); return; }
       const ta = e.target.closest('[data-tagall]'); if (ta) { respondMany(ta.dataset.tagids.split(',').filter(Boolean), ta.dataset.tagall); return; }
       const dv = e.target.closest('[data-delvote]'); if (dv) { voteDeletion(dv.dataset.delid, dv.dataset.delvote === 'sim'); return; }
+      const fv = e.target.closest('[data-fixvote]'); if (fv) { voteFix(fv.dataset.fixid, fv.dataset.fixvote === 'sim'); return; }
+      const fm = e.target.closest('[data-fixmatch]'); if (fm) { openFix(fm.dataset.fixmatch); return; }
       const fo = e.target.closest('[data-follow]');
       if (fo) { onFollow(fo.dataset.follow); return; }
       const pe = e.target.closest('[data-people]');
@@ -6963,6 +7070,10 @@
     $('#infoBody').addEventListener('click', e => {
       const b = e.target.closest('#delGo'); if (b && !b.disabled) { deleteMatchNow(b.dataset.delmid); return; }
       const ask = e.target.closest('[data-delask]'); if (ask) { askDeletion(ask.dataset.delask); return; }
+      const fs = e.target.closest('[data-fixsend]'); if (fs) { sendFix(fs.dataset.fixsend); return; }
+      const fa = e.target.closest('[data-fixadd]'); if (fa) { const box = $('#fixSets'); const n = box.children.length; if (n < 7) { const f = fixRows(findMatch($('.fix-box').dataset.fixid)); box.insertAdjacentHTML('beforeend', fixRowHTML(n, [0, 0], f.names)); } return; }
+      const fd = e.target.closest('[data-fixdel]'); if (fd) { fd.closest('.fix-row').remove(); $$('#fixSets .fix-row .fix-lbl').forEach((l, i) => { l.textContent = L('Set ' + (i + 1), 'Set ' + (i + 1)); }); return; }
+      const fc = e.target.closest('[data-fixcancel]'); if (fc) { SO.cancelFix(fc.dataset.fixcancel); closeAllSheets(); toast(L('Pedido cancelado', 'Request cancelled')); renderMatchView(fc.dataset.fixcancel); return; }
       const cn = e.target.closest('[data-delcancel]'); if (cn) { SO.cancelDeletion(cn.dataset.delcancel); closeAllSheets(); toast(L('Pedido cancelado', 'Request cancelled')); renderMatchView(cn.dataset.delcancel); }
     });
     $('#infoBody').addEventListener('change', e => { if (e.target.name === 'delMode') { delMode = e.target.value; $('#delMe').hidden = delMode !== 'me'; $('#delAll').hidden = delMode !== 'all'; } });

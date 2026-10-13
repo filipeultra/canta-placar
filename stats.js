@@ -89,6 +89,22 @@
       durationMs = Number.isFinite(manual.durationMs) ? manual.durationMs : 0;
       manual = Object.assign({}, manual, { final: fin });
     }
+    // placar corrigido depois (todos aceitaram a correção): troca o resultado, os lances ficam como foram marcados
+    let fixed = null;
+    if (m.fix && typeof m.fix === 'object') {
+      const sets = (Array.isArray(m.fix.sets) ? m.fix.sets : []).filter(x => Array.isArray(x) && x.length === 2 && x.every(v => Number.isFinite(v) && v >= 0)).slice(0, 7);
+      if (sets.length) {
+        s.sets = sets.map(x => ({ games: [x[0], x[1]], tb: null, matchTb: false }));
+        s.setsWon = [0, 1].map(t => sets.filter(x => x[t] > x[1 - t]).length);
+      }
+      const fin = Array.isArray(m.fix.final) && m.fix.final.length === 2 && m.fix.final.every(Number.isFinite) ? m.fix.final : null;
+      let w = m.fix.winner === 0 || m.fix.winner === 1 ? m.fix.winner : null;
+      if (w === null && sets.length && s.setsWon[0] !== s.setsWon[1]) w = s.setsWon[0] > s.setsWon[1] ? 0 : 1;
+      if (w === null && fin && fin[0] !== fin[1]) w = fin[0] > fin[1] ? 0 : 1;
+      s.done = true; s.winner = w;
+      if (manual) manual = Object.assign({}, manual, { final: fin, sets: sets.length ? sets : manual.sets, winner: w });   // a correção troca o placar inteiro
+      fixed = { at: m.fix.at || 0 };
+    }
     const list = Array.from(players.values());
     // destaque: quem mais contribuiu (pontos + aces + assistencias - erros)
     const score = p => p.pts + p.aces + p.assists - p.errors - p.df;
@@ -99,7 +115,7 @@
       durationMs,
       byVoice: evs.filter(e => e.src === 'voz').length,
       winner: s.done ? s.winner : null,
-      manual,
+      manual, fixed,
       leader: s.stats.points[0] === s.stats.points[1] ? null : s.stats.points[0] > s.stats.points[1] ? 0 : 1,
       setsText: s.sets.map(x => E.setText(x)),
     };

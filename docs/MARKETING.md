@@ -74,7 +74,37 @@ Integrar câmeras nas quadras das arenas parceiras. Hoje já existem sistemas em
 - A quadra exata da partida (já previsto em `ROADMAP.md`) e o relógio do app sincronizado com o da câmera.
 - Acordo com fornecedores de câmera ou sistema próprio, armazenamento e regras de privacidade (quem pode ver os vídeos de qual quadra e por quanto tempo).
 
-## 8. Ordem sugerida
+## 8. Ideias anotadas em 13/10/2026 (para depois)
+
+### 8.1 Parceria exclusiva com federações
+- **A ideia:** fechar com as federações (beach tennis, padel, tênis, vôlei de praia, futevôlei, peteca) para que todo torneio oficial use o ULTRA PLAY para marcar, publicar os resultados e montar o ranking.
+- **Por que funciona:** quando o ULTRA virar o padrão e guardar o histórico de todo mundo, ninguém vai querer trocar. Os dados acumulados prendem o usuário, e é isso que protege dos apps parecidos que vão aparecer se a gente bombar.
+- **O que oferecer:**
+  - painel da federação com chaves e ranking oficial;
+  - resultado ao vivo para o público;
+  - números por atleta;
+  - Pro de cortesia para os árbitros e mesários;
+  - contrato de exclusividade por temporada.
+- **Cuidado:** a exclusividade precisa caber nas regras da federação (licitação ou edital, em algumas). E o app tem que aguentar o pico de um torneio grande (ver a auditoria do banco).
+
+### 8.2 Patrocinar campeonatos locais com serviço, não com dinheiro
+- **A ideia:** em vez de pagar a cota de patrocínio, oferecer de graça o que o campeonato precisa:
+  - **mesário** (gente do ULTRA marcando as partidas no app);
+  - **fotos** das finais.
+- **O que volta:**
+  - todo atleta do torneio entra no app, porque recebe o convite para aceitar a partida;
+  - logo no banner e na transmissão;
+  - conteúdo para as redes.
+- **Custo:** baixo, só a diária do mesário e do fotógrafo. Dá para trocar por Pro ou comissão para mesários locais (estudantes de educação física, professores).
+- **Medir:** contas novas por torneio, quantas partidas foram aceitas e quantos atletas viraram Pro em 30 dias.
+
+### 8.3 Atletas embaixadores
+- **A ideia:** patrocinar atletas de destaque, regionais primeiro, com contrato de exclusividade.
+- **O combinado:** eles usam o ULTRA em todos os jogos e postam as estatísticas, a análise das telas e os insights do app (propaganda indireta). A comunidade pesquisa "como o fulano joga" e chega ao app.
+- **Formato:** Pro vitalício, cachê por post ou meta (contas novas pelo link ou código de convite do atleta) e kit ULTRA.
+- **Cuidado:** os posts precisam do selo de publicidade (#publi), pelas regras do CONAR.
+
+## 9. Ordem sugerida
 
 1. App redondo para beach tennis: marcar, estatísticas, vídeo e imagens para postar.
 2. Professores e influenciadores de beach tennis; área para professores.

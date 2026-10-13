@@ -153,6 +153,7 @@ O reel atual (`marketing/reels/vem-ai.html`) ficou com "cara de IA". A versão 2
 | 11 | Relógios e pulseiras: km, kcal e batimentos | 6.8 |
 | 12 | Análise do dia por IA no servidor | 6.9 |
 | 13 | Exportar CSV/JSON nas estatísticas gerais; mais de 2 por time; editar lances | 6.10 |
+| 14 | Marketing: federações exclusivas, campeonatos com mesário e foto, atletas embaixadores | `MARKETING.md` 8.1–8.3 |
 
 ## Antes de abrir para o público (checklist)
 

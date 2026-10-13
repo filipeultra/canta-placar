@@ -21,7 +21,7 @@
     const t = (m.teams || []).findIndex(tm => (tm.players || []).some(n => S.fold(n) === key));
     if (t < 0) return null;
     const hide = m.hidePlayers && m.hidePlayers.length ? new Set(m.hidePlayers.map(S.fold)) : null; // ainda não confirmaram (ou saíram): fora do "com um jogador"
-    const mk = m.id + '|' + key + '|' + (m.events || []).length + '|' + (m.endedAt || 0) + '|' + typeOf(m) + '|' + JSON.stringify(m.manual || null) + '|' + (hide ? [...hide].join(',') : '');
+    const mk = m.id + '|' + key + '|' + (m.events || []).length + '|' + (m.endedAt || 0) + '|' + typeOf(m) + '|' + JSON.stringify(m.manual || null) + JSON.stringify(m.fix || null) + '|' + (hide ? [...hide].join(',') : '');
     if (memo.has(mk)) return memo.get(mk);
     const st = S.matchStats(m);
     const o = 1 - t;
