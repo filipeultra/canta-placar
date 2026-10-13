@@ -3020,7 +3020,7 @@
     // cabeçalho
     h += '<div class="panel me-card"><div class="me-head"><span class="me-avatar' + (!useDemo && liveOf('me') ? ' is-live" data-live="me" role="button" tabindex="0" title="' + esc(L('Você está jogando agora', 'You are playing now')) : '') + '">' + esc(initials(p.name)) + (!useDemo && liveOf('me') ? liveBadgeHTML(liveOf('me')) : '') + '</span><div class="me-id">' +
       '<div class="me-name"><h2>' + esc(p.name) + '</h2>' + (cur.kind === 'V' ? fireHTML(cur.len) : '') + (useDemo || isPro() ? '<span class="pro-badge">PRO</span>' : '') + '</div>' +
-      (!useDemo ? '<div class="me-privrow"><button class="privchip p-' + myPrivacy().level + '" type="button" data-action="prefs">' + ic(myPrivacy().level === 'privado' ? 'i-lock' : myPrivacy().level === 'personalizado' ? 'i-sliders' : 'i-globe') + esc(PRIV_LBL[myPrivacy().level]) + '</button><button class="linkish small" type="button" data-go-perfil-me>Ver como os outros veem</button></div>' : '') +
+      (!useDemo ? '<div class="me-privrow"><button class="planchip' + (isPro() ? ' pro' : '') + '" type="button" data-sub="' + (subActive(sub()) ? 'manage' : 'plans') + '">' + ic(isPro() ? 'i-bolt' : 'i-sparkles') + esc(subActive(sub()) ? planLabel(sub()) : isPro() ? 'Pro' : L('Plano Grátis', 'Free plan')) + '</button><button class="privchip p-' + myPrivacy().level + '" type="button" data-action="prefs">' + ic(myPrivacy().level === 'privado' ? 'i-lock' : myPrivacy().level === 'personalizado' ? 'i-sliders' : 'i-globe') + esc(PRIV_LBL[myPrivacy().level]) + '</button><button class="linkish small" type="button" data-go-perfil-me>Ver como os outros veem</button></div>' : '') +
       '<div class="me-meta">' + (!useDemo ? '<button class="idchip" type="button" data-copy="' + esc(myUid()) + '" title="Seu ID: passe para alguém te achar">' + esc(myUid()) + ic('i-copy') + '</button>' : '') + (extra ? '<span>' + ic('i-pin') + esc(extra.city) + '</span><span>' + ic('i-calendar') + esc(extra.since.replace('jogando desde', 'Desde')) + '</span>' : (sportsTxt ? '<span>' + ic('i-grid') + esc(sportsTxt) + '</span>' : '')) + '</div>' +
       '</div></div>' +
       (extra ? '<p class="me-bio">' + esc(extra.bio) + '</p>' : '') +
@@ -3635,8 +3635,254 @@
       list.map(g => '<button class="live-pill" type="button" data-live="' + esc(g.owner) + '">' + avatarHTML(g.owner, 'lg', '', true) + '<b>' + esc(firstName(SO.user(g.owner).name)) + '</b><small>' + esc(SPORT_SHORT[g.sport] || sportLabel(g.sport)) + '</small></button>').join('') + '</div></section>';
   }
 
+
+  // ---------- Assinatura: planos, pagamento, "Seu plano" e o plano Amigos ----------
+  // Preços em reais (docs/PRECOS.md e docs/ASSINATURA.md). Amigos = você + até 5 pessoas, só semestral ou anual.
+  // Enquanto não existe conta na nuvem, o pagamento é uma demonstração: nada é cobrado e nada sai do aparelho.
+  // Com o servidor ligado, o botão Pagar abre o checkout (Pix ou cartão) e quem ativa é o webhook do pagamento.
+  const PLANS = {
+    pro: { name: 'Pro', seats: 1, ic: 'i-bolt', prices: { mensal: 24.90, semestral: 119.90, anual: 179.90 } },
+    amigos: { name: L('Pro Amigos', 'Pro Friends'), seats: 6, ic: 'i-users', prices: { semestral: 249.90, anual: 399.90 } },
+  };
+  const PERIODS = { mensal: { m: 1, lbl: 'Mensal', per: '/mês' }, semestral: { m: 6, lbl: 'Semestral', per: '/semestre' }, anual: { m: 12, lbl: 'Anual', per: '/ano' } };
+  const TRIAL_DAYS = 14, AMIGOS_MAX = 5;
+  const brl = v => 'R$ ' + v.toFixed(2).replace('.', ',');
+  const brlEN = v => 'R$ ' + v.toFixed(2);
+  const money = v => (EN ? brlEN(v) : brl(v));
+  const DAYMS = 864e5;
+  const fmtYr = t => new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace('.', ''); // datas de cobrança sempre com o ano
+  const addMonths = (t, m) => { const d = new Date(t); d.setMonth(d.getMonth() + m); return d.getTime(); };
+  // assinatura deste aparelho (demonstração): { plan, period, status, startedAt, renewsAt, method, payments[], members[] }
+  function sub() {
+    const s = prefs.sub;
+    if (!s || !PLANS[s.plan]) return null;
+    // demonstração: no fim do período, renova sozinha (cartão) ou termina (cancelada/teste)
+    const now = Date.now();
+    let changed = false;
+    while (s.renewsAt && now > s.renewsAt && s.status === 'ativa') {
+      s.payments = (s.payments || []).concat({ at: s.renewsAt, value: PLANS[s.plan].prices[s.period], plan: s.plan, period: s.period, method: s.method, demo: true });
+      s.renewsAt = addMonths(s.renewsAt, PERIODS[s.period].m); changed = true;
+    }
+    if (s.renewsAt && now > s.renewsAt && (s.status === 'cancelada' || s.status === 'trial')) { s.status = 'encerrada'; changed = true; }
+    // convites para pessoas da rede de exemplo: aceitam um minuto depois (como os pedidos de seguir)
+    (s.members || []).forEach(m => { if (m.status === 'pendente' && m.userId && m.userId !== 'me' && SO.user(m.userId) && now - m.invitedAt > 60000) { m.status = 'ativo'; m.joinedAt = now; changed = true; } });
+    if (changed) savePrefs();
+    return s;
+  }
+  const subActive = s => !!(s && ['trial', 'ativa', 'cancelada'].includes(s.status) && s.renewsAt > Date.now());
+  function planLabel(s) { return s.status === 'trial' ? L('Pro · teste grátis', 'Pro · free trial') : L(PLANS[s.plan].name + ' ' + PERIODS[s.period].lbl.toLowerCase(), PLANS[s.plan].name + ' ' + ({ mensal: 'monthly', semestral: '6-month', anual: 'yearly' })[s.period]); }
+  function perMonth(plan, period) { return PLANS[plan].prices[period] / PERIODS[period].m; }
+  function savingPct(plan, period) {
+    const base = PLANS.pro.prices.mensal * PLANS[plan].seats;
+    return Math.round((1 - perMonth(plan, period) / base) * 100);
+  }
+
+  let payPick = { plan: 'pro', period: 'anual' };
+  // tela de planos (o "Pro" de antes): escolhe Pro ou Amigos e o período
+  function plansHTML(feature) {
+    const s = sub(), act = subActive(s);
+    const p = payPick;
+    if (p.plan === 'amigos' && p.period === 'mensal') p.period = 'anual';
+    const card = plan => {
+      const P = PLANS[plan], per = PLANS[plan].prices[p.period] != null ? p.period : 'anual';
+      const price = P.prices[per], pm = perMonth(plan, per), off = savingPct(plan, per);
+      const onlyLong = plan === 'amigos' && p.period === 'mensal';
+      return '<label class="plan-card' + (p.plan === plan ? ' on' : '') + '"><input type="radio" name="payPlan" value="' + plan + '"' + (p.plan === plan ? ' checked' : '') + '>' +
+        '<span class="pc-top"><span class="pc-ic">' + ic(P.ic) + '</span><span class="pc-name"><b>' + esc(P.name) + '</b><small>' + esc(plan === 'amigos' ? L('Você + até 5 amigos', 'You + up to 5 friends') : L('Só para você', 'Just for you')) + '</small></span>' +
+        (plan === 'amigos' ? '<span class="pc-tag">' + esc(L('Melhor por pessoa', 'Best per person')) + '</span>' : p.period === 'anual' ? '<span class="pc-tag">' + esc(L('Mais escolhido', 'Most popular')) + '</span>' : '') + '</span>' +
+        '<span class="pc-price"><b>' + esc(money(price)) + '</b><small>' + esc(L(PERIODS[per].per, ({ mensal: '/month', semestral: '/6 months', anual: '/year' })[per])) + '</small></span>' +
+        '<span class="pc-sub">' + (per !== 'mensal' ? esc(L('equivale a ', 'works out to ') + money(pm) + L('/mês', '/month')) : esc(L('cobrado todo mês', 'billed monthly'))) +
+        (plan === 'amigos' ? ' · <b>' + esc(money(pm / P.seats) + L(' por pessoa', ' per person')) + '</b>' : '') + (off > 0 && plan === 'pro' ? ' <span class="pc-off">−' + off + '%</span>' : '') + '</span>' +
+        (onlyLong ? '<span class="pc-note">' + ic('i-info') + esc(L('O Amigos é só semestral ou anual', 'Friends is 6-month or yearly only')) + '</span>' : '') + '</label>';
+    };
+    let h = '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? esc(L('Para usar ', 'To use ')) + '<b>' + esc(PRO_FEATURES[feature] || feature) + '</b>' + esc(L(', assine o Pro.', ', go Pro.')) : esc(L('Estatísticas de profissional para quem joga por amor.', 'Pro-level stats for people who play for the love of it.'))) + '</p></div>';
+    if (act) h += '<div class="plan-now">' + ic('i-check') + '<span>' + esc(L('Você já tem o ', 'You already have ') + planLabel(s)) + '</span><button class="linkish small" type="button" data-sub="manage">' + esc(L('Ver meu plano', 'See my plan')) + '</button></div>';
+    h += '<div class="seg seg-wide pay-period" role="radiogroup" aria-label="' + esc(L('Período', 'Billing period')) + '">' + Object.keys(PERIODS).map(k => '<label><input type="radio" name="payPeriod" value="' + k + '"' + (p.period === k ? ' checked' : '') + '><span>' + esc(L(PERIODS[k].lbl, ({ mensal: 'Monthly', semestral: '6 months', anual: 'Yearly' })[k])) + (k === 'anual' ? '<small>−40%</small>' : '') + '</span></label>').join('') + '</div>';
+    h += '<div class="plan-cards" role="radiogroup" aria-label="' + esc(L('Plano', 'Plan')) + '">' + card('pro') + card('amigos') + '</div>';
+    const per = PLANS[p.plan].prices[p.period] != null ? p.period : 'anual';
+    h += '<button class="btn-primary" type="button" data-sub="checkout">' + ic('i-bolt') + esc(L('Assinar ', 'Subscribe · ') + PLANS[p.plan].name + ' · ' + money(PLANS[p.plan].prices[per])) + '</button>';
+    if (!act && !prefs.trialUsed) h += '<button class="btn-ghost" type="button" id="proOn">' + esc(L('Experimentar ' + TRIAL_DAYS + ' dias grátis', 'Try it free for ' + TRIAL_DAYS + ' days')) + '</button><p class="hint center">' + esc(L('Sem cartão. No fim do teste, nada é cobrado: você escolhe se quer assinar.', 'No card needed. Nothing is charged when the trial ends: you choose whether to subscribe.')) + '</p>';
+    h += '<details class="pro-what" translate="no"><summary>' + ic('i-sparkles') + esc(L('O que vem no Pro', "What's in Pro")) + ic('i-chev', 'ic chev') + '</summary><ul class="pro-list">' + PRO_LIST() + '</ul></details>';
+    h += '<p class="pay-legal">' + esc(L('Renova sozinho no fim de cada período; cancele quando quiser em Ajustes → Assinatura e o Pro continua até o fim do período pago. No plano Amigos, cada pessoa usa a própria conta.', 'Renews automatically at the end of each period; cancel anytime in Settings → Subscription and Pro stays on until the paid period ends. On Friends, each person uses their own account.')) + '</p>';
+    if (prefs.pro && !s) h += '<button class="linkish center" type="button" id="proOff">' + esc(L('Desligar demonstração do Pro', 'Turn off the Pro demo')) + '</button>';
+    return h;
+  }
+  const PRO_LIST = () => [
+    ['i-chart', L('Estatísticas completas', 'Full stats'), L('Os números do seu esporte, a evolução de cada um, a análise do dia, pontos detalhados e o retrospecto com cada jogador.', "Your sport's numbers, how each one is trending, the daily analysis, detailed points and your record with each player.")],
+    ['i-activity', L('Momento ponto a ponto', 'Point by point'), L('Cada ponto no gráfico e na lista, game a game, com pontos decisivos.', 'Every point on the chart and in the list, game by game, with key points.')],
+    ['i-camera', L('Gravar a partida em vídeo', 'Record the match on video'), L('Com este celular ou com outro aparelho pelo QR Code. Cada ponto vira um lance em vídeo.', 'With this phone or another device via QR code. Every point becomes a video clip.')],
+    ['i-film', L('Vídeo animado da partida', 'Animated match video'), L('O replay vira MP4 ou GIF para o story, sem marca d’água.', 'The replay becomes an MP4 or GIF for your story, with no watermark.')],
+    ['i-layers', L('Predefinições de formato', 'Format presets'), L('Até 3 formatos salvos por esporte para começar a partida da turma com um toque.', "Up to 3 saved formats per sport to start your crew's match with one tap.")],
+    ['i-trophy', L('Histórico completo', 'Full history'), L('Todas as partidas, recordes e confrontos (com a conta na nuvem).', 'Every match, record and head-to-head (with a cloud account).')],
+  ].map(([i, b, t]) => '<li>' + ic(i) + '<span><b>' + esc(b) + '</b>' + esc(t) + '</span></li>').join('');
+
+  // pagamento (Pix ou cartão). Demonstração: ativa sem cobrar e avisa.
+  function openCheckout() {
+    const p = payPick, per = PLANS[p.plan].prices[p.period] != null ? p.period : 'anual', P = PLANS[p.plan];
+    const price = P.prices[per], renews = addMonths(Date.now(), PERIODS[per].m);
+    const h = '<div class="pay-box" translate="no">' +
+      '<div class="pay-sum"><span class="pc-ic">' + ic(P.ic) + '</span><div><b>' + esc(P.name + ' · ' + L(PERIODS[per].lbl, ({ mensal: 'Monthly', semestral: '6 months', anual: 'Yearly' })[per])) + '</b><span>' + esc(p.plan === 'amigos' ? L('Você + até 5 amigos, cada um com a própria conta', 'You + up to 5 friends, each with their own account') : L('Só para você', 'Just for you')) + '</span></div><b class="pay-total">' + esc(money(price)) + '</b></div>' +
+      '<p class="pay-renew">' + ic('i-calendar') + esc(L('Renova em ', 'Renews on ') + fmtYr(renews) + L(' por ', ' for ') + money(price) + L('. Cancele quando quiser.', '. Cancel anytime.')) + '</p>' +
+      '<span class="pay-lbl">' + esc(L('Como pagar', 'How to pay')) + '</span>' +
+      '<div class="pay-methods" role="radiogroup" aria-label="' + esc(L('Forma de pagamento', 'Payment method')) + '">' +
+      '<label class="pay-m"><input type="radio" name="payMethod" value="pix" checked><span>' + ic('i-zap') + '<b>Pix</b><small>' + esc(L('Aprovado na hora. Na renovação, você recebe um novo Pix para pagar.', 'Approved instantly. At renewal you get a new Pix to pay.')) + '</small></span></label>' +
+      '<label class="pay-m"><input type="radio" name="payMethod" value="cartao"><span>' + ic('i-tag') + '<b>' + esc(L('Cartão de crédito', 'Credit card')) + '</b><small>' + esc(L('Renova sozinho no cartão.', 'Renews automatically on the card.')) + '</small></span></label></div>' +
+      '<p class="pay-demo">' + ic('i-info') + '<span>' + esc(L('Versão de teste: o pagamento ainda não está ligado. Ao continuar, a assinatura é ativada como demonstração, sem cobrança e sem pedir dados do cartão.', 'Test version: payments are not switched on yet. If you continue, the subscription is turned on as a demo, with no charge and no card details.')) + '</span></p>' +
+      '<button class="btn-primary" type="button" data-sub="pay">' + ic('i-check') + esc(L('Continuar · ', 'Continue · ') + money(price)) + '</button>' +
+      '<button class="linkish center" type="button" data-sub="plans">' + esc(L('Voltar aos planos', 'Back to plans')) + '</button></div>';
+    closeSheet('#sheetPro');
+    openInfo(L('Assinar', 'Subscribe'), h);
+  }
+  function startSub(plan, period, method, trial) {
+    const now = Date.now(), prev = sub();
+    const members = plan === 'amigos' && prev && prev.plan === 'amigos' ? prev.members || [] : [];
+    const payments = (prev && prev.payments) || [];
+    prefs.sub = trial
+      ? { plan: 'pro', period: 'mensal', status: 'trial', startedAt: now, renewsAt: now + TRIAL_DAYS * DAYMS, method: '', payments, members: [], demo: true }
+      : { plan, period, status: 'ativa', startedAt: now, renewsAt: addMonths(now, PERIODS[period].m), method, payments: payments.concat({ at: now, value: PLANS[plan].prices[period], plan, period, method, demo: true }), members, demo: true };
+    if (trial) prefs.trialUsed = now;
+    savePrefs();
+    trk(trial ? 'trial_start' : 'sub_start', { plan, period: trial ? 'trial' : period, method: method || '' });
+  }
+  function afterProChange() {
+    if (currentView === 'partida') renderMatchView(currentMatchId);
+    if (currentView === 'voce') renderMe();
+    if (currentView === 'stats') renderFull();
+    renderSubRow();
+  }
+  function paySucceeded() {
+    const s = sub();
+    const amigos = s.plan === 'amigos';
+    openInfo(L('Tudo certo', 'All set'), '<div class="pay-ok" translate="no"><span class="pay-ok-ic">' + ic('i-check') + '</span><b>' + esc(L('Bem-vindo ao ', 'Welcome to ') + PLANS[s.plan].name + '!') + '</b><p>' + esc(L('Assinatura ativa até ', 'Subscription active until ') + fmtYr(s.renewsAt) + L(', renovando sozinha.', ', renewing automatically.')) + '</p>' +
+      (amigos ? '<button class="btn btn-brand" type="button" data-sub="invite">' + ic('i-user-plus') + esc(L('Convidar os 5 amigos', 'Invite your 5 friends')) + '</button>' : '') +
+      '<button class="btn" type="button" data-sub="manage">' + esc(L('Ver meu plano', 'See my plan')) + '</button></div>');
+    confetti();
+    const back = proBack; proBack = null; if (back) setTimeout(back, 50);
+    afterProChange();
+  }
+
+  // "Seu plano": status, renovação, pessoas do Amigos, recibos, cancelar ou reativar
+  function openManage() {
+    const s = sub(), act = subActive(s);
+    let h = '<div class="mng" translate="no">';
+    if (!s) {
+      h += '<div class="mng-card free"><span class="pc-ic">' + ic('i-user') + '</span><div><b>' + esc(L('Plano Grátis', 'Free plan')) + '</b><span>' + esc(prefs.pro ? L('Pro em demonstração ligado neste aparelho', 'Pro demo turned on on this device') : L('Placar, estatísticas básicas, timeline e grupos', 'Scoring, basic stats, timeline and groups')) + '</span></div></div>' +
+        '<button class="btn-primary" type="button" data-sub="plans">' + ic('i-bolt') + esc(L('Ver planos Pro', 'See Pro plans')) + '</button>';
+    } else {
+      const chip = s.status === 'trial' ? ['trial', L('Teste grátis', 'Free trial')] : s.status === 'ativa' ? ['ok', L('Ativa', 'Active')] : s.status === 'cancelada' ? ['warn', L('Não renova', 'Not renewing')] : ['off', L('Encerrada', 'Ended')];
+      const line = s.status === 'trial' ? L('Termina em ' + fmtYr(s.renewsAt) + '. Nada é cobrado.', 'Ends on ' + fmtYr(s.renewsAt) + '. Nothing is charged.')
+        : s.status === 'ativa' ? L('Renova em ' + fmtYr(s.renewsAt) + ' por ' + money(PLANS[s.plan].prices[s.period]) + (s.method ? ' · ' + (s.method === 'pix' ? 'Pix' : 'cartão') : ''), 'Renews on ' + fmtYr(s.renewsAt) + ' for ' + money(PLANS[s.plan].prices[s.period]) + (s.method ? ' · ' + (s.method === 'pix' ? 'Pix' : 'card') : ''))
+          : s.status === 'cancelada' ? L('O Pro continua até ' + fmtYr(s.renewsAt) + ' e depois não renova.', 'Pro stays on until ' + fmtYr(s.renewsAt) + ' and then does not renew.')
+            : L('Terminou em ' + fmtYr(s.renewsAt) + '.', 'Ended on ' + fmtYr(s.renewsAt) + '.');
+      h += '<div class="mng-card"><span class="pc-ic">' + ic(PLANS[s.plan].ic) + '</span><div><b>' + esc(planLabel(s)) + '</b><span>' + esc(line) + '</span></div><span class="st-chip ' + chip[0] + '">' + esc(chip[1]) + '</span></div>';
+      if (s.demo) h += '<p class="pay-demo">' + ic('i-info') + '<span>' + esc(L('Assinatura de demonstração: nada foi cobrado.', 'Demo subscription: nothing was charged.')) + '</span></p>';
+      if (s.plan === 'amigos' && act) h += amigosHTML(s);
+      // ações
+      if (s.status === 'trial') h += '<button class="btn-primary" type="button" data-sub="plans">' + ic('i-bolt') + esc(L('Assinar agora', 'Subscribe now')) + '</button>';
+      if (s.status === 'ativa') h += '<div class="mng-actions"><button class="btn" type="button" data-sub="plans">' + ic('i-swap') + esc(L('Mudar de plano', 'Change plan')) + '</button><button class="btn" type="button" data-sub="cancel">' + ic('i-x') + esc(L('Cancelar renovação', 'Cancel renewal')) + '</button></div>';
+      if (s.status === 'cancelada') h += '<button class="btn btn-brand" type="button" data-sub="resume">' + ic('i-replay') + esc(L('Voltar a renovar', 'Turn renewal back on')) + '</button>';
+      if (s.status === 'encerrada') h += '<button class="btn-primary" type="button" data-sub="plans">' + ic('i-bolt') + esc(L('Assinar de novo', 'Subscribe again')) + '</button>';
+      const pays = (s.payments || []).slice().reverse();
+      if (pays.length) h += '<div class="mng-pays"><span class="pay-lbl">' + esc(L('Pagamentos', 'Payments')) + '</span>' + pays.slice(0, 12).map(x => '<div class="mng-pay"><span>' + ic('i-check') + esc(fmtYr(x.at)) + '</span><span>' + esc(PLANS[x.plan].name + ' · ' + L(PERIODS[x.period].lbl, x.period)) + (x.demo ? ' <em>' + esc(L('demonstração', 'demo')) + '</em>' : '') + '</span><b>' + esc(money(x.value)) + '</b></div>').join('') + '</div>';
+    }
+    if (prefs.pro && !s) h += '<button class="linkish center" type="button" id="proOff">' + esc(L('Desligar demonstração do Pro', 'Turn off the Pro demo')) + '</button>';
+    h += '<p class="pay-legal">' + esc(L('Assinou pela App Store ou Google Play? Lá também dá para cancelar. Dúvida sobre cobrança: Ajustes → Enviar sugestão ou problema.', 'Subscribed through the App Store or Google Play? You can cancel there too. Billing questions: Settings → Send feedback.')) + '</p></div>';
+    closeSheet('#sheetPro');
+    openInfo(L('Seu plano', 'Your plan'), h);
+  }
+  function amigosHTML(s) {
+    const ms = s.members || [], free = AMIGOS_MAX - ms.length;
+    return '<div class="amg"><div class="amg-head"><b>' + esc(L('Pessoas no seu plano', 'People on your plan')) + '</b><span>' + ms.length + '/' + AMIGOS_MAX + '</span></div>' +
+      '<div class="amg-row me"><span class="mini-av" style="--av:var(--brand)">' + esc(initials(myName())) + '</span><span class="amg-txt"><b>' + esc(myName()) + '</b><small>' + esc(L('Você · quem paga', 'You · the payer')) + '</small></span></div>' +
+      ms.map((m, i) => '<div class="amg-row"><span class="mini-av" style="--av:' + (m.color || nameColor(m.name)) + '">' + esc(initials(m.name)) + '</span><span class="amg-txt"><b>' + esc(m.name) + '</b><small>' + esc((m.handle ? m.handle + ' · ' : '') + (m.status === 'ativo' ? L('com Pro', 'has Pro') : L('convite enviado', 'invite sent'))) + '</small></span><span class="st-chip ' + (m.status === 'ativo' ? 'ok' : 'trial') + '">' + esc(m.status === 'ativo' ? L('Ativo', 'Active') : L('Pendente', 'Pending')) + '</span><button class="icon-btn sm" type="button" data-amgrm="' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + m.name) + '">' + ic('i-x') + '</button></div>').join('') +
+      (free > 0 ? '<div class="amg-add"><div class="pl-add"><span class="pl-add-ic">' + ic('i-user-plus') + '</span><input type="text" id="amgIn" maxlength="40" autocomplete="off" placeholder="' + esc(L('Convidar: nome ou @ (' + free + (free === 1 ? ' vaga' : ' vagas') + ')', 'Invite: name or @ (' + free + (free === 1 ? ' spot' : ' spots') + ' left)')) + '" aria-label="' + esc(L('Convidar para o plano', 'Invite to the plan')) + '"><div class="pl-sug" id="amgSug" role="listbox" aria-label="' + esc(L('Sugestões', 'Suggestions')) + '" hidden></div></div>' +
+        '<button class="btn btn-sm" type="button" data-sub="link">' + ic('i-share') + esc(L('Mandar link de convite', 'Send invite link')) + '</button></div>' : '<p class="hint">' + esc(L('Plano completo. Tire alguém para abrir uma vaga.', 'The plan is full. Remove someone to open a spot.')) + '</p>') +
+      '<p class="hint">' + esc(L('Cada pessoa entra com a própria conta e tem o Pro inteiro, com as suas partidas e estatísticas. Quem sai do plano não perde nada, só volta para o Grátis.', 'Each person joins with their own account and gets full Pro, with their own matches and stats. Anyone who leaves keeps everything and just goes back to Free.')) + '</p></div>';
+  }
+  function amigosInvite(p) {
+    const s = sub(); if (!s || s.plan !== 'amigos') return;
+    s.members = s.members || [];
+    if (s.members.length >= AMIGOS_MAX) { toast(L('O plano já tem 5 pessoas', 'The plan already has 5 people')); return; }
+    if (p.userId === 'me') { toast(L('Você já está no plano', "You're already on the plan")); return; }
+    if (s.members.some(m => (p.userId && m.userId === p.userId) || (!p.userId && S.fold(m.name) === S.fold(p.name)))) { toast(L('Essa pessoa já foi convidada', 'This person was already invited')); return; }
+    const code = 'AMG-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    s.members.push({ name: String(p.name).slice(0, 40), userId: p.userId || null, handle: p.handle || '', color: p.color || '', status: 'pendente', invitedAt: Date.now(), code });
+    savePrefs(); trk('amigos_invite', {});
+    toast(p.userId ? L('Convite enviado para ' + firstName(p.name), 'Invite sent to ' + firstName(p.name)) : L('Convite criado: mande o link para ' + firstName(p.name), 'Invite created: send the link to ' + firstName(p.name)));
+    openManage();
+  }
+  function amigosLink() {
+    const s = sub(); const pend = (s.members || []).find(m => m.status === 'pendente' && !m.userId);
+    const code = pend ? pend.code : 'AMG-' + myUid().slice(3);
+    const url = location.origin + location.pathname + '?amigos=' + encodeURIComponent(code);
+    const text = L('Te coloquei no meu plano ULTRA PLAY Pro Amigos: estatísticas completas, vídeo dos lances e muito mais, de graça para você. Entra por aqui:', "I added you to my ULTRA PLAY Pro Friends plan: full stats, point videos and more, free for you. Join here:");
+    if (navigator.share) navigator.share({ title: 'ULTRA PLAY Pro Amigos', text, url }).catch(() => {}); else copyText(url);
+  }
+  function renderSubRow() {
+    const el = $('#subRowTxt'); if (!el) return;
+    const s = sub();
+    el.innerHTML = s && subActive(s) ? esc(planLabel(s)) + '<small>' + esc(s.status === 'cancelada' ? L('Pro até ', 'Pro until ') + fmtYr(s.renewsAt) : s.status === 'trial' ? L('Teste até ', 'Trial until ') + fmtYr(s.renewsAt) : L('Renova em ', 'Renews on ') + fmtYr(s.renewsAt)) + '</small>'
+      : esc(prefs.pro ? L('Pro (demonstração)', 'Pro (demo)') : L('Plano Grátis', 'Free plan')) + '<small>' + esc(L('Veja o Pro e o Pro Amigos (você + 5)', 'See Pro and Pro Friends (you + 5)')) + '</small>';
+    $('#btnPro').innerHTML = ic(s && subActive(s) ? 'i-sliders' : 'i-bolt') + esc(s && subActive(s) ? L('Gerenciar', 'Manage') : L('Ver planos', 'See plans'));
+  }
+  function wireSub() {
+    const onClick = e => {
+      const b = e.target.closest('[data-sub]');
+      if (b) {
+        const k = b.dataset.sub;
+        if (k === 'checkout') openCheckout();
+        if (k === 'plans') { closeSheet('#sheetInfo'); openPro(null, proBack); }
+        if (k === 'manage') openManage();
+        if (k === 'invite') { openManage(); setTimeout(() => { const i = $('#amgIn'); if (i) i.focus(); }, 120); }
+        if (k === 'link') amigosLink();
+        if (k === 'pay') { const m = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'pix'; const per = PLANS[payPick.plan].prices[payPick.period] != null ? payPick.period : 'anual'; startSub(payPick.plan, per, m, false); paySucceeded(); }
+        if (k === 'cancel') {
+          const s = sub();
+          openModal({ icon: 'i-calendar', title: L('Cancelar a renovação?', 'Cancel renewal?'), text: L('Você continua com o Pro até ' + fmtYr(s.renewsAt) + ' e nada mais é cobrado.' + (s.plan === 'amigos' ? ' Os amigos do seu plano também perdem o Pro nessa data.' : '') + ' Suas partidas e estatísticas ficam guardadas.', 'You keep Pro until ' + fmtYr(s.renewsAt) + ' and nothing else is charged.' + (s.plan === 'amigos' ? ' Friends on your plan also lose Pro on that date.' : '') + ' Your matches and stats stay saved.'),
+            actions: [{ label: L('Cancelar renovação', 'Cancel renewal'), kind: 'brand', act: () => { s.status = 'cancelada'; savePrefs(); trk('sub_cancel', { plan: s.plan }); closeModal(); openManage(); renderSubRow(); } }, { label: L('Manter o Pro', 'Keep Pro'), kind: 'link', act: closeModal }] });
+        }
+        if (k === 'resume') { const s = sub(); s.status = 'ativa'; savePrefs(); toast(L('Renovação ligada de novo', 'Renewal is back on')); openManage(); renderSubRow(); }
+        return;
+      }
+      const rm = e.target.closest('[data-amgrm]');
+      if (rm) {
+        const s = sub(), m = s.members[Number(rm.dataset.amgrm)]; if (!m) return;
+        openModal({ icon: 'i-users', title: L('Tirar ' + firstName(m.name) + ' do plano?', 'Remove ' + firstName(m.name) + ' from the plan?'), text: L('A pessoa volta para o Grátis e não perde as partidas. A vaga fica livre para outro convite.', 'They go back to Free and keep their matches. The spot opens up for another invite.'),
+          actions: [{ label: L('Tirar do plano', 'Remove'), kind: 'brand', act: () => { s.members.splice(Number(rm.dataset.amgrm), 1); savePrefs(); closeModal(); openManage(); } }, { label: L('Cancelar', 'Cancel'), kind: 'link', act: closeModal }] });
+        return;
+      }
+      const pk = e.target.closest('[data-amgpick]');
+      if (pk) { const list = JSON.parse($('#amgSug').dataset.list || '[]'); const p = list[Number(pk.dataset.amgpick)]; if (p) amigosInvite(p); return; }
+      if (e.target.closest('[data-amgguest]')) { const v = ($('#amgIn').value || '').trim(); if (v) amigosInvite({ name: v }); }
+    };
+    document.addEventListener('click', onClick);
+    $('#proBody').addEventListener('change', e => {
+      if (e.target.name === 'payPeriod') { payPick.period = e.target.value; if (payPick.plan === 'amigos' && payPick.period === 'mensal') payPick.plan = 'pro'; $('#proBody').innerHTML = plansHTML(proFeature); }
+      if (e.target.name === 'payPlan') { payPick.plan = e.target.value; if (payPick.plan === 'amigos' && payPick.period === 'mensal') payPick.period = 'anual'; $('#proBody').innerHTML = plansHTML(proFeature); }
+    });
+    // convite do Amigos: busca na rede (perfis) ou nome de quem ainda não tem conta (vai por link)
+    $('#infoBody').addEventListener('input', e => {
+      if (e.target.id !== 'amgIn') return;
+      const q = e.target.value, f = S.fold(q).replace(/^@/, ''), sug = $('#amgSug');
+      const s = sub(), taken = new Set(((s && s.members) || []).map(m => m.userId).filter(Boolean));
+      const list = peopleForPicker().filter(p => p.userId && p.userId !== 'me' && !taken.has(p.userId)).filter(p => !f || S.fold(p.name).includes(f) || S.fold(p.handle || '').includes(f)).slice(0, 6);
+      sug.dataset.list = JSON.stringify(list.map(p => ({ name: p.name, userId: p.userId, handle: p.handle || '', color: p.color || '' })));
+      sug.innerHTML = list.map((p, i) => '<button class="pl-opt" type="button" role="option" data-amgpick="' + i + '"><span class="mini-av" style="--av:' + (p.color || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + '</b><small>' + esc(p.handle || '') + '</small></span></button>').join('') +
+        (q.trim() ? '<button class="pl-opt guest" type="button" role="option" data-amgguest>' + ic('i-share') + '<span><b>' + esc(L('Convidar “' + q.trim() + '” por link', 'Invite “' + q.trim() + '” by link')) + '</b><small>' + esc(L('para quem ainda não tem conta', "for someone who doesn't have an account yet")) + '</small></span></button>' : '');
+      sug.hidden = !sug.innerHTML;
+    });
+    $('#infoBody').addEventListener('keydown', e => { if (e.target.id === 'amgIn' && e.key === 'Enter') { e.preventDefault(); const f = $('#amgSug .pl-opt'); if (f) f.click(); } });
+    renderSubRow();
+    // link de convite do Amigos (?amigos=AMG-XXXXXX): o convite vale quando a conta na nuvem existir
+    const ac = params.get('amigos');
+    if (ac && /^AMG-[A-Z0-9]{4,8}$/i.test(ac)) setTimeout(() => openModal({ icon: 'i-users', tone: 'brand', title: L('Convite para o Pro Amigos', 'Invite to Pro Friends'),
+      text: L('Alguém te colocou no plano Pro Amigos. O convite é aceito quando você entra com a sua conta (a conta na nuvem chega em breve). Enquanto isso, dá para usar o app inteiro no Grátis.', 'Someone added you to their Pro Friends plan. The invite is accepted when you sign in with your account (cloud accounts are coming soon). Meanwhile, you can use the whole app on Free.'),
+      actions: [{ label: L('Entendi', 'Got it'), kind: 'brand', act: closeModal }] }), 1400);
+  }
+
   // ---------- ULTRA Pro (simulado: sem cobrança, só para demonstrar) ----------
-  const isPro = () => !!prefs.pro;
+  const isPro = () => !!prefs.pro || subActive(sub()); // assinatura (ou teste grátis) ativa, ou a demonstração antiga ligada
+  let proFeature = null;
   const PRO_FEATURES = { analise: 'a análise do jogo por IA',
     estatisticas: 'as estatísticas completas',
     detalhe: 'o filtro de pontos detalhados',
@@ -3650,22 +3896,10 @@
   let proBack = null; // depois de ativar, volta para onde estava (ex.: gerar o vídeo)
   function openPro(feature, back) {
     trk('pro_view', { feature: feature || '' });
-    proBack = back || null;
-    const from = $$('.sheet').find(d => !d.hidden && d.id !== 'sheetPro');
+    proBack = back || null; proFeature = feature || null;
+    const from = $$('.sheet').find(d => !d.hidden && d.id !== 'sheetPro' && d.id !== 'sheetInfo');
     proFrom = from ? from.id : null;
-    $('#proBody').innerHTML =
-      '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
-      '<ul class="pro-list">' +
-      '<li><svg><use href="#i-chart"/></svg><span><b>Estatísticas completas</b>Os números do seu esporte (aces, break points, saque, ataques, golpes, erros na rede e fora), a evolução de cada um em gráfico e a análise do dia, que se atualiza quando há partida nova. Filtre por período, tire resenhas e treinos e use só as partidas com os pontos detalhados. Veja também o seu retrospecto contra ou junto de cada jogador.</span></li>' +
-      '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Cada ponto no gráfico e na lista, game a game: quem fez, ace, winner, erro, golpe e o placar naquele instante. Filtre por jogador ou tipo de lance.</span></li>' +
-      '<li><svg><use href="#i-camera"/></svg><span><b>Gravar a partida em vídeo</b>Com este celular (miniatura no canto) ou com outro aparelho pelo QR Code. Cada ponto marcado vira um lance em vídeo para assistir e mandar.</span></li>' +
-      '<li><svg><use href="#i-film"/></svg><span><b>Vídeo animado da partida</b>O replay ponto a ponto vira vídeo MP4 ou GIF para o story: gráfico, placar e lances evoluindo, com fundo de quadra, foto ou vídeo seu, ou transparente.</span></li>' +
-      '<li><svg><use href="#i-target"/></svg><span><b>Pontos decisivos</b>Break points, set points e match points convertidos e salvos por cada time, viradas na liderança e maior vantagem.</span></li>' +
-      '<li><svg><use href="#i-layers"/></svg><span><b>Predefinições de formato</b>Até 3 formatos salvos por esporte (BT1, BT2, BT3…) para começar a partida da turma com um toque.</span></li>' +
-      '<li><svg><use href="#i-trophy"/></svg><span><b>Histórico completo</b>Hoje o aparelho guarda as últimas ' + HIST_MAX + ' partidas. No Pro, todas, com recordes e confrontos de tudo (quando houver conta na nuvem).</span></li>' +
-      '</ul>' +
-      '<p class="hint center">Preço ainda não definido. Nesta versão de teste o Pro é só uma demonstração, sem cobrança.</p>' +
-      (isPro() ? '<button class="btn-ghost" type="button" id="proOff">Desligar demonstração do Pro</button>' : '<button class="btn-primary" type="button" id="proOn"><svg><use href="#i-bolt"/></svg>Ativar demonstração do Pro</button>');
+    $('#proBody').innerHTML = plansHTML(feature);
     openSheet('#sheetPro');
   }
   function setPro(on) {
@@ -3676,6 +3910,7 @@
     if (currentView === 'partida') renderMatchView(currentMatchId);
     if (currentView === 'voce') renderMe();
     if (currentView === 'stats') renderFull();
+    renderSubRow();
     setFeedback('', 'ok', on ? 'ULTRA PLAY Pro ativado (demonstração)' : 'ULTRA PLAY Pro desligado');
   }
 
@@ -5349,6 +5584,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13i', date: '13/10/2026', title: 'Planos e o Pro Amigos', items: [
+      'Planos: Pro mensal, semestral ou anual, e o novo Pro Amigos, para você e mais 5 pessoas (semestral ou anual).',
+      'Ajustes → Assinatura: veja o seu plano, a próxima cobrança, os pagamentos, cancele ou religue a renovação e convide os amigos do plano.',
+      'Teste grátis de 14 dias do Pro, sem cartão. Nesta versão de teste, o pagamento ainda é uma demonstração.',
+    ] },
     { id: '2026-10-13h', date: '13/10/2026', title: 'Formato personalizado, jogadores e ponto a ponto novo', items: [
       'Nova partida: formato personalizado em todos os esportes e predefinições salvas com nome (BT1-Amigos de Segunda). Grátis: 1 por esporte; Pro: 3.',
       'Jogadores: escolha o perfil de cada um (ou um convidado), até 2 por time. O painel Lançar pergunta quem fez o ponto ou quem errou.',
@@ -5861,14 +6101,19 @@
       renderStickerPicker(); drawShare(true);
     });
     $('#stickerText').addEventListener('input', e => { share.stickerText = e.target.value; drawShare(); });
-    $('#proBody').addEventListener('click', e => { if (e.target.closest('#proOn')) setPro(true); if (e.target.closest('#proOff')) setPro(false); });
+    $('#proBody').addEventListener('click', e => {
+      if (e.target.closest('#proOn')) { startSub('pro', 'mensal', '', true); closeSheet('#sheetPro'); toast(L('Teste grátis do Pro ligado por ' + TRIAL_DAYS + ' dias', 'Pro free trial on for ' + TRIAL_DAYS + ' days')); const b = proBack; proBack = null; if (b) b(); afterProChange(); }
+      if (e.target.closest('#proOff')) setPro(false);
+    });
+    $('#infoBody').addEventListener('click', e => { if (e.target.closest('#proOff')) { closeSheet('#sheetInfo'); setPro(false); } });
+    wireSub();
     $('#momentBody').addEventListener('click', e => {
       const f = e.target.closest('[data-momf]'); if (f) { setMomentFilter(f.dataset.momf); return; }
       const n = e.target.closest('[data-ptnav]'); if (n) { stepPoint(Number(n.dataset.ptnav)); return; }
       const g = e.target.closest('[data-pt]'); if (g) showPoint(Number(g.dataset.pt));
     });
     $('#sheetMoment').addEventListener('keydown', e => { if (e.key === 'ArrowRight') { e.preventDefault(); stepPoint(1); } if (e.key === 'ArrowLeft') { e.preventDefault(); stepPoint(-1); } });
-    $('#btnPro').addEventListener('click', () => openPro());
+    $('#btnPro').addEventListener('click', () => { if (subActive(sub())) openManage(); else openPro(); });
     $('#meBody').addEventListener('change', e => {
       if (e.target.name === 'mePeriod') { mePeriod = e.target.value; renderMe(); }
       if (e.target.dataset && e.target.dataset.merange) { meRange[e.target.dataset.merange] = e.target.value; prefs.meRange = Object.assign({}, meRange); savePrefs(); keepScroll(renderMe); }

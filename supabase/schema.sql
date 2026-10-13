@@ -36,7 +36,8 @@ create table public.profiles (
   privacy_show   jsonb not null default '{"partidas":true,"estatisticas":true,"conquistas":true,"recordes":true,"confrontos":true,"atividade":true,"geral":true}',
   birth_date     date,                       -- política de menores: ver docs/legal (decisão pendente)
   guardian_consent_at timestamptz,           -- consentimento do responsável, quando exigido
-  pro_until      timestamptz,                -- preenchido pelo webhook de pagamento (service role)
+  pro_until      timestamptz,                -- cortesia dada pela equipe (admin_grant_pro); assinatura fica em subscriptions
+  trial_used_at  timestamptz,                -- teste grátis de 14 dias já usado (só o servidor escreve)
   show_online    boolean not null default true,   -- "Mostrar quando estou jogando" (jogando agora)
   live_view      boolean not null default true,   -- "Deixar amigos verem o placar ao vivo"
   created_at     timestamptz not null default now(),
@@ -267,11 +268,12 @@ create index video_segments_match on public.video_segments (match_id, start_at);
 -- assinatura (escrita só pelo servidor de pagamento, com a service role)
 create table public.subscriptions (
   user_id             uuid primary key references public.profiles(id) on delete cascade,
-  plan                text not null check (plan in ('pro_mensal', 'pro_anual', 'fundador', 'professor', 'arena')),
+  plan                text not null check (plan in ('pro_mensal', 'pro_semestral', 'pro_anual', 'amigos_semestral', 'amigos_anual', 'fundador', 'professor', 'arena')),
   status              text not null check (status in ('trial', 'ativa', 'cancelada', 'atrasada', 'encerrada')),
   provider            text not null check (provider in ('web', 'apple', 'google', 'cortesia')),
   provider_ref        text,
   current_period_end  timestamptz,
+  cancel_at_period_end boolean not null default false,   -- cancelou a renovação: o Pro vale até current_period_end
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
 );
@@ -714,12 +716,88 @@ declare pre text := case new.sport when 'tenis' then 'TEN' when 'beach' then 'BT
         lim int; used int;
 begin
   if left(new.name, char_length(pre) + 2) <> pre || new.n || '-' then raise exception 'nome fora do padrão' using errcode = 'check_violation'; end if;
-  select case when p.pro_until > now() then 3 else 1 end into lim from profiles p where p.id = new.user_id;
+  lim := case when public.has_pro(new.user_id) then 3 else 1 end;
   select count(*) into used from format_presets f where f.user_id = new.user_id and f.sport = new.sport;
   if used >= coalesce(lim, 1) then raise exception 'limite de predefinições do plano' using errcode = 'check_violation'; end if;
   return new;
 end $$;
 create trigger presets_check before insert on public.format_presets for each row execute function public.presets_check();
+
+-- ---------- assinatura: plano Amigos e pagamentos ----------
+-- Pro Amigos (amigos_semestral, amigos_anual): quem paga + até 5 pessoas, cada uma com a própria conta.
+-- O convite nasce "pendente" e só vira "ativo" quando a pessoa aceita; ninguém fica em dois planos Amigos ao mesmo tempo.
+create table public.subscription_members (
+  owner_id    uuid not null references public.subscriptions(user_id) on delete cascade,
+  member_id   uuid not null references public.profiles(id) on delete cascade,
+  status      text not null default 'pendente' check (status in ('pendente', 'ativo')),
+  invited_at  timestamptz not null default now(),
+  joined_at   timestamptz,
+  primary key (owner_id, member_id),
+  check (owner_id <> member_id)
+);
+create unique index sub_members_one_plan on public.subscription_members (member_id) where status = 'ativo';
+create index sub_members_owner on public.subscription_members (owner_id);
+
+-- recibos (escritos pelo webhook do pagamento; cada um lê os seus)
+create table public.payments (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  plan          text not null,
+  amount        numeric(10, 2) not null check (amount >= 0),
+  method        text not null check (method in ('pix', 'cartao', 'apple', 'google', 'cortesia')),
+  status        text not null default 'pago' check (status in ('pendente', 'pago', 'estornado')),
+  provider_ref  text,
+  period_start  timestamptz,
+  period_end    timestamptz,
+  created_at    timestamptz not null default now()
+);
+create index payments_user on public.payments (user_id, created_at desc);
+
+create or replace function public.sub_active(uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from subscriptions where user_id = uid and status in ('trial', 'ativa', 'cancelada') and current_period_end > now())
+$$;
+-- tem Pro: assinatura própria, vaga ativa num Amigos ativo, ou cortesia da equipe
+create or replace function public.has_pro(uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select pro_until > now() from profiles where id = uid), false)
+      or public.sub_active(uid)
+      or exists (select 1 from subscription_members m join subscriptions s on s.user_id = m.owner_id
+                 where m.member_id = uid and m.status = 'ativo' and s.plan like 'amigos_%'
+                   and s.status in ('ativa', 'cancelada') and s.current_period_end > now())
+$$;
+
+alter table public.subscription_members enable row level security;
+alter table public.payments enable row level security;
+create policy subm_read on public.subscription_members for select using (owner_id = auth.uid() or member_id = auth.uid());
+create policy subm_invite on public.subscription_members for insert with check (owner_id = auth.uid());
+create policy subm_accept on public.subscription_members for update using (member_id = auth.uid()) with check (member_id = auth.uid());
+create policy subm_leave on public.subscription_members for delete using (owner_id = auth.uid() or member_id = auth.uid());
+create policy payments_read on public.payments for select using (user_id = auth.uid());
+
+create or replace function public.subm_check() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare s subscriptions; used int;
+begin
+  if tg_op = 'INSERT' then
+    select * into s from subscriptions where user_id = new.owner_id;
+    if not found or s.plan not like 'amigos_%' or s.status not in ('ativa', 'cancelada') or s.current_period_end <= now() then
+      raise exception 'só quem tem o Pro Amigos ativo convida' using errcode = 'check_violation';
+    end if;
+    select count(*) into used from subscription_members where owner_id = new.owner_id;
+    if used >= 5 then raise exception 'o plano Amigos tem no máximo 5 convidados' using errcode = 'check_violation'; end if;
+    if public.is_blocked_between(new.owner_id, new.member_id) then raise exception 'bloqueio entre as contas' using errcode = 'check_violation'; end if;
+    new.status := 'pendente'; new.invited_at := now(); new.joined_at := null;   -- quem decide entrar é a pessoa convidada
+  else
+    -- pelo app (com usuário logado), só a pessoa convidada aceita; o servidor (sem usuário) pode ajustar
+    if auth.uid() is not null and (auth.uid() <> old.member_id or new.status <> 'ativo' or old.status <> 'pendente') then
+      raise exception 'só a pessoa convidada aceita o convite' using errcode = 'check_violation';
+    end if;
+    new.joined_at := now();
+  end if;
+  return new;
+end $$;
+create trigger subm_check before insert or update on public.subscription_members for each row execute function public.subm_check();
 
 -- ============================================================
 -- permissões por coluna (o Supabase dá acesso amplo às tabelas; as regras por linha dizem QUAIS linhas,
@@ -767,3 +845,8 @@ revoke execute on function public.live_for_viewer(uuid), public.live_cleanup() f
 revoke execute on function public.live_cleanup() from authenticated;
 revoke all on public.format_presets from anon;
 revoke update on public.format_presets from authenticated;
+-- assinatura: membros só aceitam (status); recibos e trial só pelo servidor; ninguém de fora lê
+revoke all on public.subscription_members, public.payments from anon;
+revoke update on public.subscription_members from authenticated;
+grant update (status) on public.subscription_members to authenticated;
+revoke insert, update, delete on public.payments from authenticated;

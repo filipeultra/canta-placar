@@ -161,6 +161,8 @@ Data da pesquisa: 13/10/2026. Autor: análise de mercado (Claude).
 | **Grátis** | R$ 0 | Placar por voz, toque e painel; estatísticas básicas; timeline social; conquistas; imagens para compartilhar; 1 replay animado por partida com marca d'água |
 | **Pro mensal** | **R$ 24,90/mês** | Momento ponto a ponto, vídeo do replay (MP4/GIF) sem marca d'água, gravação em vídeo com cada ponto virando um lance, CSV/JSON, histórico completo, **20 h na nuvem** (quando lançar) |
 | **Pro anual** | **R$ 179,90/ano** (R$ 14,99/mês, 40% de desconto) | Igual ao mensal |
+| **Pro semestral** | **R$ 119,90/semestre** (R$ 19,98/mês) | Igual ao mensal |
+| **Pro Amigos** (você + 5) | **R$ 249,90/semestre** ou **R$ 399,90/ano** (R$ 5,55 por pessoa/mês) | Pro para 6 contas; só semestral ou anual. Regras em `ASSINATURA.md` |
 | **Fundador (lançamento)** | **R$ 119,90/ano**, preço travado enquanto a assinatura estiver ativa | Pro anual + selo "Fundador" no perfil. Limitado aos primeiros 1.000 assinantes ou aos 60 dias do lançamento. Código exclusivo por influenciador |
 | **Teste grátis** | **14 dias de Pro**, sem cartão (no PWA) | Na loja, 7 dias, como de costume. Uma partida gravada no teste mostra o valor do Pro |
 | **Professor** | **R$ 59,90/mês** ou **R$ 549,90/ano** | Pro do professor (50 h) + **10 licenças Pro para presentear alunos** (5 h de nuvem cada), painel da turma e estatísticas dos alunos. Licenças extras a R$ 4,90 por aluno/mês. Faixa maior: 30 alunos por R$ 129,90/mês |

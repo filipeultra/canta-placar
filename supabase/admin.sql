@@ -45,7 +45,7 @@ create table public.plan_prices (
   monthly  numeric(10, 2) not null
 );
 insert into public.plan_prices (plan, monthly) values
-  ('pro_mensal', 24.90), ('pro_anual', 14.99), ('fundador', 9.99), ('professor', 59.90), ('arena', 149.90)
+  ('pro_mensal', 24.90), ('pro_semestral', 19.98), ('pro_anual', 14.99), ('amigos_semestral', 41.65), ('amigos_anual', 33.33), ('fundador', 9.99), ('professor', 59.90), ('arena', 149.90)
 on conflict (plan) do nothing;
 
 alter table public.app_events enable row level security;
