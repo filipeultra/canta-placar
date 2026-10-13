@@ -542,6 +542,7 @@
     setCsv('groups', 'grupos', ['Grupo', 'Código', 'Esporte', 'Membros', 'Pedidos', 'Partidas', 'Posts', 'Criado'], groups.map(g => [g.name, g.code, g.sport, g.members, g.pending, g.matches, g.posts, g.created_at]));
   }
   const KIND = { post: ['message', 'Post na resenha'], partida: ['ball', 'Partida'], grupo: ['layers', 'Grupo'], conta: ['users', 'Conta'] };
+  const REPORT_CAT = { ofensivo: 'Conteúdo ofensivo', partida_falsa: 'Partida que não aconteceu', flood_convites: 'Flood de convites', se_passando: 'Se passando por outra pessoa', assedio: 'Assédio ou ameaça', spam: 'Spam ou propaganda', menor: 'Menor de idade em risco', outro: 'Outro' };
   const RST = { aberta: 'Aberta', em_analise: 'Em análise', resolvida: 'Resolvida', descartada: 'Descartada' };
   function renderModeracao() {
     const box = $('#reports');
@@ -551,7 +552,7 @@
       const [ic, kl] = KIND[r.kind] || ['flag', r.kind];
       const head = el('div', { class: 'rt' }, [el('span', { class: 'pill', text: kl }), el('q', { text: r.target || '(removido)' })]);
       if (r.same_target > 1) head.append(el('span', { class: 'pill bad', text: r.same_target + ' denúncias' }));
-      const meta = el('div', { class: 'rm', text: 'Motivo: ' + r.reason + ' · por ' + (r.reporter || '—') + ' · ' + ago(r.created_at) + ' · ' + (RST[r.status] || r.status) + (r.removed ? ' · tirado do ar' : '') });
+      const meta = el('div', { class: 'rm', text: 'Motivo: ' + (r.category && REPORT_CAT[r.category] ? REPORT_CAT[r.category] + (r.reason && r.reason !== REPORT_CAT[r.category] ? ' (' + r.reason + ')' : '') : r.reason) + ' · por ' + (r.reporter || '—') + ' · ' + ago(r.created_at) + ' · ' + (RST[r.status] || r.status) + (r.removed ? ' · tirado do ar' : '') });
       const acts = el('div', { class: 'ra' });
       const btn = (label, ic2, kind, st, remove) => { const b = el('button', { class: 'btn sm ' + kind, type: 'button', 'data-rep': r.id, 'data-st': st }, [icon(ic2), document.createTextNode(label)]); if (remove) b.dataset.remove = '1'; acts.append(b); };
       if (r.status === 'aberta') btn('Em análise', 'eye', '', 'em_analise');

@@ -97,7 +97,9 @@
     if (kind === 'tick' && now - hapAt < 40) return; // giro rápido: no máximo ~25 tiques por segundo
     hapAt = now;
     if (CAN_VIBRATE) { try { navigator.vibrate(p); } catch (e) { console.info('[vibração] indisponível', e); } return; }
-    if (IS_IOS) { let t = 0; for (let i = 0; i < p.length; i += 2) { setTimeout(iosTick, t); t += p[i] + (p[i + 1] || 0); } }
+    // iPhone: o tique só sai se acontecer dentro do próprio toque (sem esperar), então o primeiro vai na hora;
+    // os seguintes do padrão podem ser ignorados pelo sistema
+    if (IS_IOS) { iosTick(); let t = p[0] + (p[1] || 0); for (let i = 2; i < p.length; i += 2) { setTimeout(iosTick, t); t += p[i] + (p[i + 1] || 0); } }
   }
 
   const params = new URLSearchParams(location.search);
@@ -1026,68 +1028,139 @@
   // Dois jogadores com o mesmo nome na partida: antes de começar, um deles ganha um apelido só para esta partida.
   const MAX_PER_TEAM = 2;
   let pl = [[], []]; // [{ name, userId, handle }]
+  // pessoas para escolher: do grupo (na partida do grupo), quem você segue, quem já jogou com você e o resto da rede
   function peopleForPicker() {
     const out = [], seen = new Set();
-    const add = p => { const k = p.userId ? 'u:' + p.userId : 'n:' + S.fold(p.name); if (!p.name || seen.has(k)) return; seen.add(k); out.push(p); };
-    if (prefs.myName) add({ name: myName(), userId: 'me', handle: myUid(), me: true });
-    SO.following().forEach(u => add({ name: u.name, userId: u.id, handle: SO.publicId(u.id), color: u.color, follow: true }));
-    SO.users().forEach(u => add({ name: u.name, userId: u.id, handle: SO.publicId(u.id), color: u.color }));
-    S.knownPlayers(history()).forEach(k => { if (!out.some(p => S.fold(p.name) === k.key)) add({ name: k.name, userId: null, guest: true, n: k.matches }); });
+    const add = (p, sec) => { const k = p.userId ? 'u:' + p.userId : 'n:' + S.fold(p.name); if (!p.name || seen.has(k)) return; seen.add(k); out.push(Object.assign({ sec }, p)); };
+    const gr = newGroupId ? SO.group(newGroupId) : null;
+    if (gr) gr.members.forEach(m => { if (m.userId && m.userId !== 'me' && SO.user(m.userId)) { const u = SO.user(m.userId); add({ name: u.name, userId: u.id, handle: SO.publicId(u.id), color: u.color, grp: true }, 'grupo'); } else if (!m.userId && m.name) add({ name: m.name, userId: null, guest: true }, 'grupo'); });
+    SO.following().forEach(u => add({ name: u.name, userId: u.id, handle: SO.publicId(u.id), color: u.color, follow: true }, 'segue'));
+    S.knownPlayers(history()).forEach(k => { if (S.fold(k.name) !== S.fold(myName()) && !out.some(p => S.fold(p.name) === k.key)) add({ name: k.name, userId: null, guest: true, n: k.matches }, 'jogou'); });
+    SO.users().forEach(u => add({ name: u.name, userId: u.id, handle: SO.publicId(u.id), color: u.color }, 'rede'));
     return out;
   }
   function plSync() { [0, 1].forEach(t => { $('#t' + t + 'players').value = pl[t].map(p => p.name).join(', '); }); }
+  // você joga sempre no 1º time; só na partida do grupo dá para registrar sem jogar ("Estou jogando" desligado)
+  let newPlaying = true;
+  const meLocked = () => !!prefs.myName && !(newGroupId && !newPlaying);
+  function plEnsureMe() {
+    const has = t => pl[t].findIndex(p => p.userId === 'me');
+    if (!prefs.myName) return;
+    if (!meLocked()) { [0, 1].forEach(t => { const i = has(t); if (i >= 0) pl[t].splice(i, 1); }); return; }
+    if (has(1) >= 0) { const tmp = pl[0]; pl[0] = pl[1]; pl[1] = tmp; } // você no 2º time: troca os jogadores dos times
+    if (has(0) < 0) { if (pl[0].length >= MAX_PER_TEAM) pl[0].pop(); pl[0].unshift({ name: myName(), userId: 'me', handle: myUid() }); }
+    else if (has(0) > 0) pl[0].unshift(pl[0].splice(has(0), 1)[0]);
+  }
   function plChipHTML(t, p, i) {
-    const col = p.userId === 'me' ? 'var(--brand)' : p.color || nameColor(p.name);
-    return '<span class="pl-chip" translate="no"><span class="mini-av' + avCls(p.userId === 'me') + '" style="--av:' + col + '">' + avIn(p.userId === 'me', p.name) + '</span><span class="pl-txt"><b>' + esc(p.name) + (p.userId === 'me' ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (p.handle ? '<small>' + esc(p.handle) + '</small>' : p.userId ? '' : '<small>' + esc(L('convidado', 'guest')) + '</small>') + '</span>' +
-      '<button class="icon-btn sm" type="button" data-plrm="' + t + '|' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + p.name) + '">' + ic('i-x') + '</button></span>';
+    const me = p.userId === 'me';
+    const col = me ? 'var(--brand)' : p.color || nameColor(p.name);
+    const sub = me ? (p.handle ? p.handle + ' · ' : '') + L('você joga no 1º time', 'you play on team 1') : p.handle || (p.userId ? '' : L('convidado', 'guest'));
+    return '<span class="pl-chip' + (me ? ' me' : '') + '" translate="no"><span class="mini-av' + avCls(me) + '" style="--av:' + col + '">' + avIn(me, p.name) + '</span><span class="pl-txt"><b>' + esc(p.name) + (me ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
+      (me && meLocked() ? '<span class="pl-lock" title="' + esc(L('Você sempre joga. Para registrar sem jogar, use a partida de grupo.', 'You always play. To log without playing, use a group match.')) + '">' + ic('i-lock') + '</span>'
+        : '<button class="icon-btn sm" type="button" data-plrm="' + t + '|' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + p.name) + '">' + ic('i-x') + '</button>') + '</span>';
   }
   function renderPlSlots(t) {
     const box = $('#pl' + t); if (!box) return;
     box.innerHTML = pl[t].map((p, i) => plChipHTML(t, p, i)).join('') +
-      (pl[t].length < MAX_PER_TEAM ? '<div class="pl-add"><span class="pl-add-ic">' + ic('i-user-plus') + '</span><input type="text" id="plIn' + t + '" data-plin="' + t + '" maxlength="40" autocomplete="off" placeholder="' + esc(pl[t].length ? L('Parceiro(a): nome ou @', 'Partner: name or @') : L('Jogador: nome ou @', 'Player: name or @')) + '" aria-label="' + esc(L('Adicionar jogador ao time ', 'Add a player to team ') + (t + 1)) + '"><div class="pl-sug" id="plSug' + t + '" role="listbox" aria-label="' + esc(L('Sugestões de jogadores', 'Player suggestions')) + '" translate="no" hidden></div></div>'
+      (pl[t].length < MAX_PER_TEAM ? '<button class="pl-addbtn" type="button" data-plopen="' + t + '">' + ic('i-user-plus') + '<span>' + esc(pl[t].length ? L('Adicionar parceiro(a)', 'Add partner') : L('Adicionar jogador', 'Add player')) + '</span></button>'
         : '<small class="pl-full">' + esc(L('Até ' + MAX_PER_TEAM + ' jogadores por time', 'Up to ' + MAX_PER_TEAM + ' players per team')) + '</small>');
   }
-  function plSuggest(t, q) {
-    const sug = $('#plSug' + t); if (!sug) return;
+  // seletor em tela própria: busca no topo e a lista inteira rolando (no celular ele acompanha o teclado)
+  let plpTeam = 0, plpList = [];
+  function plpEl() {
+    let el = $('#plPicker'); if (el) return el;
+    el = document.createElement('div');
+    el.id = 'plPicker'; el.className = 'plp'; el.hidden = true;
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'plpTitle'); el.setAttribute('translate', 'no');
+    el.innerHTML = '<div class="plp-card"><header class="plp-head"><button class="icon-btn" type="button" data-plpclose aria-label="' + esc(L('Voltar', 'Back')) + '">' + ic('i-back') + '</button><div><h2 id="plpTitle"></h2><small id="plpSub"></small></div></header>' +
+      '<label class="plp-search">' + ic('i-search') + '<input type="search" id="plpQ" maxlength="40" autocomplete="off" enterkeyhint="done" placeholder="' + esc(L('Nome, @ ou ID (UP-…)', 'Name, @ or ID (UP-…)')) + '" aria-label="' + esc(L('Buscar jogador', 'Search player')) + '"></label>' +
+      '<div class="plp-list" id="plpList" role="listbox" aria-label="' + esc(L('Jogadores', 'Players')) + '"></div></div>';
+    document.body.appendChild(el);
+    return el;
+  }
+  function plpFit() {
+    const el = $('#plPicker'); if (!el || el.hidden) return;
+    const vv = window.visualViewport;
+    // celular: ocupa só a parte visível (sem o teclado); computador: fica como um painel no centro
+    if (vv && innerWidth <= 720) { el.style.top = vv.offsetTop + 'px'; el.style.height = vv.height + 'px'; }
+    else { el.style.top = ''; el.style.height = ''; }
+  }
+  function plpOpen(t) {
+    plpTeam = t;
+    const el = plpEl();
+    $('#plpTitle').textContent = L('Jogador do ', 'Player for ') + match_teamName(t);
+    $('#plpSub').textContent = pl[t].length ? L('Escolha o(a) parceiro(a)', 'Pick the partner') : L('Escolha quem joga neste time', 'Pick who plays on this team');
+    $('#plpQ').value = '';
+    el.hidden = false; document.body.classList.add('plp-on');
+    plpRender('');
+    plpFit();
+    setTimeout(() => { const q = $('#plpQ'); if (q) q.focus(); }, 30);
+  }
+  function plpClose() {
+    const el = $('#plPicker'); if (!el || el.hidden) return;
+    el.hidden = true; document.body.classList.remove('plp-on');
+    const b = $('#pl' + plpTeam + ' [data-plopen]') || $('#pl' + plpTeam + ' .pl-chip:last-of-type');
+    if (b && b.focus) b.focus();
+  }
+  const PLP_SEC = { grupo: ['Do grupo', 'From the group'], segue: ['Você segue', 'You follow'], jogou: ['Já jogaram com você', 'Played with you'], rede: ['Outras pessoas', 'Other people'] };
+  function plpRender(q) {
+    const box = $('#plpList'); if (!box) return;
     const f = S.fold(q).replace(/^@/, '');
-    const taken = new Set(pl[0].concat(pl[1]).filter(p => p.userId).map(p => p.userId));
-    const list = peopleForPicker().filter(p => !taken.has(p.userId) || !p.userId).filter(p => !f || S.fold(p.name).includes(f) || S.fold(p.handle || '').includes(f)).slice(0, 6);
-    const guest = q.trim() && !list.some(p => S.fold(p.name) === f) ? '<button class="pl-opt guest" type="button" role="option" data-plguest="' + t + '">' + ic('i-plus') + '<span><b>' + esc(L('Adicionar “' + q.trim() + '”', 'Add “' + q.trim() + '”')) + '</b><small>' + esc(L('como convidado (sem perfil)', 'as a guest (no profile)')) + '</small></span></button>' : '';
-    if (!list.length && !guest) { sug.hidden = true; return; }
-    sug.innerHTML = list.map((p, i) => '<button class="pl-opt" type="button" role="option" data-plpick="' + t + '|' + i + '"><span class="mini-av' + avCls(p.me) + '" style="--av:' + (p.me ? 'var(--brand)' : p.color || nameColor(p.name)) + '">' + avIn(p.me, p.name) + '</span><span><b>' + esc(p.name) + (p.me ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b><small>' + esc(p.handle || (p.guest ? L('já jogou com você', 'played with you before') : '')) + (p.follow ? ' · ' + esc(L('você segue', 'you follow')) : '') + '</small></span></button>').join('') + guest;
-    sug.dataset.list = JSON.stringify(list.map(p => ({ name: p.name, userId: p.userId || null, handle: p.handle || '', color: p.color || '' })));
-    sug.hidden = false;
+    const taken = new Set(pl[0].concat(pl[1]).map(p => (p.userId ? 'u:' + p.userId : 'n:' + S.fold(p.name))));
+    let list = peopleForPicker().filter(p => !taken.has(p.userId ? 'u:' + p.userId : 'n:' + S.fold(p.name)));
+    if (f) list = list.filter(p => S.fold(p.name).includes(f) || S.fold(p.handle || '').replace(/-/g, '').includes(f.replace(/-/g, '')));
+    else list = list.filter(p => p.sec !== 'rede'); // sem busca: só quem tem a ver com você
+    list = list.slice(0, 80);
+    plpList = list;
+    let h = '', guest = '';
+    if (q.trim() && !list.some(p => S.fold(p.name) === f)) guest = '<button class="pl-opt guest" type="button" role="option" data-plpguest>' + '<span class="mini-av plus">' + ic('i-plus') + '</span><span><b>' + esc(L('Adicionar “' + q.trim() + '”', 'Add “' + q.trim() + '”')) + '</b><small>' + esc(L('como convidado (sem perfil)', 'as a guest (no profile)')) + '</small></span></button>';
+    if (!list.length) h += guest; // ninguém com esse nome: convidado no topo; se tem gente, ele vai para o fim
+    let sec = '';
+    list.forEach((p, i) => {
+      if (p.sec !== sec) { sec = p.sec; h += '<p class="plp-sec">' + esc(L.apply(null, PLP_SEC[sec] || ['', ''])) + '</p>'; }
+      const can = p.userId ? SO.canTag(p.userId, newGroupId) : { ok: true };
+      const why = !can.ok ? (can.why === 'bloqueado' ? L('Bloqueado', 'Blocked') : can.why === 'sigo' ? L('Só aceita convite de quem ele(a) segue: entra como convidado', 'Only accepts invites from people they follow: joins as a guest') : L('Só aceita convite de conexões: entra como convidado', 'Only accepts invites from connections: joins as a guest')) : '';
+      const sub = why || [p.handle, p.grp ? L('do grupo', 'in the group') : '', p.follow ? L('você segue', 'you follow') : '', p.guest ? (p.n ? L(p.n + (p.n === 1 ? ' partida com você' : ' partidas com você'), p.n + (p.n === 1 ? ' match with you' : ' matches with you')) : L('convidado', 'guest')) : ''].filter(Boolean).join(' · ');
+      h += '<button class="pl-opt' + (can.ok ? '' : ' limited') + '" type="button" role="option" data-plppick="' + i + '"' + (can.why === 'bloqueado' ? ' disabled' : '') + '><span class="mini-av" style="--av:' + (p.color || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + '</b><small>' + esc(sub) + '</small></span></button>';
+    });
+    if (list.length && guest) h += '<p class="plp-sec">' + esc(L('Não achou?', 'Not found?')) + '</p>' + guest;
+    if (!h) h = '<p class="plp-empty">' + esc(f ? L('Ninguém com esse nome. Digite o nome completo para adicionar como convidado.', 'No one with that name. Type the full name to add as a guest.') : L('Digite o nome de quem vai jogar. Quem tem perfil aparece aqui; quem não tem entra como convidado.', 'Type the name of who will play. People with a profile show up here; others join as guests.')) + '</p>';
+    box.innerHTML = h;
+    box.scrollTop = 0;
   }
   function plAdd(t, p) {
     if (pl[t].length >= MAX_PER_TEAM) return;
     const name = String(p.name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
     if (!name) return;
-    pl[t].push({ name, userId: p.userId || null, handle: p.handle || '', color: p.color || '' });
+    const can = p.userId ? SO.canTag(p.userId, newGroupId) : { ok: true };
+    pl[t].push({ name, userId: can.ok ? p.userId || null : null, handle: can.ok ? p.handle || '' : '', color: p.color || '' });
+    if (!can.ok) toast(L(name + ' entra como convidado: o perfil não aceita convite seu', name + ' joins as a guest: their profile doesn\'t accept your invites'));
     plSync(); renderPlSlots(t); updateTeamForm();
-    const inp = $('#plIn' + t); if (inp) inp.focus();
   }
   function wirePlayers() {
     [0, 1].forEach(t => {
       const box = $('#pl' + t);
-      box.addEventListener('input', e => { if (e.target.dataset.plin != null) { e.stopPropagation(); plSuggest(t, e.target.value); } });
-      box.addEventListener('focusin', e => { if (e.target.dataset.plin != null) plSuggest(t, e.target.value); });
-      box.addEventListener('focusout', () => setTimeout(() => { if (!box.contains(document.activeElement)) { const s = $('#plSug' + t); if (s) s.hidden = true; } }, 150));
-      box.addEventListener('keydown', e => {
-        if (e.target.dataset.plin == null) return;
-        if (e.key === 'Enter') { e.preventDefault(); const first = $('#plSug' + t + ' .pl-opt'); if (first) first.click(); }
-        if (e.key === 'Escape') { const s = $('#plSug' + t); if (s && !s.hidden) { e.stopPropagation(); s.hidden = true; } }
-        if (e.key === 'Backspace' && !e.target.value && pl[t].length) { pl[t].pop(); plSync(); renderPlSlots(t); updateTeamForm(); const i = $('#plIn' + t); if (i) i.focus(); }
-      });
-      box.addEventListener('mousedown', e => { if (e.target.closest('.pl-opt')) e.preventDefault(); }); // não perde o foco antes do clique
       box.addEventListener('click', e => {
         const rm = e.target.closest('[data-plrm]');
-        if (rm) { const [tt, i] = rm.dataset.plrm.split('|').map(Number); pl[tt].splice(i, 1); plSync(); renderPlSlots(tt); updateTeamForm(); return; }
-        const pk = e.target.closest('[data-plpick]');
-        if (pk) { const [tt, i] = pk.dataset.plpick.split('|').map(Number); const list = JSON.parse($('#plSug' + tt).dataset.list || '[]'); if (list[i]) plAdd(tt, list[i]); return; }
-        const gu = e.target.closest('[data-plguest]');
-        if (gu) { const inp = $('#plIn' + t); plAdd(t, { name: inp ? inp.value : '' }); }
+        if (rm) { const [tt, i] = rm.dataset.plrm.split('|').map(Number); if (pl[tt][i] && pl[tt][i].userId === 'me' && meLocked()) return; pl[tt].splice(i, 1); plSync(); renderPlSlots(tt); updateTeamForm(); const b = $('#pl' + tt + ' [data-plopen]'); if (b) b.focus(); return; }
+        const op = e.target.closest('[data-plopen]');
+        if (op) plpOpen(Number(op.dataset.plopen));
       });
     });
+    const el = plpEl();
+    el.addEventListener('click', e => {
+      if (e.target === el || e.target.closest('[data-plpclose]')) { plpClose(); return; }
+      const pk = e.target.closest('[data-plppick]');
+      if (pk) { const p = plpList[Number(pk.dataset.plppick)]; if (p) { plAdd(plpTeam, p); plpClose(); haptic('tap'); } return; }
+      if (e.target.closest('[data-plpguest]')) { plAdd(plpTeam, { name: $('#plpQ').value }); plpClose(); }
+    });
+    el.addEventListener('input', e => { if (e.target.id === 'plpQ') plpRender(e.target.value); });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); plpClose(); }
+      if (e.key === 'Enter' && e.target.id === 'plpQ') { e.preventDefault(); const first = $('#plpList [data-plppick]:not([disabled])') || $('#plpList [data-plpguest]'); if (first) first.click(); }
+    });
+    if (window.visualViewport) { visualViewport.addEventListener('resize', plpFit); visualViewport.addEventListener('scroll', plpFit); }
+    addEventListener('resize', plpFit);
   }
   function plLoad(teams) {
     pl = [0, 1].map(t => ((teams[t] && teams[t].players) || []).slice(0, MAX_PER_TEAM).map((n, i) => {
@@ -1095,8 +1168,8 @@
       const u = id && id !== 'me' ? SO.user(id) : null;
       return { name: n, userId: id, handle: id === 'me' ? myUid() : u ? SO.publicId(id) : '', color: u ? u.color : '' };
     }));
-    // partida nova sem ninguém: você já entra no 1º time (assim as estatísticas são suas)
-    if (!pl[0].length && !pl[1].length && prefs.myName) pl[0] = [{ name: myName(), userId: 'me', handle: myUid() }];
+    // você sempre no 1º time (assim as estatísticas são suas); revanche com você no 2º time troca os jogadores de lado
+    plEnsureMe();
     plSync(); renderPlSlots(0); renderPlSlots(1);
   }
   // nomes iguais na partida (ex.: dois "João Amaral"): pede um apelido antes de começar
@@ -1196,7 +1269,7 @@
 
   function openNew(prefill) {
     const src = prefill || match;
-    newGroupId = null; renderNewGroup();
+    newGroupId = null; newPlaying = true; renderNewGroup();
     const c = E.makeConfig(src.cfgInput);
     fillFormat(c.sport, src.cfgInput);
     // partida feita com formato personalizado: abre de novo no personalizado, com os mesmos números
@@ -1471,8 +1544,33 @@
   const history = () => {
     const raw = readHistRaw();
     if (raw !== histMemo.raw) { histMemo = { raw, list: readHist(raw).filter(validMatch) }; histVer++; }
+    markHidden(histMemo.list);
     return histMemo.list.slice();
   };
+  // quem ainda não confirmou (ou recusou) a partida não entra nos confrontos e parcerias de ninguém: as estatísticas
+  // gerais continuam com a partida inteira. Fica numa propriedade que não vai para o armazenamento (não enumerável).
+  let hideAt = 0;
+  function markHidden(list) {
+    const now = Date.now();
+    if (now - hideAt < 5000 && list.every(m => m.hidePlayers)) return; // os status mudam no máximo a cada minuto
+    hideAt = now;
+    let changed = false;
+    for (const m of list) {
+      const out = [];
+      try {
+        const a = m.post && m.post.fromActivity ? SO.activity(m.post.fromActivity) : m.demo ? null : toActivity(m, 'me');
+        if (a) a.teams.forEach(t => t.players.forEach(p => { if (p.userId && p.userId !== 'me' && linkState(a, p.userId) !== 'ok') out.push(SO.nameOf(p)); }));
+        // nas partidas que você aceitou de outra pessoa os nomes já vêm do post dela
+        if (!m.post || !m.post.fromActivity) {
+          (m.teams || []).forEach((t, ti) => (t.players || []).forEach((n, i) => { const tp = a && a.teams[ti] && a.teams[ti].players[i]; if (tp && tp.userId && tp.userId !== 'me' && linkState(a, tp.userId) !== 'ok' && !out.includes(n)) out.push(n); }));
+        }
+      } catch (e) { console.info('[estatísticas] não deu para ver quem confirmou', e); }
+      const prev = m.hidePlayers ? m.hidePlayers.join('|') : null;
+      if (prev !== out.join('|')) changed = true;
+      Object.defineProperty(m, 'hidePlayers', { value: out, configurable: true, writable: true, enumerable: false });
+    }
+    if (changed) { histVer++; try { profMemo.clear(); } catch (e) { /* ainda abrindo o app */ } }
+  }
   const fmtDur = ms => { if (ms > 0 && ms < 60000) return '<1 min'; const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
   function fmtWhen(t) {
     if (!t) return '';
@@ -1488,6 +1586,7 @@
   const ID_VIEWS = ['partida', 'atividade', 'perfil', 'camera', 'grupo'];
   const OPT_ID_VIEWS = ['entrar'];
   function go(view, id, back) {
+    try { settleDeletions(); } catch (e) { console.info('[exclusão] não deu para conferir os pedidos', e); }
     if (SCREEN) view = 'jogar';
     if (ID_VIEWS.includes(view) && !id) view = 'inicio';
     if (!back && (view !== currentView || (id || null) !== currentMatchId) && currentView !== 'jogar') { navStack.push([currentView, currentMatchId]); if (navStack.length > 30) navStack.shift(); }
@@ -1671,6 +1770,8 @@
       h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
     }
     // exportar planilha (CSV) e dados (JSON) saiu da partida em 13/10/2026: volta depois nas estatísticas gerais (ver ROADMAP)
+    const dreq = !live && !embed && !m.demo ? SO.deletionStatus(m.id) : null;
+    if (dreq && dreq.status === 'aberto') h += '<p class="del-pend">' + ic('i-clock') + '<span>' + esc(L('Exclusão pedida para todos · ' + dreq.yes + ' de ' + dreq.total + ' aceitaram', 'Deletion requested · ' + dreq.yes + ' of ' + dreq.total + ' accepted')) + '</span></p>';
     if (!live && !embed && !m.demo) h += '<button class="del-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">' + ic('i-trash') + 'Excluir partida</button>';
     if (m.demo) h += '<p class="hint center">Partida do perfil de exemplo (fictícia).</p>';
     return h + '</div>';
@@ -1924,8 +2025,8 @@
   function avatarHTML(id, size, extra, plain) {
     const u = SO.user(id);
     const name = u ? u.name : '?';
-    const lv = size !== 'xs' ? liveOf(id) : null;
-    const link = !plain; // jogando agora: anel verde + selo do esporte; o toque abre o placar ao vivo
+    const lv = size !== 'xs' && !(u && u.anon) ? liveOf(id) : null;
+    const link = !plain && !(u && u.anon); // jogando agora: anel verde + selo do esporte; o toque abre o placar ao vivo
     return '<span class="av' + (size ? ' av-' + size : '') + (lv ? ' is-live' : '') + avCls(id === 'me') + '" style="--av:' + userColor(id) + '"' + (lv && link ? ' data-live="' + esc(id) + '" role="button" tabindex="0" title="' + esc(L('Jogando ' + sportLabel(lv.sport) + ' agora', 'Playing ' + sportEN(lv.sport) + ' now')) + '"' : id && id !== 'me' && size !== 'xs' && link ? ' data-user="' + esc(id) + '"' : '') + (extra || '') + '>' + avIn(id === 'me', name) + (lv ? liveBadgeHTML(lv) : '') + '</span>';
   }
   // ---------- Foto do perfil: escolher, enquadrar (arrastar e zoom), salvar ou remover ----------
@@ -1938,8 +2039,12 @@
   const avIn = (isMe, name) => (isMe && myPhoto() ? photoImg() : esc(initials(name)));
   const avCls = isMe => (isMe && myPhoto() ? ' has-photo' : '');
   let photoFrom = null, photoEd = null; // photoEd: { img, url, zoom, ox, oy }
+  let photoTarget = null; // null = você; { group: id } = foto do grupo
+  const curPhoto = () => (photoTarget ? groupPhoto(SO.group(photoTarget.group)) : myPhoto());
   const PH_S = 240; // lado da área de corte, em px de tela
-  function openPhoto() {
+  function openPhoto(target) {
+    photoTarget = target && target.group ? target : null;
+    $('#photoTitle').textContent = photoTarget ? L('Foto do grupo', 'Group photo') : L('Foto do perfil', 'Profile photo');
     const from = $$('.sheet').find(d => !d.hidden && d.id !== 'sheetPhoto');
     photoFrom = from ? from.id : null;
     photoEd = null;
@@ -1948,10 +2053,11 @@
   }
   function renderPhoto() {
     const body = $('#photoBody'); if (!body) return;
-    const has = !!myPhoto();
+    const has = !!curPhoto(), gr = photoTarget ? SO.group(photoTarget.group) : null;
     if (!photoEd) {
-      body.innerHTML = '<div class="ph-now"><span class="ph-big' + (has ? ' has-photo' : '') + '">' + (has ? photoImg() : esc(initials(myName()))) + '</span>' +
-        '<p>' + esc(has ? L('Esta é a foto que aparece no seu perfil, nas suas partidas e na timeline.', 'This photo shows on your profile, your matches and the feed.') : L('Sem foto, o app mostra as suas iniciais. Uma foto ajuda os amigos a te acharem.', 'With no photo, the app shows your initials. A photo helps friends find you.')) + '</p></div>' +
+      body.innerHTML = '<div class="ph-now"><span class="ph-big' + (has ? ' has-photo' : '') + (gr ? ' grp' : '') + '">' + (has ? '<img class="av-img" src="' + esc(curPhoto()) + '" alt="" draggable="false">' : gr ? ic('s-' + gr.sport) : esc(initials(myName()))) + '</span>' +
+        '<p>' + esc(gr ? (has ? L('Esta é a foto do grupo ' + gr.name + ': aparece na lista de grupos, na página e nas partidas do grupo.', 'This is the photo of ' + gr.name + ': it shows in the group list, the page and the group matches.') : L('Sem foto, o grupo mostra o ícone do esporte. Uma foto da turma deixa o grupo com a cara de vocês.', 'With no photo, the group shows the sport icon. A photo of the crew makes it yours.'))
+          : has ? L('Esta é a foto que aparece no seu perfil, nas suas partidas e na timeline.', 'This photo shows on your profile, your matches and the feed.') : L('Sem foto, o app mostra as suas iniciais. Uma foto ajuda os amigos a te acharem.', 'With no photo, the app shows your initials. A photo helps friends find you.')) + '</p></div>' +
         '<div class="ph-actions"><button class="btn btn-brand" type="button" data-phpick>' + ic('i-image') + esc(has ? L('Trocar foto', 'Change photo') : L('Escolher foto', 'Choose photo')) + '</button>' +
         (has ? '<button class="btn btn-danger-soft" type="button" data-phdel>' + ic('i-trash') + esc(L('Remover foto', 'Remove photo')) + '</button>' : '') + '</div>' +
         '<p class="ph-note">' + ic('i-lock') + '<span>' + esc(L('Por enquanto a foto fica só neste aparelho. Quando a conta estiver na nuvem, ela vai junto e segue a privacidade do seu perfil.', 'For now the photo stays on this device. When your account is in the cloud, it goes along and follows your profile privacy.')) + '</span></p>';
@@ -2014,7 +2120,8 @@
     let url = cv.toDataURL('image/jpeg', 0.86);
     if (url.length > 120000) url = cv.toDataURL('image/jpeg', 0.7);
     if (!PHOTO_RX.test(url) || url.length >= PHOTO_MAX) { toast(L('Não consegui salvar a foto', 'Couldn\'t save the photo')); return; }
-    prefs.photo = url; prefs.photoAt = Date.now(); savePrefs();
+    if (photoTarget) { if (!SO.setGroupPhoto(photoTarget.group, url)) { toast(L('Só quem organiza o grupo troca a foto', 'Only the organizer can change the photo')); return; } }
+    else { prefs.photo = url; prefs.photoAt = Date.now(); savePrefs(); }
     URL.revokeObjectURL(e.url); photoEd = null;
     trk('photo_set');
     toast(L('Foto salva', 'Photo saved'));
@@ -2022,7 +2129,7 @@
   }
   function removePhoto() {
     openModal({ icon: 'i-trash', tone: 'danger', title: L('Remover a foto?', 'Remove the photo?'), text: L('O seu perfil volta a mostrar as iniciais. Dá para pôr outra quando quiser.', 'Your profile goes back to showing your initials. You can add another any time.'),
-      actions: [{ label: L('Remover', 'Remove'), kind: 'brand', act: () => { delete prefs.photo; delete prefs.photoAt; savePrefs(); closeModal(); toast(L('Foto removida', 'Photo removed')); afterPhoto(); } }, { label: L('Cancelar', 'Cancel'), kind: 'link', act: closeModal }] });
+      actions: [{ label: L('Remover', 'Remove'), kind: 'brand', act: () => { if (photoTarget) SO.setGroupPhoto(photoTarget.group, null); else { delete prefs.photo; delete prefs.photoAt; savePrefs(); } closeModal(); toast(L('Foto removida', 'Photo removed')); afterPhoto(); } }, { label: L('Cancelar', 'Cancel'), kind: 'link', act: closeModal }] });
   }
   function afterPhoto() {
     renderPhoto(); renderPrefsPhoto();
@@ -2038,7 +2145,8 @@
     const inp = $('#avatarInput');
     inp.addEventListener('change', e => { const f = e.target.files && e.target.files[0]; loadPhotoFile(f); e.target.value = ''; });
     document.addEventListener('click', e => {
-      if (e.target.closest('[data-photo]')) { e.preventDefault(); e.stopPropagation(); openPhoto(); return; }
+      const ph = e.target.closest('[data-photo]');
+      if (ph) { e.preventDefault(); e.stopPropagation(); const v = ph.dataset.photo || ''; openPhoto(v.startsWith('group:') ? { group: v.slice(6) } : null); return; }
       if (e.target.closest('[data-phpick]')) { inp.click(); return; }
       if (e.target.closest('[data-phsave]')) { savePhoto(); return; }
       if (e.target.closest('[data-phdel]')) { removePhoto(); return; }
@@ -2142,6 +2250,23 @@
   const typeBadge = a => (a.type ? '<span class="tbadge t-' + esc(a.type) + '">' + esc(TYPE_LABEL[a.type] || a.type) + '</span>' : '');
 
   // Placar da atividade: uma linha por time, com jogadores e sets.
+  // atributo de link para o perfil (nunca para você nem para quem bloqueou você)
+  const uLink = id => (id && id !== 'me' && !(SO.user(id) || {}).anon ? ' data-user="' + esc(id) + '"' : '');
+  // nome de um jogador com perfil na partida: clicável só depois que ele confirmou; pendente fica opaco e sem link
+  // (assim ninguém é exposto numa partida que ainda não reconheceu); recusou ou bloqueado: só o nome, sem link
+  function linkState(a, id) {
+    if (!id || id === 'me') return 'ok';
+    if (SO.isBlocked(id) || SO.blockedMe(id)) return 'off';
+    const t = (a.tagged || []).find(x => x.userId === id);
+    if (!t) return 'ok';
+    const s = SO.tagStatus(a, id);
+    return s === 'aceito' ? 'ok' : s === 'pendente' ? 'pend' : 'off';
+  }
+  function playerSpan(a, p) {
+    const st = linkState(a, p.userId);
+    if (st === 'ok') return '<span data-user="' + esc(p.userId) + '">' + esc(pName(p)) + '</span>';
+    return '<span class="' + (st === 'pend' ? 'pl-pend' : 'pl-off') + '"' + (st === 'pend' ? ' title="' + esc(L('Ainda não confirmou a partida', 'Hasn\'t confirmed the match yet')) + '"' : '') + '>' + esc(pName(p)) + '</span>';
+  }
   function actResultHTML(a) {
     const r = a.result || {};
     const claim = a.ownerId !== 'me' ? SO.myClaims().find(c => c.id === a.id && c.status === 'aceito') : null;
@@ -2151,7 +2276,7 @@
       const tm = a.teams[t] || { players: [] };
       const win = r.winner === t, lose = r.winner != null && !win;
       return '<div class="ascore-row' + (win ? ' win' : '') + (lose ? ' lose' : '') + '"><i style="--tc:' + colorVar(tm.color || (t ? 'laranja' : 'verde')) + '"></i>' +
-        '<span class="ascore-who">' + tm.players.map(p => p.userId && p.userId !== 'me' ? '<span data-user="' + esc(p.userId) + '">' + esc(pName(p)) + '</span>' : '<span' + (p.userId === 'me' ? ' class="me"' : '') + '>' + esc(pName(p)) + '</span>').join('<em> e </em>') + (tm.players.length ? '' : esc(tm.name || 'Adversários')) + '</span>' +
+        '<span class="ascore-who">' + tm.players.map(p => p.userId && p.userId !== 'me' ? playerSpan(a, p) : '<span' + (p.userId === 'me' ? ' class="me"' : '') + '>' + esc(pName(p)) + '</span>').join('<em> e </em>') + (tm.players.length ? '' : esc(tm.name || 'Adversários')) + '</span>' +
         '<span class="ascore-sets">' + cols.map(s => '<b class="' + (s[t] > s[1 - t] ? 'w' : '') + '">' + s[t] + '</b>').join('') + '</span>' +
         '<span class="ascore-win">' + (win ? ic('i-award') : '') + '</span></div>';
     }).join('') + '</div>';
@@ -2197,7 +2322,7 @@
     else if (a.result && a.result.sets && a.result.sets.length > 1) kp.push(['Sets', String(a.result.sets.length)]);
     const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
     return '<article class="act" data-act="' + esc(a.id) + '">' +
-      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><span class="act-name"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' + fireHTML(winStreakOf(a.ownerId), true) + '</span>' +
+      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><span class="act-name"><b' + uLink(a.ownerId) + '>' + esc(owner ? owner.name : '?') + '</b>' + fireHTML(winStreakOf(a.ownerId), true) + '</span>' +
       '<span>' + '<span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(fmtWhen(a.playedAt)) + '</span></span>' + (a.place ? '<span class="act-place">' + esc(a.place) + '</span>' : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + (a.groupId && SO.group(a.groupId) ? '<button class="mtag gtag" type="button" data-group="' + esc(a.groupId) + '" title="' + esc(SO.group(a.groupId).name) + '">' + ic('i-users') + '<span class="gtag-t">' + esc(SO.group(a.groupId).name) + '</span></button>' : typeBadge(a)) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h3 class="act-title">' + esc(actTitle(a)) + '</h3>' +
       (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
@@ -2270,14 +2395,14 @@
     return '<div class="panel">' + ph('i-tag', 'Pessoas marcadas') + '<div class="plist">' + tags.map(t => {
       const s = SO.tagStatus(a, t.userId);
       const u = SO.user(t.userId);
-      return '<div class="prow">' + avatarHTML(t.userId) + '<span class="prow-txt"><b' + (t.userId !== 'me' ? ' data-user="' + esc(t.userId) + '"' : '') + '>' + esc(t.userId === 'me' ? 'Você' : u.name) + '</b><small class="st-' + esc(s) + '">' + esc(label(s, t.userId)) + '</small></span>' +
+      return '<div class="prow' + (s === 'pendente' && t.userId !== 'me' ? ' pend' : '') + '">' + avatarHTML(t.userId, '', '', s !== 'aceito') + '<span class="prow-txt"><b' + (t.userId !== 'me' && s === 'aceito' && !SO.isBlocked(t.userId) ? ' data-user="' + esc(t.userId) + '"' : '') + '>' + esc(t.userId === 'me' ? 'Você' : u.name) + '</b><small class="st-' + esc(s) + '">' + esc(label(s, t.userId)) + '</small></span>' +
         (t.userId === 'me' && s === 'pendente' && a.ownerId !== 'me' ? '<span class="prow-act"><button class="btn btn-sm" type="button" data-tagresp="recusado" data-tagact="' + esc(a.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">Aceitar</button></span>' : '') + '</div>';
     }).join('') + '</div></div>';
   }
   function actHeadHTML(a) {
     const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
     return '<div class="panel act-detail">' +
-      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner.name) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
+      '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + uLink(a.ownerId) + '>' + esc(owner.name) + '</b><span><span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span></span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h2 class="act-title">' + esc(actTitle(a)) + '</h2>' + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label || 'Todos') + '</span>' + (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') + '</div>' +
       actResultHTML(a) + '<footer class="act-foot">' + zapBtnHTML(a) + '</footer></div>';
@@ -2292,6 +2417,12 @@
       const kp = [['Placar', actScore(a) || '–'], ['Duração', a.durationMs ? fmtDur(a.durationMs) : '–'], ['Tipo', TYPE_LABEL[a.type] || '–']];
       h += '<div class="panel">' + kpiHTML(kp, true) + '<p class="hint">Partida lançada depois, sem marcação ponto a ponto.</p></div>';
     }
+    if (a.ownerId !== 'me') {
+      // recusou sem querer? dá para voltar atrás (até 30 dias depois, como no servidor)
+      const mine = (a.tagged || []).find(t => t.userId === 'me');
+      if (mine && SO.tagStatus(a, 'me') === 'recusado' && Date.now() - (a.playedAt || 0) < 30 * 864e5) h += '<div class="panel undo-dec">' + ic('i-undo') + '<span><b>' + esc(L('Você recusou esta marcação', 'You declined this tag')) + '</b><small>' + esc(L('Se foi sem querer, ainda dá para aceitar: a partida entra no seu perfil.', 'If it was by mistake, you can still accept: the match goes on your profile.')) + '</small></span><button class="btn btn-sm btn-brand" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">' + esc(L('Desfazer recusa e aceitar', 'Undo and accept')) + '</button></div>';
+      h += '<div class="perfil-safety"><button class="linkish" type="button" data-report="' + esc(a.id) + '" data-report-kind="partida">' + esc(L('Denunciar partida', 'Report match')) + '</button></div>';
+    }
     $('#actBody').innerHTML = h;
   }
 
@@ -2300,7 +2431,7 @@
     syncMe();
     const isMe = id === 'me';
     const u = isMe ? Object.assign({}, SO.me(), { name: myName(), sports: [], bio: '', followers: SO.followers().length, following: SO.following().length }) : SO.user(id);
-    if (!u) { $('#perfilBody').innerHTML = '<div class="empty-state"><b>Perfil não encontrado</b></div>'; return; }
+    if (!u || u.anon) { $('#perfilTitle').textContent = L('Perfil', 'Profile'); $('#perfilBody').innerHTML = '<div class="empty-state">' + ic('i-lock') + '<b>' + esc(L('Perfil indisponível', 'Profile unavailable')) + '</b><span>' + esc(L('Esta pessoa não está disponível para você.', 'This person isn\'t available to you.')) + '</span></div>'; return; }
     $('#perfilTitle').textContent = isMe ? 'Seu perfil' : firstName(u.name);
     const priv = isMe ? myPrivacy() : SO.privacyOf(id);
     // na prévia do seu perfil, valem as suas escolhas para quem não segue você
@@ -2373,9 +2504,62 @@
       const bl = e.target.closest('[data-block]');
       if (bl) { const on = SO.toggleBlock(bl.dataset.block); toast(on ? 'Pessoa bloqueada' : 'Pessoa desbloqueada'); refreshSocial(); return; }
       const rp = e.target.closest('[data-report]');
-      if (rp) toast('Denúncia enviada. A equipe vai analisar, obrigado.');
+      if (rp) { openReport(rp.dataset.reportKind || 'perfil', rp.dataset.report); return; }
+      const rs = e.target.closest('[data-reportsend]'); if (rs) { sendReport(rs.dataset.reportsend); return; }
+      const ub = e.target.closest('[data-unblock]'); if (ub) { SO.toggleBlock(ub.dataset.unblock); toast(L('Pessoa desbloqueada', 'Person unblocked')); openBlocked(); renderBlockedTxt(); refreshSocial(); return; }
       if (e.target.closest('[data-go-perfil-me]')) go('perfil', 'me');
     });
+  }
+
+  // ---------- Quem pode marcar você e pessoas bloqueadas ----------
+  const TAG_POL_HINT = {
+    todos: ['Qualquer pessoa pode marcar você. Você sempre confirma antes de a partida entrar no seu perfil.', 'Anyone can tag you. You always confirm before the match goes on your profile.'],
+    conexoes: ['Só quem você segue ou quem segue você. Nas partidas de um grupo seu, os membros também podem.', 'Only people you follow or who follow you. In your groups\' matches, members can too.'],
+    sigo: ['Só quem você segue. Nas partidas de um grupo seu, os membros também podem.', 'Only people you follow. In your groups\' matches, members can too.'],
+  };
+  function renderTagPolHint() { const el = $('#tagPolHint'); if (el) el.textContent = L.apply(null, TAG_POL_HINT[prefs.tagPolicy || 'todos']); }
+  const blockedList = () => (SO.blocked ? SO.blocked() : []);
+  function renderBlockedTxt() { const el = $('#blockedTxt'); if (!el) return; const n = blockedList().length; el.textContent = n ? L(n === 1 ? '1 pessoa' : n + ' pessoas', n === 1 ? '1 person' : n + ' people') : L('Ninguém', 'No one'); }
+  function openBlocked() {
+    const list = blockedList();
+    openInfo(L('Pessoas bloqueadas', 'Blocked people'), '<div class="blk-box" translate="no"><p class="hint">' + esc(L('Quem você bloqueia não acha você na busca, não vê seu perfil, suas partidas nem quando você está jogando, e não marca você. Nas partidas em comum, seu nome aparece para ela como "Jogador", sem link. Ela não é avisada.', 'People you block can\'t find you in search, see your profile, your matches or when you\'re playing, and can\'t tag you. In shared matches, your name shows to them as "Player", with no link. They aren\'t notified.')) + '</p>' +
+      (list.length ? '<div class="plist">' + list.map(u => '<div class="prow">' + avatarHTML(u.id, '', '', true) + '<span class="prow-txt"><b>' + esc(u.name) + '</b><small>' + esc(SO.publicId(u.id)) + '</small></span><span class="prow-act"><button class="btn btn-sm" type="button" data-unblock="' + esc(u.id) + '">' + esc(L('Desbloquear', 'Unblock')) + '</button></span></div>').join('') + '</div>'
+        : '<p class="blk-empty">' + esc(L('Você não bloqueou ninguém. Para bloquear, abra o perfil da pessoa e toque em Bloquear.', 'You haven\'t blocked anyone. To block, open their profile and tap Block.')) + '</p>') + '</div>');
+  }
+
+  // ---------- Denunciar perfil, grupo ou partida ----------
+  const REPORT_OPTS = {
+    perfil: ['ofensivo', 'flood_convites', 'partida_falsa', 'se_passando', 'assedio', 'spam', 'menor', 'outro'],
+    grupo: ['ofensivo', 'spam', 'partida_falsa', 'flood_convites', 'assedio', 'outro'],
+    partida: ['partida_falsa', 'ofensivo', 'se_passando', 'outro'],
+  };
+  const REPORT_LBL = {
+    ofensivo: ['Conteúdo ofensivo ou ilegal', 'Offensive or illegal content'], flood_convites: ['Flood de convites ou marcações', 'Flooding invites or tags'],
+    partida_falsa: ['Partidas que não aconteceram (zoeira)', 'Matches that never happened (pranks)'], se_passando: ['Se passando por outra pessoa', 'Pretending to be someone else'],
+    assedio: ['Assédio ou ameaça', 'Harassment or threats'], spam: ['Spam ou propaganda', 'Spam or ads'], menor: ['Menor de idade em risco', 'A minor at risk'], outro: ['Outro motivo', 'Another reason'],
+  };
+  function openReport(kind, id) {
+    const name = kind === 'grupo' ? (SO.group(id) || {}).name : kind === 'partida' ? actTitle(findAct(id) || { teams: [] }) : (SO.user(id) || {}).name;
+    if (SO.reported(kind, id)) { toast(L('Você já denunciou. A equipe está analisando.', 'You already reported this. The team is reviewing it.')); return; }
+    openInfo(L('Denunciar ' + (kind === 'grupo' ? 'grupo' : kind === 'partida' ? 'partida' : 'perfil'), 'Report ' + (kind === 'grupo' ? 'group' : kind === 'partida' ? 'match' : 'profile')),
+      '<div class="rep-box" translate="no"><p class="hint">' + esc(L('O que está acontecendo com ', 'What is going on with ')) + '<b>' + esc(name || '') + '</b>?</p>' +
+      '<div class="rep-opts" role="radiogroup" aria-label="' + esc(L('Motivo', 'Reason')) + '">' + REPORT_OPTS[kind].map((c, i) => '<label class="rep-opt"><input type="radio" name="repCat" value="' + c + '"' + (i ? '' : ' checked') + '><span>' + esc(L.apply(null, REPORT_LBL[c])) + '</span></label>').join('') + '</div>' +
+      '<label class="field"><span>' + esc(L('Conte mais (opcional)', 'Tell us more (optional)')) + '</span><textarea id="repTxt" maxlength="500" rows="3" placeholder="' + esc(L('Ex.: criou 10 partidas comigo que não aconteceram', 'E.g.: logged 10 matches with me that never happened')) + '"></textarea></label>' +
+      (kind === 'perfil' && !SO.isBlocked(id) ? '<label class="row rep-block"><span>' + esc(L('Também bloquear', 'Also block')) + '<small>' + esc(L('A pessoa não vê o seu perfil, não marca você e não acha você na busca', 'They won\'t see your profile, tag you or find you in search')) + '</small></span><input class="switch" type="checkbox" id="repBlock" checked></label>' : '') +
+      '<button class="btn btn-danger" type="button" data-reportsend="' + esc(kind + '|' + id) + '">' + ic('i-alert') + esc(L('Enviar denúncia', 'Send report')) + '</button>' +
+      '<p class="hint small">' + esc(L('A equipe analisa em até 48 horas. Quem foi denunciado não fica sabendo quem denunciou.', 'The team reviews within 48 hours. The reported person isn\'t told who reported them.')) + '</p></div>');
+  }
+  function sendReport(key) {
+    const [kind, id] = key.split('|');
+    const cat = getRadio('repCat') || 'outro';
+    const r = SO.report(kind, id, cat, ($('#repTxt') || {}).value || '');
+    if (!r.ok) { toast(r.why === 'limite' ? L('Muitas denúncias hoje. Tente amanhã.', 'Too many reports today. Try tomorrow.') : L('Você já denunciou. A equipe está analisando.', 'You already reported this. The team is reviewing it.')); return; }
+    trk('report', { kind, category: cat }); // sem nomes nem ids
+    const blk = $('#repBlock');
+    if (kind === 'perfil' && blk && blk.checked && !SO.isBlocked(id)) SO.toggleBlock(id);
+    closeAllSheets();
+    toast(L('Denúncia enviada. Obrigado por cuidar da comunidade.', 'Report sent. Thanks for looking out for the community.'));
+    refreshSocial();
   }
 
   // ---------- Notificações ----------
@@ -2385,8 +2569,27 @@
     const seenBefore = (store.get(KEY_SOCIAL, {}) || {}).readUntil || 0;
     const row = (n, inner, actions) => '<div class="notif' + (n.t > seenBefore ? ' new' : '') + '">' + avatarHTML(n.actor) + '<div class="notif-txt">' + inner + '<small>' + esc(fmtWhen(n.t)) + '</small>' + (actions || '') + '</div></div>';
     const who = id => '<b data-user="' + esc(id) + '">' + esc(SO.user(id) ? SO.user(id).name : '?') + '</b>';
-    const h = list.map(n => {
+    // várias marcações pendentes do mesmo grupo viram uma só, com "aceitar todas" e a lista para abrir
+    const byG = {};
+    list.forEach(n => { const g = n.kind === 'tag' && n.status === 'pendente' && n.activity.groupId; if (g && SO.group(g)) (byG[g] = byG[g] || []).push(n); });
+    const seenG = new Set(), list2 = [];
+    list.forEach(n => {
+      const g = n.kind === 'tag' && n.status === 'pendente' && n.activity.groupId;
+      if (g && byG[g] && byG[g].length > 1) { if (!seenG.has(g)) { seenG.add(g); list2.push({ kind: 'tagGroup', t: n.t, gid: g, items: byG[g] }); } return; }
+      list2.push(n);
+    });
+    const h = list2.map(n => {
       const a = n.activity;
+      if (n.kind === 'tagGroup') {
+        const gr = SO.group(n.gid), ids = n.items.map(x => x.activity.id).join(',');
+        return '<div class="notif ntg' + (n.t > seenBefore ? ' new' : '') + '">' + groupBadge(gr) + '<div class="notif-txt"><p>' + esc(L('Você foi marcado em ' + n.items.length + ' partidas no grupo ', 'You were tagged in ' + n.items.length + ' matches in the group ')) + '<b data-group="' + esc(gr.id) + '">' + esc(gr.name) + '</b></p><small>' + esc(fmtWhen(n.t)) + '</small>' +
+          '<div class="notif-act"><button class="btn btn-sm" type="button" data-tagall="recusado" data-tagids="' + esc(ids) + '">' + esc(L('Recusar todas', 'Decline all')) + '</button><button class="btn btn-sm btn-brand" type="button" data-tagall="aceito" data-tagids="' + esc(ids) + '">' + ic('i-check') + esc(L('Aceitar todas', 'Accept all')) + '</button></div>' +
+          '<details class="ntg-list"><summary>' + esc(L('Ver as ' + n.items.length + ' partidas', 'See the ' + n.items.length + ' matches')) + '</summary>' + n.items.map(x => {
+            const xa = x.activity;
+            return '<div class="ntg-row"><button class="notif-card" type="button" data-act="' + esc(xa.id) + '"><span>' + esc(teamLabel(xa.teams[0], true)) + ' <em>×</em> ' + esc(teamLabel(xa.teams[1], true)) + '<small>' + esc(fmtWhen(xa.playedAt)) + ' · ' + esc(SO.user(xa.ownerId) ? firstName(SO.user(xa.ownerId).name) : '') + '</small></span><b>' + esc(actScore(xa) || '') + '</b></button>' +
+              '<button class="icon-btn sm ntg-no" type="button" data-tagresp="recusado" data-tagact="' + esc(xa.id) + '" aria-label="' + esc(L('Recusar', 'Decline')) + '">' + ic('i-x') + '</button><button class="icon-btn sm ntg-ok" type="button" data-tagresp="aceito" data-tagact="' + esc(xa.id) + '" aria-label="' + esc(L('Aceitar', 'Accept')) + '">' + ic('i-check') + '</button></div>';
+          }).join('') + '</details></div></div>';
+      }
       if (n.kind === 'tag') {
         const act = n.status === 'pendente'
           ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-tagresp="recusado" data-tagact="' + esc(a.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">' + ic('i-check') + 'Aceitar</button></div>'
@@ -2394,12 +2597,16 @@
         return row(n, '<p>' + who(n.actor) + ' marcou você numa partida de ' + esc(sportLabel(a.sport)) + ' · ' + esc(TYPE_LABEL[a.type] || '') + '</p>' +
           '<button class="notif-card" type="button" data-act="' + esc(a.id) + '"><span>' + esc(teamLabel(a.teams[0], true)) + ' <em>×</em> ' + esc(teamLabel(a.teams[1], true)) + '</span><b>' + esc(actScore(a) || (a.result.winner == null ? '' : '')) + '</b></button>', act);
       }
-      if (n.kind === 'zap') return row(n, '<p>' + who(n.actor) + (n.others ? ' e mais ' + n.others : '') + ' ' + (n.others ? 'deram' : 'deu') + ' zap na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>');
+      if (n.kind === 'zap') return row(n, '<p translate="no">' + who(n.actor) + esc(n.others ? L(' e mais ' + n.others + ' deram zap na sua partida ', ' and ' + n.others + ' more zapped your match ') : L(' deu zap na sua partida ', ' zapped your match ')) + '<button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>');
       if (n.kind === 'accepted') return row(n, '<p>' + who(n.actor) + ' confirmou a marcação na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>');
       if (n.kind === 'claimReq') return row(n, '<p>' + who(n.actor) + ' disse que é <b>“' + esc(n.claim.guest) + '”</b> na sua partida <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button></p>',
         n.status === 'pendente' ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-claimresp="recusado" data-claimid="' + esc(n.claim.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-claimresp="aceito" data-claimid="' + esc(n.claim.id) + '">' + ic('i-check') + 'Aceitar</button></div>'
           : '<div class="notif-st st-' + esc(n.status) + '">' + (n.status === 'aceito' ? ic('i-check') + 'Aceito · as estatísticas foram para ' + esc(firstName(SO.user(n.actor).name)) : 'Recusado') + '</div>');
       if (n.kind === 'claimOk') return row(n, '<p>' + who(n.actor) + ' aceitou: <b>“' + esc(n.guest) + '”</b> agora é você. As estatísticas entraram no seu perfil.</p>', '<div class="notif-act"><button class="btn btn-sm" type="button" data-act="' + esc(a.id) + '">Ver partida</button></div>');
+      if (n.kind === 'delReq') return row(n, '<p>' + who(n.actor) + ' ' + esc(L('pediu para excluir para todos a partida', 'asked everyone to delete the match')) + ' <button class="linkish" type="button" data-act="' + esc(a.id) + '">' + esc(actTitle(a)) + '</button> · ' + esc(n.reason) + '</p>',
+        n.status === 'pendente' ? '<div class="notif-act"><button class="btn btn-sm" type="button" data-delvote="nao" data-delid="' + esc(a.id) + '">' + esc(L('Manter', 'Keep')) + '</button><button class="btn btn-sm btn-brand" type="button" data-delvote="sim" data-delid="' + esc(a.id) + '">' + ic('i-trash') + esc(L('Aceitar exclusão', 'Accept deletion')) + '</button></div>'
+          : '<div class="notif-st st-' + (n.status === 'sim' ? 'aceito' : 'recusado') + '">' + esc(n.status === 'sim' ? L('Você aceitou: a partida foi excluída', 'You accepted: the match was deleted') : L('Você recusou: a partida continua', 'You declined: the match stays')) + '</div>');
+      if (n.kind === 'delDone') return row(n, '<p>' + esc(L('Todos aceitaram o seu pedido: a partida foi excluída de todos os lugares.', 'Everyone accepted your request: the match was deleted everywhere.')) + '</p>');
       if (n.kind === 'follow') return row(n, '<p>' + who(n.actor) + ' começou a seguir você</p>', SO.isFollowing(n.actor) ? '' : '<div class="notif-act"><button class="btn btn-sm btn-brand follow" type="button" data-follow="' + esc(n.actor) + '">' + ic('i-user-plus') + 'Seguir de volta</button></div>');
       return '';
     }).join('');
@@ -2409,21 +2616,72 @@
   }
 
   // Aceitar uma marcação: a partida passa a contar no seu perfil (vira uma partida lançada no seu histórico).
-  function respondTag(id, resp) {
+  // Aceitar uma marcação: a partida passa a contar no seu perfil (vira uma partida lançada no seu histórico).
+  // Recusar: sai do seu perfil. As duas mostram um aviso de 3 s com "Desfazer"; recusou e se arrependeu depois,
+  // a partida mostra "Desfazer recusa e aceitar" (até 30 dias).
+  function accCopyAdd(a) {
+    if (readHist().some(m => m.post && m.post.fromActivity === a.id)) return;
+    const meN = myName();
+    const teams = a.teams.map((t, i) => ({ name: teamLabel(t, true).replace('Você', firstName(meN)), color: t.color || (i ? 'laranja' : 'verde'), players: t.players.map(p => (p.userId === 'me' ? meN : SO.nameOf(p))).filter(Boolean) }));
+    const m = { id: 'acc-' + a.id, createdAt: a.playedAt - (a.durationMs || 0), endedAt: a.playedAt, cfgInput: { sport: a.sport }, teams, events: [], redo: [], finished: true,
+      manual: { sets: a.result.sets, final: a.result.final, winner: a.result.winner, durationMs: a.durationMs || undefined },
+      post: { status: 'publicada', type: a.type, title: a.title, caption: '', visibility: 'todos', place: a.place, fromActivity: a.id, ownerId: a.ownerId, sourceOrig: a.source, groupId: a.groupId || undefined } };
+    const hist = readHist(); hist.push(m); hist.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0));
+    writeHist(hist);
+  }
+  const accCopyDel = id => { const h = readHist(); if (h.some(m => m.post && m.post.fromActivity === id)) writeHist(h.filter(m => !(m.post && m.post.fromActivity === id))); };
+  function setTag(id, resp) {
+    const a = SO.activity(id); if (!a) return null;
+    const prev = SO.tagStatus(a, 'me');
+    SO.respondTag(id, resp);
+    if (resp === 'aceito') accCopyAdd(a); else accCopyDel(id);
+    return prev;
+  }
+  // partida parecida que você mesmo já registrou (mesmo esporte, até 3 h de diferença): pode ser a mesma partida
+  function dupOf(a) {
+    return history().find(m => !(m.post && m.post.fromActivity) && !isDraft(m) && S.matchStats(m).cfg.sport === a.sport && Math.abs((m.endedAt || m.createdAt || 0) - a.playedAt) < 3 * 3600e3) || null;
+  }
+  function respondTag(id, resp, opts) {
     const a = SO.activity(id);
     if (!a) return;
-    SO.respondTag(id, resp);
-    if (resp === 'aceito' && !readHist().some(m => m.post && m.post.fromActivity === id)) {
-      const meN = myName();
-      const teams = a.teams.map((t, i) => ({ name: teamLabel(t, true).replace('Você', firstName(meN)), color: t.color || (i ? 'laranja' : 'verde'), players: t.players.map(p => (p.userId === 'me' ? meN : SO.nameOf(p))).filter(Boolean) }));
-      const m = { id: 'acc-' + id, createdAt: a.playedAt - (a.durationMs || 0), endedAt: a.playedAt, cfgInput: { sport: a.sport }, teams, events: [], redo: [], finished: true,
-        manual: { sets: a.result.sets, final: a.result.final, winner: a.result.winner, durationMs: a.durationMs || undefined },
-        post: { status: 'publicada', type: a.type, title: a.title, caption: '', visibility: 'todos', place: a.place, fromActivity: id, ownerId: a.ownerId, sourceOrig: a.source } };
-      const hist = readHist(); hist.push(m); hist.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0));
-      writeHist(hist);
+    const o = opts || {};
+    if (resp === 'aceito' && !o.skipDup) {
+      const d = dupOf(a);
+      if (d) {
+        openModal({ icon: 'i-copy', title: L('Você já registrou uma partida parecida', 'You already logged a similar match'), text: L('Tem uma partida sua de ' + sportLabel(a.sport) + ' perto desse horário. Se for a mesma, aceitar conta duas vezes nas suas estatísticas.', 'You have a ' + sportEN(a.sport) + ' match near this time. If it\'s the same one, accepting counts it twice in your stats.'),
+          actions: [{ label: L('São diferentes: aceitar', 'They\'re different: accept'), kind: 'brand', act: () => { closeModal(); respondTag(id, 'aceito', Object.assign({}, o, { skipDup: true })); } },
+            { label: L('É a mesma: recusar esta', 'Same match: decline this one'), act: () => { closeModal(); respondTag(id, 'recusado', Object.assign({}, o, { skipDup: true })); } },
+            { label: L('Cancelar', 'Cancel'), kind: 'link', act: closeModal }] });
+        return;
+      }
     }
-    toast(resp === 'aceito' ? 'Partida aceita: já está no seu perfil' : 'Marcação recusada');
+    const prev = setTag(id, resp);
+    haptic(resp === 'aceito' ? 'pub' : 'tap');
     refreshSocial();
+    if (o.silent) return prev;
+    undoToast(resp === 'aceito' ? L('Partida aceita: já está no seu perfil', 'Match accepted: it\'s on your profile') : L('Marcação recusada', 'Tag declined'), () => { setTag(id, prev || 'pendente'); refreshSocial(); });
+    return prev;
+  }
+  // aceitar ou recusar várias de uma vez (marcações do mesmo grupo)
+  function respondMany(ids, resp) {
+    const prevs = ids.map(id => [id, SO.tagStatus(SO.activity(id), 'me')]);
+    ids.forEach(id => setTag(id, resp));
+    haptic(resp === 'aceito' ? 'pub' : 'tap');
+    refreshSocial();
+    undoToast(L(ids.length + (resp === 'aceito' ? ' partidas aceitas' : ' marcações recusadas'), ids.length + (resp === 'aceito' ? ' matches accepted' : ' tags declined')), () => { prevs.forEach(([id, p]) => setTag(id, p || 'pendente')); refreshSocial(); });
+  }
+  // aviso de 3 s com barra e "Desfazer"
+  let undoTimer = null, undoFn = null;
+  function undoToast(text, onUndo) {
+    let t = $('#undoToast');
+    if (!t) { t = document.createElement('div'); t.id = 'undoToast'; t.className = 'xc-toast undo-toast'; t.setAttribute('role', 'status'); t.setAttribute('translate', 'no'); document.body.appendChild(t);
+      t.addEventListener('click', e => { if (e.target.closest('[data-undo]') && undoFn) { const f = undoFn; undoFn = null; hide(); f(); toast(L('Desfeito', 'Undone')); } else if (e.target.closest('[data-undox]')) hide(); }); }
+    function hide() { clearTimeout(undoTimer); t.classList.remove('show'); setTimeout(() => { if (!t.classList.contains('show')) t.hidden = true; }, 220); }
+    undoFn = onUndo;
+    t.innerHTML = '<span class="xct-txt">' + ic('i-check') + '<span><b>' + esc(text) + '</b></span></span><button class="btn btn-sm undo-btn" type="button" data-undo>' + esc(L('Desfazer', 'Undo')) + '</button><button class="xct-x" type="button" data-undox aria-label="' + esc(L('Fechar', 'Close')) + '">' + ic('i-x') + '</button><i class="xct-bar"></i>';
+    t.hidden = false; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+    clearTimeout(undoTimer); undoTimer = setTimeout(() => { undoFn = null; hide(); }, 3200);
+    t.__hide = hide;
   }
   function refreshSocial() {
     if (currentView === 'inicio') renderHome();
@@ -2457,7 +2715,7 @@
     $('#peopleBody').innerHTML = ids.length ? '<div class="plist">' + ids.map(id => {
       const u = SO.user(id);
       if (!u) return '';
-      return '<div class="prow">' + avatarHTML(id) + '<span class="prow-txt"><b' + (id !== 'me' ? ' data-user="' + esc(id) + '"' : '') + '>' + esc(id === 'me' ? 'Você' : u.name) + '</b><small>' + esc(u.city || '') + '</small></span>' + (id !== 'me' ? followBtnHTML(id) : '') + '</div>';
+      return '<div class="prow">' + avatarHTML(id) + '<span class="prow-txt"><b' + uLink(id) + '>' + esc(id === 'me' ? 'Você' : u.name) + '</b><small>' + esc(u.city || '') + '</small></span>' + (id !== 'me' ? followBtnHTML(id) : '') + '</div>';
     }).join('') + '</div>' : '<p class="hint center">Ninguém ainda.</p>';
     openSheet('#sheetPeople');
   }
@@ -2533,6 +2791,8 @@
       const add = e.target.closest('[data-pick-add]');
       if (add) {
         const k = add.dataset.pickAdd, p = pickers[k];
+        const gsel = $('#svGroup'), can = add.dataset.uid ? SO.canTag(add.dataset.uid, gsel ? gsel.value : null) : { ok: true };
+        if (!can.ok) { toast(can.why === 'bloqueado' ? L('Não dá para marcar esta pessoa', 'You can\'t tag this person') : L('Esta pessoa só aceita convite de ' + (can.why === 'sigo' ? 'quem ela segue' : 'conexões'), 'This person only accepts invites from ' + (can.why === 'sigo' ? 'people they follow' : 'connections'))); return; }
         if (p.items.length < p.max) p.items.push(add.dataset.uid ? { userId: add.dataset.uid } : { name: add.dataset.name });
         pickerRefresh(k); onPickerChange(k); return;
       }
@@ -2559,6 +2819,19 @@
       SO.VISIBILITY.map(v => '<label><input type="radio" name="' + o.prefix + 'Vis" value="' + v.id + '"' + ((p.visibility || defaultVis()) === v.id ? ' checked' : '') + '><span>' + ic(VIS_ICON[v.id]) + esc(v.label) + '</span></label>').join('') + '</div>' +
       '<p class="hint" id="' + o.prefix + 'VisHint">' + esc((SO.VISIBILITY.find(v => v.id === (p.visibility || defaultVis())) || {}).hint || '') + '</p></section>';
   }
+  // contra flood: no máximo 60 convites novos por dia (o servidor confere de novo em match_player_tag)
+  const TAG_DAY_MAX = 60;
+  function limitTags(list) {
+    const since = Date.now() - 864e5;
+    let used = 0;
+    history().forEach(m => ((m.post && m.post.tagged) || []).forEach(t => { if ((t.at || 0) > since) used++; }));
+    const fresh = list.filter(t => t.status === 'pendente' && Date.now() - (t.at || 0) < 5000);
+    if (used + fresh.length <= TAG_DAY_MAX) return list;
+    const room = Math.max(0, TAG_DAY_MAX - used);
+    let n = 0;
+    toast(L('Limite de ' + TAG_DAY_MAX + ' convites por dia: alguns ficaram de fora', 'Limit of ' + TAG_DAY_MAX + ' invites a day: some were left out'));
+    return list.filter(t => !fresh.includes(t) || n++ < room);
+  }
   function readPost(prefix, base) {
     const val = id => ($('#' + prefix + id) ? $('#' + prefix + id).value.trim() : '');
     const old = (base && base.tagged) || [];
@@ -2567,7 +2840,8 @@
       type: getRadio(prefix + 'Type') || 'amistoso', title: val('Title'), caption: val('Caption').slice(0, 140), place: val('Place'),
       visibility: getRadio(prefix + 'Vis') || defaultVis(),
       groupId: $('#' + prefix + 'Group') ? val('Group') || null : (base && base.groupId) || undefined,
-      tagged: tags.map(t => old.find(x => x.userId === t.userId) || { userId: t.userId, status: 'pendente', at: Date.now() }),
+      tagged: limitTags(tags.map(t => old.find(x => x.userId === t.userId) || { userId: t.userId, status: 'pendente', at: Date.now() }))
+        .concat(old.filter(x => x.status === 'aceito' && !tags.some(t => t.userId === x.userId))),
     });
   }
   function wirePostFields(root, prefix) {
@@ -2590,7 +2864,8 @@
     saveCtx = { id, afterFinish: !!(opts && opts.afterFinish), draft: isDraft(m) };
     const a = toActivity(Object.assign({}, m, { post: Object.assign({}, p, { status: 'publicada' }) }), 'me');
     // sugere marcar quem está no app entre os jogadores da partida
-    const tags = (p.tagged || []).map(t => ({ userId: t.userId }));
+    // quem já confirmou fica fixo: só a própria pessoa sai da partida (Excluir para mim)
+    const tags = (p.tagged || []).map(t => ({ userId: t.userId, fixed: SO.tagStatus(a, t.userId) === 'aceito' }));
     if (!p.tagged) a.teams.forEach(t => t.players.forEach(pl => { if (pl.userId && pl.userId !== 'me' && !tags.some(x => x.userId === pl.userId)) tags.push({ userId: pl.userId }); }));
     $('#saveTitle').textContent = saveCtx.draft ? 'Salvar partida' : 'Editar partida';
     $('#saveBody').innerHTML =
@@ -2765,7 +3040,7 @@
     const a = toActivity(m, 'me');
     const from = m.post && m.post.fromActivity ? SO.activity(m.post.fromActivity) : null;
     return '<div class="panel act-detail">' +
-      '<header class="act-head">' + avatarHTML('me') + '<span class="act-who"><b>' + esc(myName()) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
+      '<header class="act-head">' + avatarHTML('me') + '<span class="act-who"><b>' + esc(myName()) + '</b><span><span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span></span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       (a.title ? '<h2 class="act-title">' + esc(a.title) + '</h2>' : '') + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label) + '</span>' +
       (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') +
@@ -2860,7 +3135,7 @@
         const st = SO.claimStatus(a.id);
         const claim = SO.myClaims().find(c => c.id === a.id);
         const owner = SO.user(a.ownerId);
-        h += '<div class="panel">' + '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b data-user="' + esc(a.ownerId) + '">' + esc(owner.name) + '</b><span>' + ic('s-' + a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span><span class="act-badges">' + typeBadge(a) + '</span></header>' + actResultHTML(a) + '</div>';
+        h += '<div class="panel">' + '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b data-user="' + esc(a.ownerId) + '">' + esc(owner.name) + '</b><span><span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span></span></span><span class="act-badges">' + typeBadge(a) + '</span></header>' + actResultHTML(a) + '</div>';
         if (st === 'aceito') h += '<div class="claim-st ok">' + ic('i-check') + '<span><b>Pronto: “' + esc(claim.player) + '” agora é você</b><small>As estatísticas desse jogador entraram no seu perfil e nas suas conquistas.</small></span><button class="btn btn-sm btn-brand" type="button" data-go="voce">Ver perfil</button></div>';
         else if (st === 'pendente') h += '<div class="claim-st">' + ic('i-clock') + '<span><b>Pedido enviado para ' + esc(firstName(owner.name)) + '</b><small>Você pediu para ser “' + esc(claim.player) + '”. Avisamos quando ele aceitar.</small></span><button class="btn btn-sm" type="button" data-claimcancel="' + esc(a.id) + '">Cancelar</button></div>';
         else {
@@ -5430,12 +5705,11 @@
   const ROLE_LBL = { admin: 'Organizador', mod: 'Moderador', membro: 'Membro' };
   const gUI = { tab: 'ranking', per: 'sempre', id: null };
   const hhmm = t => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const untilLbl = t => (new Date(t).toDateString() === new Date().toDateString() ? 'até ' : 'até ' + new Date(t).toLocaleDateString('pt-BR', { weekday: 'short' }) + ' ') + hhmm(t);
   const memberName = m => (m.userId === 'me' ? 'Você' : m.userId ? (SO.user(m.userId) || {}).name || '?' : m.name || '?');
   const memberAv = (m, size) => (m.userId ? avatarHTML(m.userId, size) : '<span class="av' + (size ? ' av-' + size : '') + '" style="--av:' + nameColor(m.name) + '">' + esc(initials(m.name)) + '</span>');
   const gColor = c => (GROUP_COLORS.includes(c) ? c : GROUP_COLORS[0]);
-  const groupBadge = (gr, size) => '<span class="gbadge' + (size ? ' ' + size : '') + '" style="--gc:' + gColor(gr.color) + '">' + ic('s-' + gr.sport) + '</span>';
-  const endOfDay = () => { const d = new Date(); d.setHours(23, 59, 0, 0); return d.getTime(); };
+  const groupPhoto = gr => (gr && typeof gr.photo === 'string' && gr.photo.length < PHOTO_MAX && PHOTO_RX.test(gr.photo) ? gr.photo : '');
+  const groupBadge = (gr, size) => '<span class="gbadge' + (size ? ' ' + size : '') + (groupPhoto(gr) ? ' has-photo' : '') + '" style="--gc:' + gColor(gr.color) + '">' + (groupPhoto(gr) ? '<img class="av-img" src="' + esc(groupPhoto(gr)) + '" alt="" draggable="false">' : ic('s-' + gr.sport)) + '</span>';
 
   function groupStripHTML() {
     const mine = SO.myGroups();
@@ -5495,42 +5769,34 @@
     const dp = R.pairs[0];
     if (dp) h += '<div class="panel gduo">' + ph('i-users', 'Dupla do período', '<span class="sec-meta">' + dp.v + ' de ' + dp.j + ' vitórias</span>') + '<div class="gduo-p">' + dp.ps.map(p => plAv(p) + '<b>' + esc(plName(p)) + '</b>').join('<em>+</em>') + '</div></div>';
     h += '<div class="panel">' + ph('i-chart', 'Classificação', '<span class="sec-meta">' + R.n + (R.n === 1 ? ' partida' : ' partidas') + '</span>') + '<ol class="grank">' +
-      R.rows.map((r, i) => '<li class="' + (r.k === 'me' ? 'me' : '') + '"><span class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '">' + (i + 1) + '</span>' + plAv(r.p) + '<span class="grank-n"><b' + (r.p.userId && r.p.userId !== 'me' ? ' data-user="' + esc(r.p.userId) + '"' : '') + '>' + esc(plName(r.p)) + '</b><small>' + r.j + (r.j === 1 ? ' jogo' : ' jogos') + (r.run > 1 ? ' · ' + r.run + ' vitórias seguidas' : '') + '</small></span><span class="grank-v"><b>' + r.v + '–' + (r.j - r.v) + '</b><small>' + Math.round(100 * r.v / r.j) + '%</small></span></li>').join('') + '</ol></div>';
+      R.rows.map((r, i) => '<li class="' + (r.k === 'me' ? 'me' : '') + '"><span class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '">' + (i + 1) + '</span>' + plAv(r.p) + '<span class="grank-n"><b' + uLink(r.p.userId) + '>' + esc(plName(r.p)) + '</b><small>' + r.j + (r.j === 1 ? ' jogo' : ' jogos') + (r.run > 1 ? ' · ' + r.run + ' vitórias seguidas' : '') + '</small></span><span class="grank-v"><b>' + r.v + '–' + (r.j - r.v) + '</b><small>' + Math.round(100 * r.v / r.j) + '%</small></span></li>').join('') + '</ol></div>';
     return h;
   }
+  // estar no grupo é a autorização: membros registram partidas do grupo com você, e cada marcação chega para você confirmar
   function delegHTML(gr) {
-    if (SO.canManage(gr)) {
-      const ds = SO.delegatesToMe(gr.id);
-      return '<div class="panel gdeleg">' + ph('i-lock', 'Quem autorizou você', ds.length ? '<span class="sec-meta">' + ds.length + '</span>' : '') +
-        (ds.length ? '<div class="plist">' + ds.map(d => '<div class="prow">' + avatarHTML(d.userId) + '<span class="prow-txt"><b data-user="' + esc(d.userId) + '">' + esc(SO.user(d.userId).name) + '</b><small>' + esc(untilLbl(d.until)) + '</small></span><span class="gok">' + ic('i-check') + 'autorizou</span></div>').join('') + '</div>' : '') +
-        '<p class="hint">' + (ds.length ? 'Partidas que você lançar com essas pessoas entram direto no perfil delas, sem precisar aceitar.' : 'Ninguém agora. Quando um membro autorizar, as partidas que você lançar com ele entram direto no perfil dele.') + '</p></div>';
-    }
-    const t = SO.myDelegation(gr.id);
-    const adm = gr.members.find(m => m.role === 'admin');
-    const who = adm ? firstName(memberName(adm)) : 'o organizador';
-    if (t) return '<div class="panel gdeleg on"><div class="gdeleg-row">' + ic('i-check') + '<span><b>' + esc(who) + ' e os moderadores podem lançar suas partidas</b><small>' + esc(untilLbl(t)) + ' · entram direto no seu perfil</small></span><button class="btn btn-sm" type="button" data-gdeleg="0">Cancelar</button></div></div>';
-    return '<div class="panel gdeleg"><div class="gdeleg-row">' + ic('i-lock') + '<span><b>Deixar ' + esc(who) + ' lançar suas partidas</b><small>Um celular marca o placar de todo mundo, e as partidas entram no seu perfil sem você aceitar uma por uma.</small></span></div>' +
-      '<div class="actions">' + [['Por 1 hora', 3600e3], ['Por 3 horas', 3 * 3600e3], ['Até o fim do dia', 'eod']].map(([l, v]) => '<button class="btn btn-sm" type="button" data-gdeleg="' + v + '">' + l + '</button>').join('') + '</div></div>';
+    if (!gr.myRole) return '';
+    return '<div class="panel gdeleg"><div class="gdeleg-row">' + ic('i-shield') + '<span><b>' + esc(L('Partidas do grupo', 'Group matches')) + '</b><small>' + esc(L('Quem é do grupo pode registrar partidas do grupo com você, mesmo sem seguir você. Elas chegam nas notificações para você confirmar, e só contam no seu perfil depois disso.', 'Group members can log group matches with you, even if they don\'t follow you. They arrive in your notifications to confirm, and only count on your profile after that.')) + '</small></span></div></div>';
   }
   function groupMembersHTML(gr) {
     const isAdmin = gr.myRole === 'admin';
-    const ds = SO.canManage(gr) ? SO.delegatesToMe(gr.id) : [];
+    const ds = [];
     let h = '<div class="panel"><div class="plist gmembers">' + gr.members.map(m => {
       const d = m.userId && ds.find(x => x.userId === m.userId);
       const tools = isAdmin && m.userId && m.userId !== 'me' ? '<span class="prow-act"><button class="btn btn-sm" type="button" data-grole="' + esc(m.userId) + '" data-to="' + (m.role === 'mod' ? 'membro' : 'mod') + '">' + (m.role === 'mod' ? 'Só membro' : 'Moderador') + '</button><button class="icon-btn sm" type="button" data-gremove="' + esc(m.userId) + '" title="Tirar do grupo" aria-label="Tirar ' + esc(memberName(m)) + ' do grupo">' + ic('i-x') + '</button></span>' : '';
-      return '<div class="prow">' + memberAv(m) + '<span class="prow-txt"><b' + (m.userId && m.userId !== 'me' ? ' data-user="' + esc(m.userId) + '"' : '') + '>' + esc(memberName(m)) + '</b><small' + (m.role !== 'membro' ? ' class="st-aceito"' : '') + '>' + esc(ROLE_LBL[m.role] + (d ? ' · autorizou você ' + untilLbl(d.until) : '') + (!m.userId ? ' · sem conta no app' : '')) + '</small></span>' + tools + '</div>';
+      return '<div class="prow">' + memberAv(m) + '<span class="prow-txt"><b' + (m.userId && m.userId !== 'me' && !(SO.user(m.userId) || {}).anon ? ' data-user="' + esc(m.userId) + '"' : '') + '>' + esc(memberName(m)) + '</b><small' + (m.role !== 'membro' ? ' class="st-aceito"' : '') + '>' + esc(ROLE_LBL[m.role] + (d ? ' · autorizou você ' + untilLbl(d.until) : '') + (!m.userId ? ' · sem conta no app' : '')) + '</small></span>' + tools + '</div>';
     }).join('') + '</div></div>';
     if (SO.canManage(gr)) {
       const cand = SO.following().filter(u => !gr.members.some(m => m.userId === u.id)).slice(0, 12);
       if (cand.length) h += '<div class="panel">' + ph('i-user-plus', 'Adicionar quem você segue') + '<div class="chips-pick">' + cand.map(u => '<button class="gm-chip" type="button" data-gadd="' + esc(u.id) + '">' + ic('i-plus') + esc(u.name) + '</button>').join('') + '</div><p class="hint">Ou mande o link de convite: quem abrir entra direto.</p></div>';
     }
     const own = gr.local && gr.myRole === 'admin' && !gr.invitedBy;
-    if (gr.myRole) h += '<div class="perfil-safety">' + (own ? '<button class="linkish" type="button" data-gedit="' + esc(gr.id) + '">Editar grupo</button><span>·</span>' : '') + '<button class="linkish" type="button" data-gleave="' + esc(gr.id) + '">' + (own ? 'Apagar grupo' : 'Sair do grupo') + '</button></div>';
+    if (gr.myRole) h += '<div class="perfil-safety">' + (own ? '<button class="linkish" type="button" data-gedit="' + esc(gr.id) + '">Editar grupo</button><span>·</span>' : '') + '<button class="linkish" type="button" data-gleave="' + esc(gr.id) + '">' + (own ? 'Apagar grupo' : 'Sair do grupo') + '</button>' + (own ? '' : '<span>·</span><button class="linkish" type="button" data-report="' + esc(gr.id) + '" data-report-kind="grupo">' + esc(L('Denunciar grupo', 'Report group')) + '</button>') + '</div>';
+    else h += '<div class="perfil-safety"><button class="linkish" type="button" data-report="' + esc(gr.id) + '" data-report-kind="grupo">' + esc(L('Denunciar grupo', 'Report group')) + '</button></div>';
     return h;
   }
   function groupWallHTML(gr) {
     const w = SO.wall(gr.id);
-    let h = '<div class="gwall">' + (w.length ? w.map(x => '<div class="gmsg' + (x.userId === 'me' ? ' mine' : '') + '">' + avatarHTML(x.userId, 'xs') + '<div class="gmsg-b"><span class="gmsg-h"><b' + (x.userId !== 'me' ? ' data-user="' + esc(x.userId) + '"' : '') + '>' + esc(x.userId === 'me' ? 'Você' : (SO.user(x.userId) || {}).name || '?') + '</b><small>' + esc(fmtWhen(x.t)) + '</small></span><p>' + esc(x.text) + '</p></div>' +
+    let h = '<div class="gwall">' + (w.length ? w.map(x => '<div class="gmsg' + (x.userId === 'me' ? ' mine' : '') + '">' + avatarHTML(x.userId, 'xs') + '<div class="gmsg-b"><span class="gmsg-h"><b' + uLink(x.userId) + '>' + esc(x.userId === 'me' ? 'Você' : (SO.user(x.userId) || {}).name || '?') + '</b><small>' + esc(fmtWhen(x.t)) + '</small></span><p>' + esc(x.text) + '</p></div>' +
       (x.userId === 'me' ? '<button class="icon-btn sm" type="button" data-gwdel="' + esc(x.id) + '" title="Apagar mensagem" aria-label="Apagar mensagem">' + ic('i-trash') + '</button>' : '') + '</div>').join('') : '<div class="empty-state"><b>Nenhuma resenha ainda</b><span>Comente o jogo, combine o próximo, provoque o adversário.</span></div>') + '</div>';
     if (gr.myRole) h += '<form class="gwall-form" id="gwallForm"><textarea id="gwallText" maxlength="280" rows="2" placeholder="Escreva para o grupo…" aria-label="Mensagem para o grupo"></textarea><button class="btn btn-brand" type="submit">Enviar</button></form>';
     return h;
@@ -5544,7 +5810,7 @@
     if (gUI.id !== id) { gUI.id = id; gUI.tab = 'ranking'; }
     const mem = !!gr.myRole, see = mem || gr.open;
     const acts = see ? SO.groupActs(id, myActivities()) : [];
-    let h = '<div class="panel ghead"><div class="ghead-top">' + groupBadge(gr, 'xl') + '<div class="ghead-id"><h2>' + esc(gr.name) + '</h2><div class="me-meta"><span>' + ic('s-' + gr.sport) + esc(sportLabel(gr.sport)) + '</span>' + (gr.place ? '<span>' + ic('i-pin') + esc(gr.place) + '</span>' : '') + (gr.when ? '<span>' + ic('i-calendar') + esc(gr.when) + '</span>' : '') + '</div></div></div>' +
+    let h = '<div class="panel ghead"><div class="ghead-top"><span class="me-av-wrap">' + groupBadge(gr, 'xl') + (gr.myRole === 'admin' ? '<button class="me-photo-btn" type="button" data-photo="group:' + esc(gr.id) + '" aria-label="' + esc(groupPhoto(gr) ? L('Trocar a foto do grupo', 'Change group photo') : L('Pôr foto no grupo', 'Add a group photo')) + '">' + ic('i-camera') + '</button>' : '') + '</span><div class="ghead-id"><h2>' + esc(gr.name) + '</h2><div class="me-meta"><span>' + ic('s-' + gr.sport) + esc(sportLabel(gr.sport)) + '</span>' + (gr.place ? '<span>' + ic('i-pin') + esc(gr.place) + '</span>' : '') + (gr.when ? '<span>' + ic('i-calendar') + esc(gr.when) + '</span>' : '') + '</div></div></div>' +
       (gr.desc ? '<p class="me-bio">' + esc(gr.desc) + '</p>' : '') +
       '<div class="me-counts"><div><b>' + gr.members.length + '</b><span>Membros</span></div><div><b>' + (see ? acts.length : '–') + '</b><span>Partidas</span></div><div><b>' + (gr.open ? 'Aberto' : 'Fechado') + '</b><span>' + (gr.open ? 'entra quem quiser' : 'com aprovação') + '</span></div></div>' +
       '<div class="perfil-actions">' + (mem ? '<button class="btn btn-brand" type="button" data-gnew="' + esc(id) + '">' + ic('i-play') + 'Nova partida</button><button class="btn" type="button" data-ginvite="' + esc(id) + '">' + ic('i-user-plus') + 'Convidar</button>'
@@ -5627,50 +5893,29 @@
   }
 
   // partida do grupo: o formulário de nova partida ganha os membros como sugestão (e convidados digitados)
-  let newGroupId = null, newFocusTeam = null;
+  let newGroupId = null;
   function openGroupMatch(id) {
     const gr = SO.group(id); if (!gr) return;
     const same = E.makeConfig(match.cfgInput).sport === gr.sport;
     openNew({ cfgInput: same ? match.cfgInput : { sport: gr.sport }, teams: [{ name: colorName('verde'), color: 'verde', players: [] }, { name: colorName('laranja'), color: 'laranja', players: [] }] });
-    newGroupId = id; newFocusTeam = null;
-    renderNewGroup();
+    newPlaying = true; setNewGroup(id);
   }
   function renderNewGroup() {
     const box = $('#newGroupBox'); if (!box) return;
+    const mine = SO.myGroups();
     const gr = newGroupId && SO.group(newGroupId);
-    box.hidden = !gr;
-    if (!gr) { box.innerHTML = ''; return; }
-    const ds = SO.delegatesToMe(gr.id);
-    const inTeam = n => [0, 1].find(t => pl[t].some(x => S.fold(x.name) === S.fold(n)));
-    box.innerHTML = '<div class="gnew-head">' + groupBadge(gr) + '<span><b>Partida do grupo</b><small>' + esc(gr.name) + '</small></span><button class="linkish" type="button" data-gnone>Tirar do grupo</button></div>' +
-      '<p class="hint">Toque nos membros para pôr nos times (vão para o campo de jogadores selecionado). Quem é de fora: digite o nome, entra como convidado.' + (ds.length ? ' ' + ic('i-check', 'ic ok') + ' autorizou você a lançar por ele.' : '') + '</p>' +
-      '<div class="chips-pick gmem-pick">' + gr.members.map(m => {
-        const n = m.userId === 'me' ? myName() : memberName(m);
-        const t = inTeam(n);
-        const ok = m.userId && ds.some(x => x.userId === m.userId);
-        return '<button type="button" class="gm-chip' + (t != null ? ' on' : '') + '" data-gmadd="' + esc(n) + '" data-gmuid="' + esc(m.userId || '') + '" aria-pressed="' + (t != null) + '">' + (t != null ? '<i class="tdot" style="--tc:' + colorVar(getRadio('color' + t) || (t ? 'laranja' : 'verde')) + '"></i>' : '') + esc(m.userId === 'me' ? 'Você' : n) + (ok ? ic('i-check', 'ic ok') : '') + '</button>';
-      }).join('') + '</div>';
+    box.hidden = !mine.length;
+    if (!mine.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<label class="gnew-pick"><span class="gnew-ic">' + (gr ? groupBadge(gr) : ic('i-users')) + '</span><span class="gnew-lbl"><b>' + esc(L('Partida de grupo', 'Group match')) + '</b><small>' + esc(gr ? L('Membros podem ser marcados mesmo sem seguir você; cada um confirma nas notificações.', 'Members can be tagged even if they don\'t follow you; each one confirms in notifications.') : L('Conta no ranking e nas estatísticas do grupo', 'Counts in the group ranking and stats')) + '</small></span>' +
+      '<select id="newGroup" aria-label="' + esc(L('Grupo da partida', 'Match group')) + '"><option value="">' + esc(L('Nenhum', 'None')) + '</option>' + mine.map(g => '<option value="' + esc(g.id) + '"' + (g.id === newGroupId ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('') + '</select></label>' +
+      (gr ? '<label class="row gnew-play"><span>' + esc(L('Estou jogando', 'I\'m playing')) + '<small>' + esc(newPlaying ? L('Você fica no 1º time', 'You stay on team 1') : L('Você só registra a partida do grupo, sem entrar nas suas estatísticas', 'You only log the group match; it stays out of your stats')) + '</small></span><input class="switch" type="checkbox" id="newPlaying"' + (newPlaying ? ' checked' : '') + '></label>' : '');
   }
-  function toggleGroupPlayer(n, uid) {
-    const per = Math.min(MAX_PER_TEAM, getRadio('sport') === 'tenis' ? 1 : 2);
-    const at = pl.findIndex(l => l.some(x => S.fold(x.name) === S.fold(n)));
-    if (at >= 0) pl[at] = pl[at].filter(x => S.fold(x.name) !== S.fold(n));
-    else {
-      let t = newFocusTeam != null && pl[newFocusTeam].length < MAX_PER_TEAM ? newFocusTeam : pl[0].length < per ? 0 : 1;
-      if (pl[t].length >= MAX_PER_TEAM) { toast(L('Os dois times já estão completos', 'Both teams are full')); return; }
-      const u = uid && uid !== 'me' ? SO.user(uid) : null;
-      pl[t].push({ name: n, userId: uid || null, handle: uid === 'me' ? myUid() : u ? SO.publicId(uid) : '', color: u ? u.color : '' });
-      if (newFocusTeam != null && pl[t].length >= per) newFocusTeam = null;
-    }
-    plSync(); renderPlSlots(0); renderPlSlots(1);
-    updateTeamForm(); renderNewGroup();
+  function setNewGroup(id) {
+    newGroupId = id && SO.group(id) ? id : null;
+    if (!newGroupId) newPlaying = true;
+    plEnsureMe(); plSync(); renderPlSlots(0); renderPlSlots(1); updateTeamForm(); renderNewGroup();
   }
-  // partidas lançadas por quem organiza o grupo: quem autorizou já entra confirmado
-  function applyDeleg(post, t) {
-    if (!post || !post.groupId || !post.tagged) return post;
-    post.tagged = post.tagged.map(x => (x.status === 'pendente' && SO.delegatedToMe(post.groupId, x.userId, t) ? Object.assign({}, x, { status: 'aceito', auto: true }) : x));
-    return post;
-  }
+  const applyDeleg = post => post; // (a autorização ao organizador saiu: toda marcação é confirmada pela pessoa)
 
   function wireGroups() {
     // antes do clique geral (os cartões de partida também reagem ao clique)
@@ -5684,13 +5929,6 @@
       if ((el = hit('[data-gaccept]'))) { e.stopPropagation(); const d = parseGroupInvite(el.dataset.gaccept); if (!d) return; const id = SO.importGroup(d); trk('group_join', { via: 'convite' }); toast('Você entrou no grupo ' + d.name); go('grupo', id, true); if (!prefs.onboarded) setTimeout(showWelcome, 900); return; }
       if ((el = hit('[data-gnew]'))) { e.stopPropagation(); openGroupMatch(el.dataset.gnew); return; }
       if ((el = hit('[data-ginvite]'))) { e.stopPropagation(); shareGroupInvite(el.dataset.ginvite); return; }
-      if ((el = hit('[data-gdeleg]'))) {
-        e.stopPropagation();
-        const v = el.dataset.gdeleg, ms = v === 'eod' ? endOfDay() - Date.now() : Number(v);
-        SO.delegate(gUI.id, ms);
-        toast(ms > 0 ? 'Autorizado ' + untilLbl(Date.now() + ms) + '. Pode cancelar quando quiser.' : 'Autorização cancelada');
-        renderGrupo(gUI.id); return;
-      }
       if ((el = hit('[data-grole]'))) { e.stopPropagation(); SO.setRole(gUI.id, el.dataset.grole, el.dataset.to); refreshGroupTab(); return; }
       if ((el = hit('[data-gremove]'))) {
         e.stopPropagation();
@@ -5707,8 +5945,6 @@
         SO.leaveGroup(gr.id); toast(own ? 'Grupo apagado' : 'Você saiu do grupo'); go('grupos'); return;
       }
       if ((el = hit('[data-gwdel]'))) { e.stopPropagation(); SO.deleteWall(gUI.id, el.dataset.gwdel); refreshGroupTab(); return; }
-      if ((el = hit('[data-gmadd]'))) { e.stopPropagation(); toggleGroupPlayer(el.dataset.gmadd, el.dataset.gmuid || null); return; }
-      if ((el = hit('[data-gnone]'))) { e.stopPropagation(); newGroupId = null; renderNewGroup(); return; }
       if ((el = hit('[data-group]')) && !hit('button:not([data-group]), a, input')) { e.stopPropagation(); closeAllSheets(); go('grupo', el.dataset.group); return; }
     }, true);
     $('#grupoBody').addEventListener('change', e => {
@@ -5721,7 +5957,10 @@
       if (SO.postWall(gUI.id, $('#gwallText').value)) { refreshGroupTab(); const w = $('.gwall'); if (w) w.lastElementChild && w.lastElementChild.scrollIntoView({ block: 'nearest' }); }
     });
     $('#formGroup').addEventListener('submit', e => { e.preventDefault(); submitGroupForm(); });
-    ['pl0', 'pl1'].forEach((id, t) => { $('#' + id).addEventListener('focusin', () => { newFocusTeam = t; }); });
+    $('#newGroupBox').addEventListener('change', e => {
+      if (e.target.id === 'newGroup') setNewGroup(e.target.value);
+      if (e.target.id === 'newPlaying') { newPlaying = e.target.checked; setNewGroup(newGroupId); }
+    });
   }
   function renderGroupStripNow() { const el = $('#groupStrip'); if (el) el.innerHTML = groupStripHTML(); }
 
@@ -5962,6 +6201,13 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13l', date: '13/10/2026', title: 'Partidas entre várias pessoas: regras claras', items: [
+      'Você joga sempre no 1º time. Para registrar a partida de um grupo sem jogar, use Partida de grupo e desligue Estou jogando.',
+      'Seletor de jogadores em tela própria: busca no topo e a lista inteira, sem ficar escondida pelo teclado.',
+      'Marcação: quem ainda não aceitou aparece opaco e fica fora dos confrontos e parcerias. Várias do mesmo grupo chegam juntas, com Aceitar todas, e toda resposta tem Desfazer.',
+      'Excluir para mim ou pedir exclusão para todos; depois de confirmada, o placar não muda mais.',
+      'Segurança: quem pode marcar você, pessoas bloqueadas em Ajustes e denúncia de perfil, grupo ou partida. E foto do grupo.',
+    ] },
     { id: '2026-10-13k', date: '13/10/2026', title: 'Vibração, partida publicada e conquistas em vitrine', items: [
       'Vibração nos momentos do jogo: ponto, game, set, fim de partida, partida publicada e conquista, cada um com o seu toque (Ajustes → Tela).',
       'Partida publicada com animação: a tela enche de verde, o raio cai no centro e as conquistas novas aparecem uma a uma.',
@@ -6341,16 +6587,75 @@
   }
 
   // Excluir partida: pede para digitar "excluir de vez" (some do histórico, da timeline, das estatísticas e o vídeo do aparelho)
-  const DEL_WORD = 'excluir de vez';
+  const DEL_WORD = EN ? 'delete for good' : 'excluir de vez';
+  // quem mais confirmou esta partida (com perfil): com eles, excluir vira "para mim" ou "pedir para todos"
+  function confirmedOthers(m) {
+    try {
+      const a = m.post && m.post.fromActivity ? SO.activity(m.post.fromActivity) : toActivity(m, 'me');
+      if (!a) return [];
+      const ids = new Set();
+      if (a.ownerId && a.ownerId !== 'me') ids.add(a.ownerId);
+      a.teams.forEach(t => t.players.forEach(p => { if (p.userId && p.userId !== 'me' && linkState(a, p.userId) === 'ok' && ((a.tagged || []).some(x => x.userId === p.userId) || a.ownerId !== 'me')) ids.add(p.userId); }));
+      return [...ids].filter(id => SO.user(id));
+    } catch (e) { return []; }
+  }
+  const namesList = ids => { const n = ids.map(id => firstName(SO.user(id).name)); return n.length <= 1 ? n.join('') : n.slice(0, -1).join(', ') + L(' e ', ' and ') + n[n.length - 1]; };
+  const DEL_REASONS = [['placar', ['Placar errado', 'Wrong score']], ['duplicada', ['Partida duplicada', 'Duplicate match']], ['nao', ['Não aconteceu', 'Didn\'t happen']], ['outro', ['Outro motivo', 'Other reason']]];
+  let delMode = 'me';
   function deleteMatch(id) {
     const m = findMatch(id); if (!m) return;
-    openInfo(L('Excluir partida', 'Delete match'), '<div class="del-box" translate="no"><span class="del-ic">' + ic('i-trash') + '</span>' +
-      '<p><b>' + esc(L('Isto apaga a partida de tudo:', 'This deletes the match from everywhere:')) + '</b></p><ul class="del-list">' +
-      [L('histórico e timeline', 'history and timeline'), L('estatísticas, recordes e conquistas', 'stats, records and achievements'), L('vídeo e lances gravados neste aparelho', 'video and clips recorded on this device'), L('quem foi marcado deixa de ver', 'people tagged will no longer see it')].map(x => '<li>' + ic('i-x') + esc(x) + '</li>').join('') + '</ul>' +
-      '<p class="hint">' + esc(L('Não dá para desfazer. Para confirmar, digite ', 'This cannot be undone. To confirm, type ')) + '<b translate="no">' + DEL_WORD + '</b>.</p>' +
+    const others = confirmedOthers(m);
+    const req = SO.deletionStatus(id);
+    if (!others.length) {
+      openInfo(L('Excluir partida', 'Delete match'), '<div class="del-box" translate="no"><span class="del-ic">' + ic('i-trash') + '</span>' +
+        '<p><b>' + esc(L('Isto apaga a partida de tudo:', 'This deletes the match from everywhere:')) + '</b></p><ul class="del-list">' +
+        [L('histórico e timeline', 'history and timeline'), L('estatísticas, recordes e conquistas', 'stats, records and achievements'), L('vídeo e lances gravados neste aparelho', 'video and clips recorded on this device'), L('quem foi marcado e ainda não confirmou deixa de ver', 'tagged people who haven\'t confirmed stop seeing it')].map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+        '<p class="hint">' + esc(L('Não dá para desfazer. Para confirmar, digite ', 'This cannot be undone. To confirm, type ')) + '<b translate="no">' + DEL_WORD + '</b>.</p>' +
+        '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type excluir de vez')) + '">' +
+        '<button class="btn btn-danger" type="button" id="delGo" data-delmid="' + esc(id) + '" disabled>' + ic('i-trash') + esc(L('Excluir de vez', 'Delete for good')) + '</button></div>');
+      setTimeout(() => { const i = $('#delWord'); if (i) i.focus(); }, 80);
+      return;
+    }
+    if (req && req.status === 'aberto') {
+      openInfo(L('Exclusão pedida', 'Deletion requested'), '<div class="del-box" translate="no"><span class="del-ic">' + ic('i-clock') + '</span>' +
+        '<p><b>' + esc(L(req.yes + ' de ' + req.total + ' já aceitaram', req.yes + ' of ' + req.total + ' have accepted')) + '</b></p><p class="hint">' + esc(L('Quando todos aceitarem, a partida some de todos os lugares. Se alguém recusar, ela fica.', 'When everyone accepts, the match disappears everywhere. If anyone declines, it stays.')) + '</p>' +
+        '<button class="btn" type="button" data-delcancel="' + esc(id) + '">' + esc(L('Cancelar o pedido', 'Cancel the request')) + '</button></div>');
+      return;
+    }
+    delMode = 'me';
+    const who = namesList(others);
+    openInfo(L('Excluir partida', 'Delete match'), '<div class="del-box del-two" translate="no"><span class="del-ic">' + ic('i-trash') + '</span>' +
+      '<p class="hint">' + esc(L(who + (others.length === 1 ? ' também confirmou' : ' também confirmaram') + ' esta partida. Escolha como excluir:', who + ' also confirmed this match. Choose how to delete:')) + '</p>' +
+      '<div class="del-opts" role="radiogroup" aria-label="' + esc(L('Como excluir', 'How to delete')) + '">' +
+      '<label class="del-opt"><input type="radio" name="delMode" value="me" checked><span><b>' + ic('i-user') + esc(L('Excluir para mim', 'Delete for me')) + '</b><small>' + esc(L('Some do seu histórico, perfil, estatísticas e conquistas. Para ' + who + ', ela continua nas estatísticas gerais e o seu nome continua nela (você confirmou que ela aconteceu); só sai dos confrontos e parcerias com você.', 'It leaves your history, profile, stats and achievements. For ' + who + ', it stays in their overall stats and your name stays on it (you confirmed it happened); it only leaves their head-to-head and partnership stats with you.')) + '</small></span></label>' +
+      '<label class="del-opt"><input type="radio" name="delMode" value="all"><span><b>' + ic('i-users') + esc(L('Pedir exclusão para todos', 'Ask everyone to delete')) + '</b><small>' + esc(L('Para partida com erro (placar errado, duplicada). ' + who + (others.length === 1 ? ' precisa' : ' precisam') + ' aceitar; aí ela some de todos os lugares.', 'For a match with a mistake (wrong score, duplicate). ' + who + ' must accept; then it disappears everywhere.')) + '</small></span></label></div>' +
+      '<div id="delMe"><p class="hint">' + esc(L('Não dá para desfazer. Para confirmar, digite ', 'This cannot be undone. To confirm, type ')) + '<b translate="no">' + DEL_WORD + '</b>.</p>' +
       '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type excluir de vez')) + '">' +
-      '<button class="btn btn-danger" type="button" id="delGo" data-delmid="' + esc(id) + '" disabled>' + ic('i-trash') + esc(L('Excluir de vez', 'Delete for good')) + '</button></div>');
-    setTimeout(() => { const i = $('#delWord'); if (i) i.focus(); }, 80);
+      '<button class="btn btn-danger" type="button" id="delGo" data-delmid="' + esc(id) + '" disabled>' + ic('i-trash') + esc(L('Excluir para mim', 'Delete for me')) + '</button></div>' +
+      '<div id="delAll" hidden><label class="del-why"><span>' + esc(L('Motivo', 'Reason')) + '</span><select id="delWhy">' + DEL_REASONS.map(([v, l]) => '<option value="' + v + '">' + esc(L.apply(null, l)) + '</option>').join('') + '</select></label>' +
+      '<button class="btn btn-brand" type="button" data-delask="' + esc(id) + '">' + ic('i-send') + esc(L('Enviar o pedido', 'Send the request')) + '</button></div></div>');
+  }
+  function askDeletion(id) {
+    const m = findMatch(id); if (!m) return;
+    const others = confirmedOthers(m);
+    const why = ($('#delWhy') || {}).value || 'outro';
+    SO.requestDeletion(id, why, others);
+    closeAllSheets();
+    toast(L('Pedido enviado para ' + namesList(others) + '. A partida some quando todos aceitarem.', 'Request sent to ' + namesList(others) + '. The match goes away when everyone accepts.'));
+    renderMatchView(id);
+  }
+  // pedidos seus que todos aceitaram: a partida sai do aparelho
+  function settleDeletions() {
+    let done = 0;
+    SO.myDeletions().forEach(d => { if (d.status === 'aprovado' && readHist().some(m => m.id === d.id)) { writeHist(readHist().filter(m => m.id !== d.id)); done++; if (CVd && CVd.removeMatch) CVd.removeMatch(d.id).catch(() => {}); } });
+    if (done) toast(L(done === 1 ? 'Todos aceitaram: a partida foi excluída' : done + ' partidas excluídas: todos aceitaram', done === 1 ? 'Everyone accepted: the match was deleted' : done + ' matches deleted: everyone accepted'));
+  }
+  // pedido que chegou: aceitar apaga a partida (os outros já aceitaram); recusar mantém
+  function voteDeletion(id, yes) {
+    SO.voteDeletion(id, yes);
+    if (yes) { const own = readHist().find(m => m.post && m.post.fromActivity === id); if (own) writeHist(readHist().filter(m => m !== own && m.id !== own.id)); }
+    toast(yes ? L('Partida excluída para todos', 'Match deleted for everyone') : L('Você recusou: a partida continua', 'You declined: the match stays'));
+    renderNotifs();
   }
   async function deleteMatchNow(id) {
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
@@ -6551,6 +6856,8 @@
       if (zs) { const za = findAct(zs.dataset.zaps); if (za) openPeople('Zaps', SO.zaps(za).map(z => z.userId)); return; }
       const tr = e.target.closest('[data-tagresp]');
       if (tr) { respondTag(tr.dataset.tagact, tr.dataset.tagresp); return; }
+      const ta = e.target.closest('[data-tagall]'); if (ta) { respondMany(ta.dataset.tagids.split(',').filter(Boolean), ta.dataset.tagall); return; }
+      const dv = e.target.closest('[data-delvote]'); if (dv) { voteDeletion(dv.dataset.delid, dv.dataset.delvote === 'sim'); return; }
       const fo = e.target.closest('[data-follow]');
       if (fo) { onFollow(fo.dataset.follow); return; }
       const pe = e.target.closest('[data-people]');
@@ -6558,7 +6865,7 @@
       const lvv = e.target.closest('[data-live]');
       if (lvv) { e.stopPropagation(); openLive(lvv.dataset.live); return; }
       const us = e.target.closest('[data-user]');
-      if (us && !e.target.closest('.picker')) { closeAllSheets(); go('perfil', us.dataset.user); return; }
+      if (us && !e.target.closest('.picker')) { if ((SO.user(us.dataset.user) || {}).anon) return; closeAllSheets(); go('perfil', us.dataset.user); return; }
       const sv = e.target.closest('[data-save]');
       if (sv) { openSave(sv.dataset.save); return; }
       const ac0 = e.target.closest('[data-act]');
@@ -6653,7 +6960,12 @@
     $('#analyticsRow').hidden = !(window.CantaTrack && window.CantaTrack.configured());
     $('#pAnalytics').addEventListener('change', e => { prefs.analytics = e.target.checked; savePrefs(); renderConsentCard(); toast(prefs.analytics ? 'Obrigado! Estatísticas de uso anônimas ligadas' : 'Estatísticas de uso desligadas'); });
     $('#infoBody').addEventListener('input', e => { if (e.target.id === 'delWord') $('#delGo').disabled = S.fold(e.target.value).replace(/\s+/g, ' ').trim() !== DEL_WORD; });
-    $('#infoBody').addEventListener('click', e => { const b = e.target.closest('#delGo'); if (b && !b.disabled) deleteMatchNow(b.dataset.delmid); });
+    $('#infoBody').addEventListener('click', e => {
+      const b = e.target.closest('#delGo'); if (b && !b.disabled) { deleteMatchNow(b.dataset.delmid); return; }
+      const ask = e.target.closest('[data-delask]'); if (ask) { askDeletion(ask.dataset.delask); return; }
+      const cn = e.target.closest('[data-delcancel]'); if (cn) { SO.cancelDeletion(cn.dataset.delcancel); closeAllSheets(); toast(L('Pedido cancelado', 'Request cancelled')); renderMatchView(cn.dataset.delcancel); }
+    });
+    $('#infoBody').addEventListener('change', e => { if (e.target.name === 'delMode') { delMode = e.target.value; $('#delMe').hidden = delMode !== 'me'; $('#delAll').hidden = delMode !== 'all'; } });
     $('#infoBody').addEventListener('keydown', e => { if (e.target.id === 'delWord' && e.key === 'Enter') { const b = $('#delGo'); if (b && !b.disabled) deleteMatchNow(b.dataset.delmid); } });
     $('#infoBody').addEventListener('submit', e => { if (e.target.id === 'fbForm') { e.preventDefault(); sendFeedback(); } });
     $('#infoBody').addEventListener('change', e => { if (e.target.name === 'fbKind') { const k = e.target.value; $('#fbText').placeholder = k === 'problema' ? 'O que aconteceu? Em que tela? Dá para repetir?' : k === 'elogio' ? 'O que você mais curtiu? Podemos usar como depoimento?' : 'O que faria o ULTRA PLAY ficar melhor para você?'; } });
@@ -6718,6 +7030,8 @@
     $('#btnMicTest').addEventListener('click', toggleMicTest);
     $('#pDemoNet').addEventListener('change', e => { prefs.demoNet = e.target.checked; savePrefs(); renderBell(); renderGroupStripNow(); if (currentView !== 'jogar') go(currentView, currentMatchId, true); toast(prefs.demoNet ? 'Rede de exemplo ligada' : 'Rede de exemplo desligada: só o que é seu aparece'); });
     $$('input[name="engine"]').forEach(el => el.addEventListener('change', () => { prefs.engine = getRadio('engine'); savePrefs(); switchEngine(); renderEngineNote(); }));
+    document.addEventListener('change', e => { if (e.target.name === 'tagPolicy') { prefs.tagPolicy = e.target.value; savePrefs(); renderTagPolHint(); toast(L('Ajuste salvo', 'Setting saved')); } });
+    $('#btnBlocked').addEventListener('click', openBlocked);
     $('#pHaptics').addEventListener('change', e => { prefs.haptics = e.target.checked; savePrefs(); if (prefs.haptics) haptic('wow'); });
     $('#btnHapTest').addEventListener('click', () => {
       if (!CAN_VIBRATE && !IS_IOS) { toast(L('Este aparelho não vibra pelo navegador', 'This device can\'t vibrate from the browser')); return; }
@@ -6777,6 +7091,7 @@
     $('#pName').value = prefs.myName || (myName() === 'Você' ? '' : myName());
     $('#pFull').value = prefs.fullName || '';
     renderPrefsPhoto();
+    setRadio('tagPolicy', prefs.tagPolicy || 'todos'); renderTagPolHint(); renderBlockedTxt();
     renderPrivacy(); $('#pUid').innerHTML = esc(myUid()) + ic('i-copy'); $('#pUid').dataset.copy = myUid();
     $('#pCity').value = prefs.city || '';
     $('#pTts').checked = prefs.tts;
@@ -6784,6 +7099,7 @@
     $('#pWake').checked = prefs.wake;
     $('#pAwake').checked = prefs.awake;
     $('#pHaptics').checked = !!prefs.haptics;
+    const hn = $('#hapNote'); if (hn) hn.hidden = !IS_IOS && CAN_VIBRATE;
     $('#pLocal').checked = prefs.local;
     setRadio('cooldown', prefs.cooldown);
     setRadio('theme', prefs.theme);

@@ -29,16 +29,16 @@ Este documento descreve como a parte social funciona hoje no protótipo e o que 
 
 ## Grupos (turmas, clubes, times)
 
-- **Onde:** faixa "Seus grupos" no Início, lista em `#grupos` e página do grupo em `#grupo-<id>`. Os dados ficam em `social.js` (`groups`, `group`, `createGroup`, `joinGroup`, `delegate`, `groupActs`, `wall`…), guardados no mesmo `canta.social.v1`.
-- **Página do grupo:** cabeçalho (esporte, local, dia e horário, membros, partidas, aberto ou fechado), **Nova partida** e **Convidar**, o cartão de autorização e quatro abas:
+- **Onde:** faixa "Seus grupos" no Início, lista em `#grupos` e página do grupo em `#grupo-<id>`. Os dados ficam em `social.js` (`groups`, `group`, `createGroup`, `joinGroup`, `setGroupPhoto`, `groupActs`, `wall`…), guardados no mesmo `canta.social.v1`.
+- **Página do grupo:** cabeçalho (esporte, local, dia e horário, membros, partidas, aberto ou fechado), **Nova partida** e **Convidar**, a foto do grupo (o organizador troca na câmera), o aviso de que membros podem marcar membros e quatro abas:
   - **Ranking**: 30 dias, 3 meses ou sempre, com destaques e dupla do período. Só membros entram; convidados não.
   - **Partidas**: as partidas do grupo.
   - **Resenha**: mural de mensagens.
   - **Membros**: o organizador nomeia moderadores, tira membros e adiciona quem ele segue.
 - **Entrar:** grupo aberto entra direto; fechado vira pedido (simulado: aprovado em 1 minuto). O **link de convite** (`#grupo-convite-<dados>`) leva nome, esporte, local e horário. Funciona em outro aparelho mesmo sem servidor, e quem abre entra direto.
-- **Partida do grupo:** o formulário de nova partida mostra os membros para tocar e pôr nos times. Quem é de fora é digitado e entra como convidado. A partida fica marcada no grupo (`match.groupId`), e o grupo também pode ser escolhido em Salvar e Lançar partida.
-- **Autorização ao organizador:** o membro deixa o organizador e os moderadores lançarem partidas com ele **por 1 h, 3 h ou até o fim do dia**, e pode cancelar quando quiser. As marcações dessas partidas já entram **aceitas** (`tagged[].auto = true`). No exemplo, você organiza o "Beach todo domingo", e a Rafa e a Lu autorizaram você.
-- **No banco:** `groups`, `group_members`, `group_delegations` (máximo 24 h), `group_posts` e a função `group_ranking`, em `supabase/schema.sql`.
+- **Partida do grupo:** em Nova partida → "Partida de grupo", os membros aparecem primeiro no seletor de jogadores. Quem é de fora é digitado e entra como convidado. Com "Estou jogando" desligado, você só registra a partida (organizador). A partida fica marcada no grupo (`match.groupId`).
+- **Estar no grupo é a autorização:** membros marcam membros nas partidas do grupo, mesmo que a pessoa só aceite marcação de quem segue; cada marcação ainda vai para aceitar nas notificações. Regras completas em `docs/REGRAS-PARTIDAS.md`.
+- **No banco:** `groups` (com `avatar_url`), `group_members`, `group_posts` e a função `group_ranking`, em `supabase/schema.sql`.
 
 ## Rede de exemplo (ligar e desligar)
 

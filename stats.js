@@ -116,9 +116,10 @@
   function knownPlayers(history) {
     const map = new Map();
     for (const m of history || []) {
+      const hide = m.hidePlayers ? m.hidePlayers.map(fold) : [];
       (m.teams || []).forEach(tm => (tm.players || []).forEach(n => {
         const k = fold(n);
-        if (!k) return;
+        if (!k || hide.includes(k)) return;
         if (!map.has(k)) map.set(k, { key: k, name: n, matches: 0 });
         map.get(k).matches++;
       }));
@@ -173,14 +174,17 @@
       out.teamPts += st.teams[t].pts;
       out.oppPts += st.teams[1 - t].pts;
       out.durationMs += st.durationMs;
+      // confrontos e parcerias: só com quem confirmou a partida (m.hidePlayers vem do app)
+      const hide = m.hidePlayers ? m.hidePlayers.map(fold) : [];
       for (const n of m.teams[1 - t].players || []) {
         const k = fold(n);
+        if (hide.includes(k)) continue;
         const h = out.opponents[k] || (out.opponents[k] = { name: n, matches: 0, wins: 0, losses: 0 });
         h.matches++; if (won === true) h.wins++; if (won === false) h.losses++;
       }
       for (const n of m.teams[t].players || []) {
         const k = fold(n);
-        if (k === key) continue;
+        if (k === key || hide.includes(k)) continue;
         const h = out.partners[k] || (out.partners[k] = { name: n, matches: 0, wins: 0, losses: 0 });
         h.matches++; if (won === true) h.wins++; if (won === false) h.losses++;
       }

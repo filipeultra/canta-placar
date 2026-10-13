@@ -4,9 +4,10 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 
 | Arquivo | O que é |
 |---|---|
-| `schema.sql` | Tabelas, índices, gatilhos e regras por linha (RLS): pessoas, seguir, bloquear, lugares e quadras, temporadas da arena, **grupos** (membros, papéis, autorização temporária, resenha), partidas, lances, jogadores marcados, pedidos de convidado, zaps, notificações, vídeos (Pro), assinatura e denúncias. |
+| `schema.sql` | Tabelas, índices, gatilhos e regras por linha (RLS): pessoas, seguir, bloquear, lugares e quadras, temporadas da arena, **grupos** (membros, papéis, foto, resenha), partidas, lances, jogadores marcados, pedidos de convidado, zaps, notificações, vídeos (Pro), assinatura, denúncias e as **regras da partida entre várias pessoas** (quem pode marcar, placar travado, excluir para mim, pedido de exclusão para todos, conta apagada). |
 | `storage.sql` | Pastas de arquivos: fotos de perfil (públicas) e vídeos (privados, Pro). |
 | `tests/regras.sql` | 28 verificações das regras, rodadas num Postgres 16 local em 13/10/2026: todas passaram. |
+| `tests/partidas.sql` | 53 verificações das regras da partida entre várias pessoas (ver `docs/REGRAS-PARTIDAS.md`): quem pode marcar, grupo, flood, placar travado, excluir para mim, exclusão para todos, conta apagada, bloqueio, denúncias e foto do grupo. Todas passando em 13/10/2026. |
 | `admin.sql` | Estatísticas de uso e painel de admin (ver abaixo). |
 | `tests/admin.sql` | 21 verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê nem age; busca, cortesia, denúncias (tirar do ar) e registro de ações. |
 | `tests/supabase-stub.sql` | Simula o que o Supabase já traz (`auth.users`, `auth.uid()`), para rodar os testes fora dele. |
@@ -80,7 +81,7 @@ Testes em `tests/formato.sql` (11 verificações).
    1. login e perfil;
    2. subir as partidas do aparelho (fila offline, id gerado no aparelho, sem duplicar);
    3. seguir, zap, marcações e notificações;
-   4. grupos: `group_by_code`, `join_group_by_code`, `group_delegations`, `group_posts`, `group_ranking`;
+   4. grupos: `group_by_code`, `join_group_by_code`, `group_posts`, `group_ranking`;
    5. vídeo na nuvem (Pro).
 7. **Placar ↔ câmera:** trocar o ntfy.sh por um canal do Supabase Realtime (`match:<id>`), sem tabela. Só muda o `relay.js`.
 8. **Pagamento:** um webhook (Edge Function) do Mercado Pago ou do Stripe grava em `subscriptions` e `profiles.pro_until` com a service role.

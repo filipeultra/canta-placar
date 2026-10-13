@@ -241,7 +241,7 @@ language plpgsql stable security definer set search_path = public as $$
 begin
   perform admin_guard();
   return (select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc), '[]') from (
-    select r.id, r.reason, r.status, r.created_at, r.handled_at, rp.public_id as reporter,
+    select r.id, r.category, r.reason, r.status, r.created_at, r.handled_at, rp.public_id as reporter,
       case when r.target_post_id is not null then 'post' when r.target_match_id is not null then 'partida' when r.target_group_id is not null then 'grupo' else 'conta' end as kind,
       coalesce(left(gp.text, 120), m.code || coalesce(' · ' || m.title, ''), g.name || ' · ' || g.code, tu.name || ' · ' || tu.public_id) as target,
       coalesce(gp.deleted_at, m.deleted_at, g.deleted_at) is not null as removed,

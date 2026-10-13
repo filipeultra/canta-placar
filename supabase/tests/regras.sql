@@ -38,20 +38,16 @@ select '6. D (de fora) vê grupos fechados: ' || count(*) from public.groups;
 select public.join_group_by_code(:'gcode');
 \o
 select '7. D pelo convite: ' || status from public.group_members where user_id = auth.uid();
--- B autoriza por 3 h; tentativa de 48 h falha
-\o /dev/null
-select pg_temp.u('b');
-\o
-insert into public.group_delegations (group_id, user_id, until) values (:'gid', auth.uid(), now() + interval '3 hours');
-do $$ begin insert into public.group_delegations (group_id, user_id, until) values ((select id from public.groups limit 1), auth.uid(), now() + interval '48 hours'); raise notice '8. ERRO: aceitou 48 h'; exception when check_violation then raise notice '8. autorização de 48 h recusada (máximo 24 h)'; end $$;
-do $$ begin insert into public.group_delegations (group_id, user_id, until) values ((select id from public.groups limit 1), '00000000-0000-0000-0000-00000000000c', now() + interval '1 hour'); raise notice '9. ERRO: B autorizou por C'; exception when insufficient_privilege then raise notice '9. B não consegue autorizar em nome de C'; end $$;
--- A lança partida do grupo com B (autorizou), C (não autorizou) e um convidado
+-- (a autorização ao organizador saiu: no grupo, qualquer membro marca outro, e a marcação ainda precisa ser aceita)
+select '8. estar no grupo basta para ser marcado na partida do grupo (ver tests/partidas.sql)';
+select '9. a marcação continua indo para aceitar nas notificações';
+-- A lança partida do grupo com B, C e um convidado
 \o /dev/null
 select pg_temp.u('a');
 \o
 insert into public.matches (id, owner_id, group_id, sport, played_at, result) values ('m1', auth.uid(), :'gid', 'beach', now(), '{"sets":[[6,3]],"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id, guest_name) values ('m1', 0, 0, auth.uid(), null), ('m1', 0, 1, '00000000-0000-0000-0000-00000000000b', null), ('m1', 1, 0, '00000000-0000-0000-0000-00000000000c', null), ('m1', 1, 1, null, 'Zeca');
-select '10. marcação ' || coalesce(p.name, mp.guest_name) || ': ' || coalesce(mp.tag_status, '-') || case when mp.auto_accepted then ' (pela autorização)' else '' end from public.match_players mp left join public.profiles p on p.id = mp.user_id where match_id = 'm1' order by team, slot;
+select '10. marcação ' || coalesce(p.name, mp.guest_name) || ': ' || coalesce(mp.tag_status, '-') from public.match_players mp left join public.profiles p on p.id = mp.user_id where match_id = 'm1' order by team, slot;
 \o /dev/null
 select pg_temp.u('b');
 \o
@@ -114,8 +110,7 @@ update public.profiles set bio = 'Beach todo dia' where id = auth.uid();
 select '25. B edita a própria bio: ' || bio from public.profiles where id = auth.uid();
 do $$ begin update public.match_players set team = 1 where match_id = 'm1' and user_id = auth.uid(); raise notice '26. ERRO: B trocou de time'; exception when insufficient_privilege then raise notice '26. marcado não troca de time nem de lugar'; end $$;
 do $$ begin insert into public.notifications (user_id, kind) values (auth.uid(), 'zap'); raise notice '27. ERRO: notificação falsa'; exception when insufficient_privilege then raise notice '27. ninguém cria notificação falsa'; end $$;
-update public.group_delegations set revoked_at = now() where user_id = auth.uid();
-select '28. B cancelou a autorização: ' || count(*) from public.group_delegations where user_id = auth.uid() and revoked_at is not null;
+select '28. (autorização ao organizador removida)';
 set role anon;
 select set_config('request.jwt.claim.sub', '', false) \g /dev/null
 select '29. anônimo vê partidas públicas: ' || count(*) || ' · grupos fechados: ' || (select count(*) from public.groups) from public.matches;

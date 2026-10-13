@@ -40,6 +40,7 @@ create table public.profiles (
   trial_used_at  timestamptz,                -- teste grátis de 14 dias já usado (só o servidor escreve)
   show_online    boolean not null default true,   -- "Mostrar quando estou jogando" (jogando agora)
   live_view      boolean not null default true,   -- "Deixar amigos verem o placar ao vivo"
+  tag_policy     text not null default 'todos' check (tag_policy in ('todos', 'conexoes', 'sigo')),  -- quem pode me marcar numa partida (membros do mesmo grupo sempre podem, na partida do grupo)
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
   deleted_at     timestamptz
@@ -115,6 +116,7 @@ create table public.groups (
   color        text not null default '#AFFB48' check (color ~ '^#[0-9A-F]{6}$'),
   description  text check (char_length(description) <= 160),
   open         boolean not null default false,                  -- aberto: entra direto; fechado: pede e o organizador aprova
+  avatar_url   text check (char_length(avatar_url) <= 300),     -- foto do grupo (bucket avatars, pasta do organizador)
   created_by   uuid not null references public.profiles(id) on delete cascade,
   created_at   timestamptz not null default now(),
   deleted_at   timestamptz
@@ -139,17 +141,8 @@ end $$;
 create trigger groups_creator after insert on public.groups for each row execute function public.group_creator_admin();
 
 -- autorização temporária: o membro deixa organizador e moderadores lançarem partidas com ele (máximo 24 h)
-create table public.group_delegations (
-  id          uuid primary key default gen_random_uuid(),
-  group_id    uuid not null references public.groups(id) on delete cascade,
-  user_id     uuid not null references public.profiles(id) on delete cascade,
-  starts_at   timestamptz not null default now(),
-  until       timestamptz not null,
-  revoked_at  timestamptz,
-  created_at  timestamptz not null default now(),
-  check (until > starts_at and until <= starts_at + interval '24 hours')
-);
-create index group_delegations_lookup on public.group_delegations (group_id, user_id, until);
+-- (group_delegations saiu em 13/10/2026: estar no grupo já deixa os organizadores e membros marcarem você nas partidas
+--  do grupo; a marcação continua indo para "aceitar" nas notificações, como qualquer outra)
 
 -- resenha: o mural do grupo
 create table public.group_posts (
@@ -168,7 +161,8 @@ create index group_posts_group on public.group_posts (group_id, created_at desc)
 create table public.matches (
   id           text primary key check (id ~ '^[A-Za-z0-9_-]{1,64}$'),   -- id gerado no aparelho
   code         text not null unique default ('P-' || public.short_code(6)),
-  owner_id     uuid not null references public.profiles(id) on delete cascade,  -- quem marcou o placar
+  owner_id     uuid references public.profiles(id) on delete set null,  -- quem marcou o placar (pode não jogar: organizador do grupo); null = conta apagada
+  owner_left_at timestamptz,   -- o dono usou "Excluir para mim": some do perfil dele e não edita mais
   group_id     uuid references public.groups(id) on delete set null,
   sport        text not null,
   source       text not null default 'live' check (source in ('live', 'manual')),
@@ -212,12 +206,15 @@ create table public.match_players (
   guest_name     text check (char_length(guest_name) <= 40),
   nickname       text check (char_length(nickname) between 1 and 24),   -- apelido só nesta partida (dois jogadores com o mesmo nome)
   tag_status     text check (tag_status in ('pendente', 'aceito', 'recusado')),
-  auto_accepted  boolean not null default false,   -- aceito pela autorização ao organizador do grupo
+  display_name   text check (char_length(display_name) <= 60),   -- nome na hora da marcação (fica na partida se a conta for apagada)
+  created_at     timestamptz not null default now(),
   responded_at   timestamptz,
+  left_at        timestamptz,   -- "Excluir para mim": sai das estatísticas da pessoa e dos confrontos/parcerias dos outros com ela
   primary key (match_id, team, slot),
   check (user_id is not null or guest_name is not null)
 );
 create index match_players_user on public.match_players (user_id, tag_status) where user_id is not null;
+create index match_players_recent on public.match_players (created_at) where user_id is not null;
 
 create table public.match_claims (
   id            uuid primary key default gen_random_uuid(),
@@ -240,7 +237,7 @@ create table public.zaps (
 create table public.notifications (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,   -- quem recebe
-  kind        text not null check (kind in ('tag', 'tag_auto', 'zap', 'accepted', 'follow', 'follow_request', 'claim', 'claim_ok', 'group_request', 'group_joined', 'group_role')),
+  kind        text not null check (kind in ('tag', 'zap', 'accepted', 'follow', 'follow_request', 'claim', 'claim_ok', 'group_request', 'group_joined', 'group_role', 'delete_request', 'delete_done', 'delete_refused')),
   actor_id    uuid references public.profiles(id) on delete cascade,
   match_id    text references public.matches(id) on delete cascade,
   group_id    uuid references public.groups(id) on delete cascade,
@@ -297,7 +294,8 @@ create table public.reports (
   target_match_id  text references public.matches(id) on delete cascade,
   target_group_id  uuid references public.groups(id) on delete cascade,
   target_post_id   uuid references public.group_posts(id) on delete cascade,
-  reason           text not null check (char_length(reason) between 2 and 500),
+  category         text not null default 'outro' check (category in ('ofensivo', 'partida_falsa', 'flood_convites', 'se_passando', 'assedio', 'spam', 'menor', 'outro')),
+  reason           text not null check (char_length(reason) between 2 and 500),   -- detalhes que a pessoa escreveu (ou o nome do motivo)
   status           text not null default 'aberta' check (status in ('aberta', 'em_analise', 'resolvida', 'descartada')),
   created_at       timestamptz not null default now(),
   handled_at       timestamptz
@@ -327,12 +325,6 @@ language sql stable security definer set search_path = public as $$ select publi
 create or replace function public.is_group_manager(gid uuid, uid uuid) returns boolean
 language sql stable security definer set search_path = public as $$ select coalesce(public.group_role(gid, uid) in ('admin', 'mod'), false) $$;
 
--- o membro autorizou quem organiza/modera o grupo a lançar partidas por ele no instante t
-create or replace function public.delegation_active(gid uuid, member uuid, t timestamptz) returns boolean
-language sql stable security definer set search_path = public as $$
-  select exists (select 1 from group_delegations
-                 where group_id = gid and user_id = member and revoked_at is null and t between starts_at and until)
-$$;
 
 -- quem pode ver a partida (visibilidade da partida + privacidade do perfil + bloqueios + grupo + marcados)
 create or replace function public.can_see_match(mid text, viewer uuid) returns boolean
@@ -354,6 +346,13 @@ begin
   if p.privacy_level = 'personalizado' and coalesce((p.privacy_show->>'partidas')::boolean, true) = false then return follower; end if;
   return true;
 end $$;
+
+-- outra pessoa (com conta) confirmou a partida e não saiu dela
+create or replace function public.match_has_others(mid text, uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from match_players where match_id = mid and user_id is not null and user_id is distinct from uid
+                 and tag_status = 'aceito' and left_at is null)
+$$;
 
 create or replace function public.can_see_group(gid uuid, viewer uuid) returns boolean
 language sql stable security definer set search_path = public as $$
@@ -388,20 +387,31 @@ create trigger blocks_unfollow after insert on public.blocks for each row execut
 -- marcar alguém: notifica; se ele autorizou quem marcou (organizador/moderador do grupo), já entra aceito
 create or replace function public.match_player_tag() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare m matches;
+declare m matches; pol text; allowed boolean;
 begin
   if new.user_id is null then return new; end if;
   select * into m from matches where id = new.match_id;
-  if new.user_id = m.owner_id then new.tag_status := 'aceito'; return new; end if;
-  if is_blocked_between(m.owner_id, new.user_id) then raise exception 'bloqueado'; end if;
-  if m.group_id is not null and is_group_manager(m.group_id, m.owner_id) and is_group_member(m.group_id, new.user_id)
-     and delegation_active(m.group_id, new.user_id, m.played_at) then
-    new.tag_status := 'aceito'; new.auto_accepted := true; new.responded_at := now();
-    insert into notifications (user_id, kind, actor_id, match_id, group_id) values (new.user_id, 'tag_auto', m.owner_id, m.id, m.group_id);
-  else
-    new.tag_status := 'pendente'; new.auto_accepted := false;
-    insert into notifications (user_id, kind, actor_id, match_id) values (new.user_id, 'tag', m.owner_id, m.id);
+  select coalesce(new.display_name, name), tag_policy into new.display_name, pol from profiles where id = new.user_id;
+  new.created_at := now(); new.left_at := null;
+  if new.user_id = m.owner_id then new.tag_status := 'aceito'; new.responded_at := now(); return new; end if;
+  if is_blocked_between(m.owner_id, new.user_id) then raise exception 'bloqueado' using errcode = '42501'; end if;
+  -- quem pode marcar: na partida do grupo, qualquer membro marca outro membro; fora dela vale o ajuste da pessoa
+  allowed := (m.group_id is not null and is_group_member(m.group_id, m.owner_id) and is_group_member(m.group_id, new.user_id))
+          or pol = 'todos'
+          or (pol = 'sigo' and follows_active(new.user_id, m.owner_id))
+          or (pol = 'conexoes' and (follows_active(new.user_id, m.owner_id) or follows_active(m.owner_id, new.user_id)));
+  if not allowed then raise exception 'convite_nao_permitido' using errcode = '42501'; end if;
+  -- contra flood: no máximo 60 convites por dia por pessoa, e quem recusou 3 vezes em 30 dias para de receber desse dono
+  if (select count(*) from match_players mp join matches x on x.id = mp.match_id
+      where x.owner_id = m.owner_id and mp.user_id is not null and mp.user_id <> m.owner_id and mp.created_at > now() - interval '24 hours') >= 60 then
+    raise exception 'limite_de_convites' using errcode = '54000';
   end if;
+  if (select count(*) from match_players mp join matches x on x.id = mp.match_id
+      where x.owner_id = m.owner_id and mp.user_id = new.user_id and mp.tag_status = 'recusado' and mp.responded_at > now() - interval '30 days') >= 3 then
+    raise exception 'convite_recusado_demais' using errcode = '42501';
+  end if;
+  new.tag_status := 'pendente'; new.responded_at := null;
+  insert into notifications (user_id, kind, actor_id, match_id, group_id) values (new.user_id, 'tag', m.owner_id, m.id, m.group_id);
   return new;
 end $$;
 create trigger match_players_tag before insert on public.match_players for each row execute function public.match_player_tag();
@@ -450,7 +460,6 @@ alter table public.courts enable row level security;
 alter table public.arena_seasons enable row level security;
 alter table public.groups enable row level security;
 alter table public.group_members enable row level security;
-alter table public.group_delegations enable row level security;
 alter table public.group_posts enable row level security;
 alter table public.matches enable row level security;
 alter table public.match_events enable row level security;
@@ -512,10 +521,6 @@ create policy members_join on public.group_members for insert with check (user_i
 create policy members_manage on public.group_members for update using (public.group_role(group_id, auth.uid()) = 'admin' or (public.is_group_manager(group_id, auth.uid()) and role = 'membro'));
 create policy members_leave on public.group_members for delete using (user_id = auth.uid() or public.group_role(group_id, auth.uid()) = 'admin');
 
--- autorização: cada um cria e cancela a sua; quem organiza vê quem autorizou
-create policy deleg_read on public.group_delegations for select using (user_id = auth.uid() or public.is_group_manager(group_id, auth.uid()));
-create policy deleg_insert on public.group_delegations for insert with check (user_id = auth.uid() and public.is_group_member(group_id, auth.uid()) and starts_at <= now() + interval '1 minute');
-create policy deleg_revoke on public.group_delegations for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- resenha
 create policy posts_read on public.group_posts for select using (deleted_at is null and public.is_group_member(group_id, auth.uid()) and not public.is_blocked_between(user_id, auth.uid()));
@@ -525,8 +530,9 @@ create policy posts_delete on public.group_posts for update using (user_id = aut
 -- partidas
 create policy matches_read on public.matches for select using (public.can_see_match(id, auth.uid()));
 create policy matches_insert on public.matches for insert with check (owner_id = auth.uid() and (group_id is null or public.is_group_member(group_id, auth.uid())));
-create policy matches_update on public.matches for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
-create policy matches_delete on public.matches for delete using (owner_id = auth.uid());
+create policy matches_update on public.matches for update using (owner_id = auth.uid() and owner_left_at is null) with check (owner_id = auth.uid());
+-- apagar de vez: só sem ninguém mais confirmado (com outros, é leave_match ou o pedido de exclusão para todos)
+create policy matches_delete on public.matches for delete using (owner_id = auth.uid() and not public.match_has_others(id, auth.uid()));
 
 create policy events_read on public.match_events for select using (public.can_see_match(match_id, auth.uid()));
 create policy events_write on public.match_events for all using (exists (select 1 from matches m where m.id = match_id and m.owner_id = auth.uid())) with check (exists (select 1 from matches m where m.id = match_id and m.owner_id = auth.uid()));
@@ -800,6 +806,242 @@ end $$;
 create trigger subm_check before insert or update on public.subscription_members for each row execute function public.subm_check();
 
 -- ============================================================
+-- regras da partida entre várias pessoas (13/10/2026) · ver docs/REGRAS-PARTIDAS.md
+-- ============================================================
+-- 1) Placar travado: depois que outra pessoa confirmou, o dono não muda placar, lances, esporte nem data.
+--    Corrigir um erro de verdade é pelo pedido de exclusão para todos (e lançar de novo).
+create or replace function public.match_lock() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (new.result, new.summary, new.cfg, new.sport, new.played_at, new.duration_ms, new.source)
+     is distinct from (old.result, old.summary, old.cfg, old.sport, old.played_at, old.duration_ms, old.source)
+     and public.match_has_others(old.id, old.owner_id) then
+    raise exception 'placar_travado' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+create trigger matches_lock before update on public.matches for each row execute function public.match_lock();
+
+create or replace function public.events_lock() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare mid text := coalesce(new.match_id, old.match_id); own uuid;
+begin
+  if pg_trigger_depth() > 1 then return coalesce(new, old); end if;   -- apagando a partida inteira (cascata)
+  select owner_id into own from matches where id = mid;
+  if public.match_has_others(mid, own) then raise exception 'placar_travado' using errcode = '42501'; end if;
+  return coalesce(new, old);
+end $$;
+create trigger events_lock before insert or update or delete on public.match_events for each row execute function public.events_lock();
+
+-- 2) Quem confirmou não é tirado da partida por outra pessoa, e não "desconfirma": para sair, usa leave_match.
+create or replace function public.players_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'DELETE' then
+    if pg_trigger_depth() = 1 and old.tag_status = 'aceito' and old.user_id is not null and old.user_id is distinct from auth.uid()
+       and old.user_id is distinct from (select owner_id from matches where id = old.match_id) then
+      raise exception 'jogador_confirmado' using errcode = '42501';
+    end if;
+    return old;
+  end if;
+  if old.tag_status = 'aceito' and new.tag_status is distinct from 'aceito' then raise exception 'ja_confirmada' using errcode = '42501'; end if;
+  if old.tag_status = 'recusado' and new.tag_status = 'aceito' and old.responded_at < now() - interval '30 days' then raise exception 'convite_expirado' using errcode = '42501'; end if;
+  return new;
+end $$;
+create trigger players_guard before update or delete on public.match_players for each row execute function public.players_guard();
+
+-- 3) "Excluir para mim": some do seu perfil e das suas estatísticas. Para quem também confirmou, a partida continua
+--    nas estatísticas gerais deles e o seu nome continua na partida (você reconheceu que ela aconteceu); só sai dos
+--    confrontos e parcerias com você. Se ninguém com conta sobrar, a partida some de vez.
+create or replace function public.finish_match_if_empty(mid text) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare m matches;
+begin
+  select * into m from matches where id = mid;
+  if not found or m.deleted_at is not null then return true; end if;
+  if (m.owner_id is null or m.owner_left_at is not null)
+     and not exists (select 1 from match_players where match_id = mid and user_id is not null and tag_status = 'aceito' and left_at is null) then
+    update matches set deleted_at = now() where id = mid;
+    update match_delete_requests set status = 'aprovado', closed_at = now() where match_id = mid and status = 'aberto';
+    return true;
+  end if;
+  return false;
+end $$;
+
+create or replace function public.leave_match(mid text) returns text
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); m matches; r record;
+begin
+  if uid is null then raise exception 'precisa entrar na conta'; end if;
+  select * into m from matches where id = mid and deleted_at is null;
+  if not found then raise exception 'partida não encontrada'; end if;
+  if m.owner_id is distinct from uid and not exists (select 1 from match_players where match_id = mid and user_id = uid) then
+    raise exception 'você não está nesta partida' using errcode = '42501';
+  end if;
+  update match_players set left_at = now() where match_id = mid and user_id = uid and left_at is null;
+  update match_players set tag_status = 'recusado', responded_at = now() where match_id = mid and user_id = uid and tag_status = 'pendente';
+  if m.owner_id = uid then update matches set owner_left_at = now() where id = mid; end if;
+  -- se havia um pedido de exclusão aberto, quem saiu não precisa mais votar
+  delete from match_delete_votes v using match_delete_requests q where v.request_id = q.id and q.match_id = mid and q.status = 'aberto' and v.user_id = uid and v.vote = 'pendente';
+  for r in select id from match_delete_requests where match_id = mid and status = 'aberto' loop perform public.close_delete_request(r.id); end loop;
+  if public.finish_match_if_empty(mid) then return 'apagada'; end if;
+  return 'saiu';
+end $$;
+
+-- conta apagada (ou marcada para apagar): sai de todas as partidas, e o nome fica nas partidas que já tinha confirmado
+create or replace function public.leave_all(uid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare r record; nm text;
+begin
+  select name into nm from profiles where id = uid;
+  update match_players set display_name = coalesce(display_name, nm), left_at = coalesce(left_at, now()) where user_id = uid;
+  update match_players set tag_status = 'recusado', responded_at = now() where user_id = uid and tag_status = 'pendente';
+  update matches set owner_left_at = coalesce(owner_left_at, now()) where owner_id = uid;
+  delete from match_delete_votes where user_id = uid and vote = 'pendente';
+  for r in select distinct match_id from match_players where user_id = uid union select id from matches where owner_id = uid loop
+    perform public.finish_match_if_empty(r.match_id);
+  end loop;
+end $$;
+create or replace function public.profile_gone() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'DELETE' then
+    perform public.leave_all(old.id);
+    -- a linha da pessoa vira convidado com o nome que tinha (a chave estrangeira apaga o vínculo com a conta)
+    update match_players set guest_name = coalesce(guest_name, display_name, 'Jogador') where user_id = old.id;
+    return old;
+  end if;
+  if new.deleted_at is not null and old.deleted_at is null then perform public.leave_all(new.id); end if;
+  return new;
+end $$;
+create trigger profiles_gone before delete or update of deleted_at on public.profiles for each row execute function public.profile_gone();
+
+-- 4) Pedir exclusão para todos: cada pessoa que confirmou (e o dono) vota; se todos aceitarem, a partida some de
+--    todos os lugares. Um "não" encerra o pedido. Serve para partida com erro (placar errado, partida duplicada).
+create table public.match_delete_requests (
+  id            uuid primary key default gen_random_uuid(),
+  match_id      text not null references public.matches(id) on delete cascade,
+  requested_by  uuid references public.profiles(id) on delete set null,
+  reason        text check (char_length(reason) <= 200),
+  status        text not null default 'aberto' check (status in ('aberto', 'aprovado', 'recusado', 'cancelado')),
+  created_at    timestamptz not null default now(),
+  closed_at     timestamptz
+);
+create unique index match_delete_one_open on public.match_delete_requests (match_id) where status = 'aberto';
+create table public.match_delete_votes (
+  request_id  uuid not null references public.match_delete_requests(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  vote        text not null default 'pendente' check (vote in ('pendente', 'sim', 'nao')),
+  voted_at    timestamptz,
+  primary key (request_id, user_id)
+);
+alter table public.match_delete_requests enable row level security;
+alter table public.match_delete_votes enable row level security;
+-- (as duas leituras olham a outra tabela por funções, para as regras não se chamarem em círculo)
+create or replace function public.del_is_voter(req uuid, uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$ select exists (select 1 from match_delete_votes where request_id = req and user_id = uid) $$;
+create or replace function public.del_is_requester(req uuid, uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$ select exists (select 1 from match_delete_requests where id = req and requested_by = uid) $$;
+create policy delreq_read on public.match_delete_requests for select using (requested_by = auth.uid() or public.del_is_voter(id, auth.uid()));
+create policy delvote_read on public.match_delete_votes for select using (user_id = auth.uid() or public.del_is_requester(request_id, auth.uid()));
+
+create or replace function public.close_delete_request(req uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare q match_delete_requests; v record;
+begin
+  select * into q from match_delete_requests where id = req;
+  if q.status <> 'aberto' then return q.status; end if;
+  if exists (select 1 from match_delete_votes where request_id = req and vote = 'nao') then
+    update match_delete_requests set status = 'recusado', closed_at = now() where id = req;
+    if q.requested_by is not null then insert into notifications (user_id, kind, match_id) values (q.requested_by, 'delete_refused', q.match_id); end if;
+    return 'recusado';
+  end if;
+  if exists (select 1 from match_delete_votes where request_id = req and vote = 'pendente') then return 'aberto'; end if;
+  update matches set deleted_at = now() where id = q.match_id;
+  update match_delete_requests set status = 'aprovado', closed_at = now() where id = req;
+  for v in select user_id from match_delete_votes where request_id = req union select q.requested_by loop
+    if v.user_id is not null then insert into notifications (user_id, kind, match_id) values (v.user_id, 'delete_done', q.match_id); end if;
+  end loop;
+  return 'aprovado';
+end $$;
+
+create or replace function public.request_match_deletion(mid text, why text default null) returns text
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); m matches; req uuid; voter uuid;
+begin
+  if uid is null then raise exception 'precisa entrar na conta'; end if;
+  select * into m from matches where id = mid and deleted_at is null;
+  if not found then raise exception 'partida não encontrada'; end if;
+  if not ((m.owner_id = uid and m.owner_left_at is null)
+          or exists (select 1 from match_players where match_id = mid and user_id = uid and tag_status = 'aceito' and left_at is null)) then
+    raise exception 'só quem está na partida pede a exclusão' using errcode = '42501';
+  end if;
+  if (select count(*) from match_delete_requests where requested_by = uid and created_at > now() - interval '24 hours') >= 10 then
+    raise exception 'limite_de_pedidos' using errcode = '54000';
+  end if;
+  insert into match_delete_requests (match_id, requested_by, reason) values (mid, uid, left(why, 200)) returning id into req;
+  insert into match_delete_votes (request_id, user_id, vote, voted_at) values (req, uid, 'sim', now());
+  for voter in
+    select distinct user_id from match_players where match_id = mid and user_id is not null and user_id <> uid and tag_status = 'aceito' and left_at is null
+    union select m.owner_id where m.owner_id is not null and m.owner_id <> uid and m.owner_left_at is null
+  loop
+    insert into match_delete_votes (request_id, user_id) values (req, voter) on conflict do nothing;
+    insert into notifications (user_id, kind, actor_id, match_id) values (voter, 'delete_request', uid, mid);
+  end loop;
+  return public.close_delete_request(req);
+end $$;
+
+create or replace function public.vote_match_deletion(req uuid, approve boolean) returns text
+language plpgsql security definer set search_path = public as $$
+begin
+  update match_delete_votes set vote = case when approve then 'sim' else 'nao' end, voted_at = now()
+   where request_id = req and user_id = auth.uid() and vote = 'pendente';
+  if not found then raise exception 'sem voto pendente' using errcode = '42501'; end if;
+  return public.close_delete_request(req);
+end $$;
+
+-- 5) Números: as estatísticas da pessoa usam só partidas que ela confirmou e não excluiu;
+--    confrontos e parcerias pedem as DUAS pessoas confirmadas e sem ter excluído.
+create or replace function public.my_stats_matches() returns setof public.matches
+language sql stable security definer set search_path = public as $$
+  select m.* from matches m
+  where m.deleted_at is null and m.status = 'publicada'
+    and exists (select 1 from match_players mp where mp.match_id = m.id and mp.user_id = auth.uid() and mp.tag_status = 'aceito' and mp.left_at is null)
+$$;
+create or replace function public.head_to_head(other uuid)
+returns table (match_id text, played_at timestamptz, sport text, relation text, my_team smallint, winner int)
+language sql stable security definer set search_path = public as $$
+  select m.id, m.played_at, m.sport, case when a.team = b.team then 'junto' else 'contra' end, a.team, (m.result->>'winner')::int
+  from matches m
+  join match_players a on a.match_id = m.id and a.user_id = auth.uid() and a.tag_status = 'aceito' and a.left_at is null
+  join match_players b on b.match_id = m.id and b.user_id = other and b.tag_status = 'aceito' and b.left_at is null
+  where m.deleted_at is null and m.status = 'publicada' and not public.is_blocked_between(auth.uid(), other)
+  order by m.played_at desc
+$$;
+
+-- 6) Denúncias: motivo da lista, sem denunciar a si mesmo, uma aberta por alvo e no máximo 20 por dia.
+create unique index reports_one_open on public.reports (reporter_id, coalesce(target_user_id::text, ''), coalesce(target_group_id::text, ''), coalesce(target_match_id, ''), coalesce(target_post_id::text, '')) where status in ('aberta', 'em_analise');
+create or replace function public.report_check() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if num_nonnulls(new.target_user_id, new.target_match_id, new.target_group_id, new.target_post_id) <> 1 then raise exception 'denúncia precisa de um alvo'; end if;
+  if new.target_user_id = new.reporter_id then raise exception 'não dá para denunciar a si mesmo'; end if;
+  if (select count(*) from reports where reporter_id = new.reporter_id and created_at > now() - interval '24 hours') >= 20 then
+    raise exception 'limite_de_denuncias' using errcode = '54000';
+  end if;
+  new.status := 'aberta'; new.created_at := now(); new.handled_at := null;
+  return new;
+end $$;
+create trigger reports_check before insert on public.reports for each row execute function public.report_check();
+-- para a equipe: alvos com denúncias de 3 ou mais pessoas diferentes em 7 dias vão para o topo da fila
+create or replace view public.report_hotlist as
+  select coalesce(target_user_id::text, target_group_id::text, target_match_id, target_post_id::text) as target,
+         case when target_user_id is not null then 'perfil' when target_group_id is not null then 'grupo' when target_match_id is not null then 'partida' else 'resenha' end as kind,
+         count(distinct reporter_id) as people, array_agg(distinct category) as categories, max(created_at) as last_at
+  from reports where status in ('aberta', 'em_analise') and created_at > now() - interval '7 days'
+  group by 1, 2 having count(distinct reporter_id) >= 3;
+
+-- ============================================================
 -- permissões por coluna (o Supabase dá acesso amplo às tabelas; as regras por linha dizem QUAIS linhas,
 -- e estes grants dizem QUAIS COLUNAS cada um pode mudar)
 -- ============================================================
@@ -809,30 +1051,37 @@ grant insert, update, delete on all tables in schema public to authenticated;
 grant execute on all functions in schema public to anon, authenticated;
 -- perfil: a pessoa não mexe no Pro, no ID público nem no consentimento do responsável
 revoke update on public.profiles from authenticated;
-grant update (handle, name, full_name, city, bio, avatar_url, sports, privacy_level, privacy_show, show_online, live_view, birth_date, deleted_at) on public.profiles to authenticated;
+grant update (handle, name, full_name, city, bio, avatar_url, sports, privacy_level, privacy_show, show_online, live_view, tag_policy, birth_date, deleted_at) on public.profiles to authenticated;
 revoke insert, delete on public.profiles from authenticated;
 -- marcado só responde (aceitar/recusar); dono troca jogador apagando e inserindo de novo
 revoke update on public.match_players from authenticated;
 grant update (tag_status, responded_at) on public.match_players to authenticated;
 -- partida: dono não troca id, código nem dono
 revoke update on public.matches from authenticated;
-grant update (group_id, sport, source, cfg, played_at, duration_ms, type, title, caption, visibility, status, place_id, court_id, place_name, city, result, summary, replay, deleted_at) on public.matches to authenticated;
+grant update (group_id, sport, source, cfg, played_at, duration_ms, type, title, caption, visibility, status, place_id, court_id, place_name, city, result, summary, replay) on public.matches to authenticated;
 -- notificações e assinatura: só o servidor escreve (cada um só marca como lida)
 revoke insert, update, delete on public.notifications from authenticated;
 grant update (read_at) on public.notifications to authenticated;
 revoke insert, update, delete on public.subscriptions from authenticated;
 revoke insert, update, delete on public.ai_usage from authenticated;
+-- exclusão para todos: só pelas funções request_match_deletion / vote_match_deletion
+revoke insert, update, delete on public.match_delete_requests, public.match_delete_votes from authenticated;
+revoke all on public.match_delete_requests, public.match_delete_votes from anon;
+revoke all on public.report_hotlist from anon, authenticated;
+revoke execute on function public.leave_all(uuid), public.finish_match_if_empty(text), public.close_delete_request(uuid) from public, anon, authenticated;
+-- marcado: left_at e display_name só pelas funções
+-- o nome guardado na marcação não sai para os apps: quem foi bloqueado não descobre o nome de quem bloqueou
+-- (o perfil some para ele pela regra profiles_read e o app mostra "Jogador")
+revoke select on public.match_players from anon, authenticated;
+grant select (match_id, team, slot, user_id, guest_name, nickname, tag_status, created_at, responded_at, left_at) on public.match_players to anon, authenticated;
 -- denúncias: ninguém edita depois de enviar
 revoke update, delete on public.reports from authenticated;
 -- grupo: código do convite não muda
 revoke update on public.groups from authenticated;
-grant update (name, sport, place_id, place_name, when_text, color, description, open, deleted_at) on public.groups to authenticated;
+grant update (name, sport, place_id, place_name, when_text, color, description, open, avatar_url, deleted_at) on public.groups to authenticated;
 -- membro: organizador muda papel e status
 revoke update on public.group_members from authenticated;
 grant update (role, status) on public.group_members to authenticated;
--- autorização: só dá para cancelar (revoked_at)
-revoke update on public.group_delegations from authenticated;
-grant update (revoked_at) on public.group_delegations to authenticated;
 -- lugares: arena verificada só pela equipe
 revoke update on public.places from authenticated;
 grant update (name, city, lat, lng) on public.places to authenticated;

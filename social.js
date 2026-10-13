@@ -76,6 +76,8 @@
     'g-fute': [['pedro', 5, 12, 0, 'Sábado com sol, chega cedo pra montar a rede']],
   };
   const EXTRA_NAMES = ['Zé Neto', 'Paulinha', 'Tio Beto', 'Fê Ramos', 'Juninho', 'Lari'];
+  // quem pode marcar cada pessoa numa partida (o resto da rede fictícia deixa "todos"): ver docs/REGRAS-PARTIDAS.md
+  const TAG_POLICY = { brenda: 'sigo', leo: 'conexoes', davi: 'sigo' };
   const SEED_FOLLOWS = ['rafa', 'lu', 'biel', 'mari', 'caio', 'nina', 'teo'];
   const SEED_FOLLOWERS = ['rafa', 'lu', 'biel', 'teo', 'ju', 'mari', 'gui', 'duda'];
 
@@ -134,9 +136,13 @@
     const persist = () => save(store);
 
     const userMap = new Map(USERS.map(u => [u.id, u]));
-    const user = id => (id === 'me' ? me : userMap.get(id) || null);
+    // quem bloqueou você (na demonstração, o Pedro): aparece só como "Jogador", sem perfil, fora da busca e do "jogando agora"
+    const BLOCKED_ME = ['pedro'];
+    const blockedMe = id => demoOn() && BLOCKED_ME.includes(id);
+    const ANON = id => ({ id, name: 'Jogador', color: '#8A8F98', city: '', place: '', sports: [], bio: '', followers: 0, following: 0, anon: true });
+    const user = id => (id === 'me' ? me : blockedMe(id) ? ANON(id) : userMap.get(id) || null);
     const publicId = id => (id === 'me' ? me.uid || userCode('me') : userCode(id));
-    const userByCode = c => { const k = normCode(c); return USERS.find(u => normCode(userCode(u.id)) === k) || (me.uid && normCode(me.uid) === k ? me : null); };
+    const userByCode = c => { const k = normCode(c); return USERS.find(u => !blockedMe(u.id) && normCode(userCode(u.id)) === k) || (me.uid && normCode(me.uid) === k ? me : null); };
     const nameOf = p => (p && p.userId && user(p.userId) ? user(p.userId).name : (p && p.name) || '');
 
     // ---------- partidas fictícias dos outros ----------
@@ -197,6 +203,10 @@
       T('tag-lu-old', 'lu', at(11, 18, 0), 'beach', 'treino', 'Arena Beach MOC', [{ userId: 'lu' }, { userId: 'me' }], [{ userId: 'brenda' }, { userId: 'teo' }],
         { sets: [[4, 6]], final: null, winner: 1 }, { caption: 'Treino de saque e devolução', durationMs: 70 * MIN,
           tagged: [{ userId: 'me', status: 'aceito', at: at(11, 19, 30) }], zaps: ['rafa', 'mari'].map((u, k) => ({ userId: u, t: at(11, 20, 0) + k * 30 * MIN })) });
+      // rodada do "Beach todo domingo" que a Lu registrou: três partidas com você, chegam juntas nas notificações
+      [[8, 0, ['rafa'], ['duda', 'teo'], [[6, 3]], 0], [9, 0, ['gui'], ['brenda', 'biel'], [[4, 6]], 1], [10, 0, ['rafa'], ['lu', 'duda'], [[6, 5]], 0]].forEach(([h, mi, mate, opp, sets, w], k) =>
+        T('tag-gb' + (k + 1), 'lu', at(3, h, mi), 'beach', 'amistoso', 'Arena Beach MOC', [{ userId: 'me' }].concat(mate.map(u => ({ userId: u }))), opp.map(u => ({ userId: u })),
+          { sets, final: null, winner: w }, { groupId: 'g-beach', durationMs: 40 * MIN, tagged: [{ userId: 'me', status: 'pendente', at: at(3, 11, 30) }].concat(mate.concat(opp).filter(u => u !== 'lu').map(u => ({ userId: u, status: 'aceito' }))) }));
       // partidas das turmas: toda semana, no dia e no horário do grupo, duplas sorteadas entre os membros
       const gr = rng(20261013);
       for (const g of GROUPS) {
@@ -255,7 +265,7 @@
     // o que um visitante (não seguidor) pode ver do perfil
     function canView(id, item) {
       if (id === 'me') return true;
-      if (isBlocked(id)) return false;
+      if (isBlocked(id) || blockedMe(id)) return false;
       const p = privacyOf(id);
       if (p.level === 'aberto' || isFollowing(id)) return true;
       if (p.level === 'privado') return false;
@@ -265,6 +275,8 @@
 
     // ---------- visibilidade ----------
     function canSee(a) {
+      if (a.ownerId !== 'me' && store.del && store.del.gone[a.id]) return false; // excluída para todos
+      if (blockedMe(a.ownerId)) return false;
       if (a.ownerId === 'me') return true;
       if (isBlocked(a.ownerId)) return false;
       if (!canView(a.ownerId, 'partidas')) return false;
@@ -273,6 +285,18 @@
       return true;
     }
     const involves = (a, id) => a.teams.some(t => t.players.some(p => p.userId === id));
+    // posso marcar esta pessoa? Na partida do grupo, membro marca membro; fora dela vale o ajuste da pessoa
+    const tagPolicyOf = id => TAG_POLICY[id] || 'todos';
+    function canTag(id, groupId) {
+      if (!id || id === 'me') return { ok: true };
+      if (isBlocked(id) || blockedMe(id)) return { ok: false, why: 'bloqueado' };
+      const gr = groupId ? group(groupId) : null;
+      if (gr && gr.myRole && gr.members.some(m => m.userId === id)) return { ok: true, group: true };
+      const pol = tagPolicyOf(id);
+      if (pol === 'todos') return { ok: true };
+      if (pol === 'sigo') return followsMe(id) ? { ok: true } : { ok: false, why: 'sigo' };
+      return followsMe(id) || isFollowing(id) ? { ok: true } : { ok: false, why: 'conexoes' };
+    }
 
     // ---------- marcações ----------
     // Status de uma marcação. Nas suas partidas, as pessoas fictícias "aceitam" um minuto depois (simulação).
@@ -284,6 +308,44 @@
       return t.status;
     }
     function respondTag(id, resp) { store.tagResp[id] = resp; persist(); }
+
+    // ---------- exclusão para todos (docs/REGRAS-PARTIDAS.md) ----------
+    // Seus pedidos: matchId → { at, reason, voters }. Na rede de demonstração, cada pessoa aceita 1 min depois da anterior.
+    const dz = () => { if (!store.del) store.del = { mine: {}, votes: {}, gone: {} }; return store.del; };
+    function requestDeletion(id, reason, voters) { dz().mine[id] = { at: now(), reason: reason || '', voters: (voters || []).slice(0, 12) }; persist(); }
+    function cancelDeletion(id) { delete dz().mine[id]; persist(); }
+    function deletionStatus(id) {
+      const r = dz().mine[id]; if (!r) return null;
+      const yes = demoOn() ? r.voters.filter((u, k) => now() - r.at > (k + 1) * MIN).length : 0;
+      return { at: r.at, reason: r.reason, voters: r.voters, yes, total: r.voters.length, status: yes >= r.voters.length ? 'aprovado' : 'aberto' };
+    }
+    const myDeletions = () => Object.keys(dz().mine).map(id => Object.assign({ id }, deletionStatus(id)));
+    // pedidos que chegam: na demonstração, o dono de uma partida em que você está pede para apagar (placar errado)
+    function incomingDeletions() {
+      if (!demoOn()) return [];
+      const a = allOthers().filter(x => involves(x, 'me') && (x.tagged || []).some(t => t.userId === 'me') && !dz().gone[x.id]).sort((x, y) => y.playedAt - x.playedAt)[1];
+      if (!a) return [];
+      const t = a.playedAt + 2 * HOUR;
+      if (t > now()) return [];
+      return [{ id: a.id, activity: a, actor: a.ownerId, t, reason: 'placar errado', status: dz().votes[a.id] || 'pendente' }];
+    }
+    // votar sim (os outros já aceitaram) apaga a partida para todos; não encerra o pedido e ela fica
+    function voteDeletion(id, yes) { dz().votes[id] = yes ? 'sim' : 'nao'; if (yes) dz().gone[id] = true; persist(); }
+    const isGone = id => !!dz().gone[id];
+
+    // ---------- denúncias (vão para a fila da equipe; quem foi denunciado não fica sabendo) ----------
+    const REPORT_CATS = ['ofensivo', 'partida_falsa', 'flood_convites', 'se_passando', 'assedio', 'spam', 'menor', 'outro'];
+    function report(kind, id, category, details) {
+      if (!store.reports) store.reports = [];
+      const day = store.reports.filter(r => now() - r.at < 24 * HOUR);
+      if (day.length >= 20) return { ok: false, why: 'limite' };
+      if (store.reports.some(r => r.kind === kind && r.id === id && now() - r.at < 30 * 24 * HOUR)) return { ok: false, why: 'repetida' };
+      if (!REPORT_CATS.includes(category)) category = 'outro';
+      store.reports.push({ kind, id, category, details: String(details || '').slice(0, 500), at: now() });
+      persist();
+      return { ok: true };
+    }
+    const reported = (kind, id) => (store.reports || []).some(r => r.kind === kind && r.id === id);
 
     // ---------- zaps ----------
     function zaps(a) {
@@ -328,7 +390,7 @@
     const activity = id => allOthers().find(a => a.id === id) || null;
 
     // Pessoas para seguir: mesma cidade, mais seguidores primeiro.
-    const suggestions = () => (!demoOn() ? [] : USERS).filter(u => u.city === me.city && !isFollowing(u.id) && !store.followReq[u.id] && !isBlocked(u.id)).sort((a, b) => b.followers - a.followers);
+    const suggestions = () => (!demoOn() ? [] : USERS).filter(u => !blockedMe(u.id) && u.city === me.city && !isFollowing(u.id) && !store.followReq[u.id] && !isBlocked(u.id)).sort((a, b) => b.followers - a.followers);
 
     // ---------- notificações ----------
     function notifications(mine) {
@@ -346,6 +408,8 @@
           if (tagStatus(a, t.userId) === 'aceito') out.push({ id: 'acc:' + a.id + ':' + t.userId, kind: 'accepted', t: (t.at || a.playedAt) + MIN, actor: t.userId, activity: a });
         }
       }
+      for (const d of incomingDeletions()) out.push({ id: 'delreq:' + d.id, kind: 'delReq', t: d.t, actor: d.actor, activity: d.activity, reason: d.reason, status: d.status });
+      for (const d of myDeletions()) if (d.status === 'aprovado') out.push({ id: 'deldone:' + d.id, kind: 'delDone', t: d.at + d.total * MIN, actor: d.voters[d.voters.length - 1], matchId: d.id });
       for (const c of incomingClaims(mine)) if (c.activity) out.push({ id: 'claimreq:' + c.id, kind: 'claimReq', t: c.t, actor: c.userId, activity: c.activity, claim: c, status: c.status });
       for (const c of myClaims()) {
         const a = allOthers().find(x => x.id === c.id);
@@ -354,7 +418,7 @@
       [['ju', 1, 13, 10], ['gui', 3, 21, 5], ['duda', 6, 8, 40]].forEach(([u, d, h, m]) => out.push({ id: 'follow:' + u, kind: 'follow', t: at(d, h, m), actor: u }));
       return out.filter(n => n.t <= now()).sort((x, y) => y.t - x.t);
     }
-    const unread = mine => notifications(mine).filter(n => n.t > store.readUntil || ((n.kind === 'tag' || n.kind === 'claimReq') && n.status === 'pendente')).length;
+    const unread = mine => notifications(mine).filter(n => n.t > store.readUntil || ((n.kind === 'tag' || n.kind === 'claimReq' || n.kind === 'delReq') && n.status === 'pendente')).length;
     function markRead() { store.readUntil = now(); persist(); }
 
     // ---------- entrar numa partida pelo código (convidado vira você) ----------
@@ -392,12 +456,11 @@
 
     // ---------- grupos ----------
     // Tudo o que você muda num grupo fica em store.g; os grupos de exemplo vêm da semente. No servidor, cada coisa daqui
-    // vira uma tabela (groups, group_members, group_delegations, group_posts; ver supabase/schema.sql).
+    // vira uma tabela (groups, group_members, group_posts; ver supabase/schema.sql).
     function gs() {
-      if (!store.g) store.g = { created: [], state: {}, reqAt: {}, roles: {}, removed: {}, added: {}, deleg: {}, wall: {}, seedDeleg: null };
+      if (!store.g) store.g = { created: [], state: {}, reqAt: {}, roles: {}, removed: {}, added: {}, wall: {} };
+      if (!store.g.photos) store.g.photos = {};
       const g = store.g;
-      // quem autorizou você (organizador do "Beach todo domingo") a lançar partidas por eles: Rafa por 3 h, Lu até o fim do dia
-      if (!g.seedDeleg) { const eod = new Date(now()); eod.setHours(23, 59, 0, 0); g.seedDeleg = { 'g-beach': { rafa: now() + 3 * HOUR, lu: eod.getTime() } }; }
       return g;
     }
     const groupBase = id => (demoOn() ? GROUPS : []).find(x => x.id === id) || gs().created.find(x => x.id === id) || null;
@@ -414,7 +477,7 @@
       if (st === 'membro' && !members.some(m => m.userId === 'me')) members.push({ userId: 'me', role: 'membro' });
       members.sort((x, y) => ROLE_RANK[x.role] - ROLE_RANK[y.role]);
       const mine = members.find(m => m.userId === 'me');
-      return Object.assign({}, b, { members, myRole: mine ? mine.role : null, pending: st === 'pedido', local: !GROUPS.includes(b) });
+      return Object.assign({}, b, { members, myRole: mine ? mine.role : null, pending: st === 'pedido', local: !GROUPS.includes(b), photo: g.photos[b.id] || b.photo || '' });
     }
     const groups = () => (demoOn() ? GROUPS : []).concat(gs().created).map(groupView);
     const group = id => { const b = groupBase(id); return b ? groupView(b) : null; };
@@ -427,6 +490,8 @@
       persist();
       return id;
     }
+    // foto do grupo: só quem organiza troca (no banco: groups.avatar_url, ver supabase/schema.sql)
+    function setGroupPhoto(id, url) { const gr = group(id); if (!canManage(gr) || gr.myRole !== 'admin') return false; const g = gs(); if (url) g.photos[id] = url; else delete g.photos[id]; persist(); return true; }
     function updateGroup(id, d) { const b = gs().created.find(x => x.id === id); if (!b) return false; Object.assign(b, d); persist(); return true; }
     // convite aberto em outro aparelho: o grupo passa a existir aqui, com você como membro e quem convidou como organizador
     function importGroup(d) {
@@ -448,7 +513,7 @@
       const gr = group(id); if (!gr) return;
       const g = gs();
       if (gr.local && gr.myRole === 'admin' && !gr.invitedBy) { g.created = g.created.filter(x => x.id !== id); }  // grupo criado aqui: sair apaga (não há outro organizador)
-      else { g.state[id] = 'saiu'; delete g.deleg[id]; }
+      else { g.state[id] = 'saiu'; }
       persist();
     }
     function cancelJoin(id) { const g = gs(); if (g.state[id] === 'pedido') { delete g.state[id]; persist(); } }
@@ -463,15 +528,6 @@
     }
     // Autorização: você deixa o organizador e os moderadores do grupo lançarem partidas com você por um tempo.
     // Partidas lançadas por eles nesse período entram no seu perfil sem precisar aceitar a marcação.
-    function delegate(id, ms) { const g = gs(); if (ms > 0) g.deleg[id] = now() + ms; else delete g.deleg[id]; persist(); }
-    const myDelegation = id => { const t = gs().deleg[id]; return t && t > now() ? t : 0; };
-    // quem autorizou você (só vale se você organiza ou modera o grupo)
-    function delegatesToMe(id) {
-      const gr = group(id); if (!canManage(gr)) return [];
-      const d = (demoOn() && (gs().seedDeleg || {})[id]) || {};
-      return Object.entries(d).filter(([u, t]) => t > now() && gr.members.some(m => m.userId === u)).map(([userId, until]) => ({ userId, until }));
-    }
-    const delegatedToMe = (id, userId, t) => delegatesToMe(id).some(d => d.userId === userId && d.until >= (t || now()));
     // partidas do grupo: as dos membros marcadas no grupo e as suas (mine: atividades do aparelho)
     const groupActs = (id, mine) => allOthers().filter(a => a.groupId === id && canSee(a)).concat((mine || []).filter(a => a.groupId === id && a.visibility !== 'so-eu')).sort((x, y) => y.playedAt - x.playedAt);
     // resenha: o mural do grupo
@@ -493,16 +549,17 @@
       TYPES, VISIBILITY, PLACES, CITY,
       setMe(p) { me = Object.assign({}, me, p, { id: 'me' }); },
       publicId, userByCode, matchCode, normCode, findByCode, requestClaim, cancelClaim, claimStatus, myClaims, incomingClaims, respondClaim,
-      me: () => me, user, users: () => (demoOn() ? USERS.slice() : []), nameOf, demoOn,
-      isFollowing, toggleFollow, followsMe, followStatus, privacyOf, canView, isBlocked, toggleBlock, PRIVACY_ITEMS, PRIVACY_OPEN,
+      me: () => me, user, blockedMe, users: () => (demoOn() ? USERS.filter(u => !blockedMe(u.id)) : []), nameOf, demoOn,
+      isFollowing, toggleFollow, followsMe, followStatus, privacyOf, canView, isBlocked, toggleBlock, blocked: () => store.blocked.map(user).filter(Boolean), PRIVACY_ITEMS, PRIVACY_OPEN,
       following: () => (demoOn() ? store.follows.map(user).filter(Boolean) : []),
       followers: () => (demoOn() ? SEED_FOLLOWERS.map(user).filter(Boolean) : []),
-      canSee, involves, tagStatus, respondTag,
+      canSee, involves, tagStatus, respondTag, canTag, tagPolicyOf,
+      report, reported, requestDeletion, cancelDeletion, deletionStatus, myDeletions, incomingDeletions, voteDeletion, isGone,
       zaps, hasZapped, toggleZap,
       feed, byUser, activity, suggestions,
       notifications, unread, markRead, reset,
       groups, group, myGroups, groupsNear, canManage, createGroup, updateGroup, importGroup, joinGroup, leaveGroup, cancelJoin, setRole, removeMember, addMember,
-      delegate, myDelegation, delegatesToMe, delegatedToMe, groupActs, wall, postWall, deleteWall,
+      groupActs, setGroupPhoto, wall, postWall, deleteWall,
     };
   }
 

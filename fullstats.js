@@ -20,7 +20,8 @@
     const key = S.fold(who);
     const t = (m.teams || []).findIndex(tm => (tm.players || []).some(n => S.fold(n) === key));
     if (t < 0) return null;
-    const mk = m.id + '|' + key + '|' + (m.events || []).length + '|' + (m.endedAt || 0) + '|' + typeOf(m) + '|' + JSON.stringify(m.manual || null);
+    const hide = m.hidePlayers && m.hidePlayers.length ? new Set(m.hidePlayers.map(S.fold)) : null; // ainda não confirmaram (ou saíram): fora do "com um jogador"
+    const mk = m.id + '|' + key + '|' + (m.events || []).length + '|' + (m.endedAt || 0) + '|' + typeOf(m) + '|' + JSON.stringify(m.manual || null) + '|' + (hide ? [...hide].join(',') : '');
     if (memo.has(mk)) return memo.get(mk);
     const st = S.matchStats(m);
     const o = 1 - t;
@@ -48,7 +49,7 @@
     r.others = {};
     for (const p of st.players) {
       const k = S.fold(p.name);
-      if (!k || k === key) continue;
+      if (!k || k === key || (hide && hide.has(k))) continue;
       r.others[k] = { name: p.name, side: p.team === t ? 'mate' : 'opp', pts: p.pts, aces: p.aces, winners: p.winners, errors: p.errors, df: p.df, assists: p.assists };
     }
     // break points (só esportes com games): chance de quebrar o saque do outro e de salvar o próprio
