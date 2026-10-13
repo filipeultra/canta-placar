@@ -125,6 +125,8 @@
     const o = opts || {};
     const load = o.load || (() => null), save = o.save || (() => {});
     const now = () => (o.now ? o.now() : Date.now());
+    // rede de exemplo (pessoas, partidas, zaps e grupos fictícios): desligada, o app mostra só o que é seu
+    const demoOn = () => (o.demo ? !!o.demo() : true);
     let me = { id: 'me', name: 'Você', city: CITY, place: '', color: '#AFFB48', privacy: PRIVACY_OPEN() };
     let store = Object.assign(blankStore(), load() || {});
     function blankStore() { return { v: 1, follows: SEED_FOLLOWS.slice(), myZaps: { 'tag-lu-old': 1 }, tagResp: {}, claims: {}, claimResp: {}, followReq: {}, blocked: [], readUntil: now() - 30 * HOUR, g: null }; }
@@ -223,6 +225,7 @@
       return list;
     }
     function allOthers() {
+      if (!demoOn()) return [];
       if (!others) others = buildOthers().concat(o.extraActivities ? o.extraActivities() : []);
       return others.filter(a => a.playedAt <= now());
     }
@@ -277,7 +280,7 @@
       const t = (a.tagged || []).find(x => x.userId === userId);
       if (!t) return null;
       if (userId === 'me') return store.tagResp[a.id] || t.status;
-      if (a.ownerId === 'me' && t.status === 'pendente' && now() - (t.at || a.playedAt) > MIN) return 'aceito';
+      if (a.ownerId === 'me' && t.status === 'pendente' && demoOn() && now() - (t.at || a.playedAt) > MIN) return 'aceito';
       return t.status;
     }
     function respondTag(id, resp) { store.tagResp[id] = resp; persist(); }
@@ -286,6 +289,7 @@
     function zaps(a) {
       let list;
       if (a.ownerId === 'me') {
+        if (!demoOn()) return [];
         // zaps fictícios nas suas partidas: alguns dos seus seguidores, chegando aos poucos depois do fim
         if (a.visibility === 'so-eu') return [];
         const r = rng(hash(a.id));
@@ -324,11 +328,12 @@
     const activity = id => allOthers().find(a => a.id === id) || null;
 
     // Pessoas para seguir: mesma cidade, mais seguidores primeiro.
-    const suggestions = () => USERS.filter(u => u.city === me.city && !isFollowing(u.id) && !store.followReq[u.id] && !isBlocked(u.id)).sort((a, b) => b.followers - a.followers);
+    const suggestions = () => (!demoOn() ? [] : USERS).filter(u => u.city === me.city && !isFollowing(u.id) && !store.followReq[u.id] && !isBlocked(u.id)).sort((a, b) => b.followers - a.followers);
 
     // ---------- notificações ----------
     function notifications(mine) {
       const out = [];
+      if (!demoOn()) return out;
       for (const a of allOthers()) {
         if (involves(a, 'me') && (a.tagged || []).some(t => t.userId === 'me')) {
           out.push({ id: 'tag:' + a.id, kind: 'tag', t: ((a.tagged.find(t => t.userId === 'me') || {}).at) || a.playedAt, actor: a.ownerId, activity: a, status: tagStatus(a, 'me') });
@@ -395,7 +400,7 @@
       if (!g.seedDeleg) { const eod = new Date(now()); eod.setHours(23, 59, 0, 0); g.seedDeleg = { 'g-beach': { rafa: now() + 3 * HOUR, lu: eod.getTime() } }; }
       return g;
     }
-    const groupBase = id => GROUPS.find(x => x.id === id) || gs().created.find(x => x.id === id) || null;
+    const groupBase = id => (demoOn() ? GROUPS : []).find(x => x.id === id) || gs().created.find(x => x.id === id) || null;
     const ROLE_RANK = { admin: 0, mod: 1, membro: 2 };
     function groupView(b) {
       const g = gs();
@@ -411,7 +416,7 @@
       const mine = members.find(m => m.userId === 'me');
       return Object.assign({}, b, { members, myRole: mine ? mine.role : null, pending: st === 'pedido', local: !GROUPS.includes(b) });
     }
-    const groups = () => GROUPS.concat(gs().created).map(groupView);
+    const groups = () => (demoOn() ? GROUPS : []).concat(gs().created).map(groupView);
     const group = id => { const b = groupBase(id); return b ? groupView(b) : null; };
     const myGroups = () => groups().filter(x => x.myRole);
     const groupsNear = () => groups().filter(x => !x.myRole && !x.local);
@@ -463,7 +468,7 @@
     // quem autorizou você (só vale se você organiza ou modera o grupo)
     function delegatesToMe(id) {
       const gr = group(id); if (!canManage(gr)) return [];
-      const d = (gs().seedDeleg || {})[id] || {};
+      const d = (demoOn() && (gs().seedDeleg || {})[id]) || {};
       return Object.entries(d).filter(([u, t]) => t > now() && gr.members.some(m => m.userId === u)).map(([userId, until]) => ({ userId, until }));
     }
     const delegatedToMe = (id, userId, t) => delegatesToMe(id).some(d => d.userId === userId && d.until >= (t || now()));
@@ -471,7 +476,7 @@
     const groupActs = (id, mine) => allOthers().filter(a => a.groupId === id && canSee(a)).concat((mine || []).filter(a => a.groupId === id && a.visibility !== 'so-eu')).sort((x, y) => y.playedAt - x.playedAt);
     // resenha: o mural do grupo
     function wall(id) {
-      const seed = (WALL[id] || []).map(([userId, d, h, m, text], i) => ({ id: id + '-w' + i, userId, t: at(d, h, m), text }));
+      const seed = (demoOn() ? WALL[id] || [] : []).map(([userId, d, h, m, text], i) => ({ id: id + '-w' + i, userId, t: at(d, h, m), text }));
       return seed.concat(gs().wall[id] || []).filter(x => x.t <= now() && !(x.userId && isBlocked(x.userId))).sort((x, y) => x.t - y.t);
     }
     function postWall(id, text) {
@@ -488,10 +493,10 @@
       TYPES, VISIBILITY, PLACES, CITY,
       setMe(p) { me = Object.assign({}, me, p, { id: 'me' }); },
       publicId, userByCode, matchCode, normCode, findByCode, requestClaim, cancelClaim, claimStatus, myClaims, incomingClaims, respondClaim,
-      me: () => me, user, users: () => USERS.slice(), nameOf,
+      me: () => me, user, users: () => (demoOn() ? USERS.slice() : []), nameOf, demoOn,
       isFollowing, toggleFollow, followsMe, followStatus, privacyOf, canView, isBlocked, toggleBlock, PRIVACY_ITEMS, PRIVACY_OPEN,
-      following: () => store.follows.map(user).filter(Boolean),
-      followers: () => SEED_FOLLOWERS.map(user).filter(Boolean),
+      following: () => (demoOn() ? store.follows.map(user).filter(Boolean) : []),
+      followers: () => (demoOn() ? SEED_FOLLOWERS.map(user).filter(Boolean) : []),
       canSee, involves, tagStatus, respondTag,
       zaps, hasZapped, toggleZap,
       feed, byUser, activity, suggestions,

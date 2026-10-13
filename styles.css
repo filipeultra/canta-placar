@@ -2534,3 +2534,4 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .icon-btn.sm svg, .icon-btn.sm .ic { width: 16px; height: 16px; }
 #gtabBody { display: grid; gap: 12px; }
 .gm-chip.on .ic.ok { color: currentColor; opacity: 0.7; }
+.wl-live[hidden] { display: none; }

@@ -354,7 +354,7 @@
     <svg class="wl-logo" viewBox="0 0 182 46" aria-hidden="true"><use href="#logo-h"/></svg>
     <h1 class="wl-title">O placar que escuta.<br>A rede de quem joga.</h1>
     <p class="wl-sub">Marque os pontos falando, guarde suas estatísticas e veja quem está jogando perto de você.</p>
-    <div class="wl-live" aria-live="off">
+    <div class="wl-live" id="wlLive" aria-live="off">
       <span class="wl-badge"><i></i>Ao vivo no Brasil</span>
       <div class="wl-big"><b id="wlNow">0</b><span>pessoas jogando agora</span></div>
       <div class="wl-row">
@@ -591,6 +591,7 @@
       <section class="group">
         <h3>Conta</h3>
         <div class="list">
+          <label class="row"><span class="row-ic"><svg><use href="#i-users"/></svg></span><span>Rede de exemplo<small>Pessoas, partidas, zaps e grupos fictícios para mostrar como o app funciona. Desligue para ver só o que é seu.</small></span><input class="switch" type="checkbox" id="pDemoNet"></label>
           <div class="row"><span class="row-ic"><svg><use href="#i-user"/></svg></span><span>Seu ID<small>Passe para alguém te achar ou te marcar</small></span><button class="idchip" type="button" id="pUid" data-copy=""></button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-download"/></svg></span><span>Exportar meus dados<small>Partidas, lances, perfil e rede, num arquivo</small></span><button class="btn" type="button" id="btnExportAll">Exportar</button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-camera"/></svg></span><span>Vídeos das partidas<small id="vidStore">Guardados só neste aparelho</small></span><button class="btn" type="button" id="btnVidClear">Apagar</button></div>

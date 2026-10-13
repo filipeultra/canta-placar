@@ -1406,7 +1406,11 @@
   // Os dados dos outros são fictícios (social.js); as suas partidas vêm do histórico do aparelho.
   // =========================================================
   const KEY_SOCIAL = 'canta.social.v1';
+  // Rede de exemplo ligada por padrão enquanto não há servidor (para demonstrar o app). No lançamento com contas de verdade: false.
+  const DEMO_NET_DEFAULT = true;
+  const demoNet = () => (prefs.demoNet === undefined ? DEMO_NET_DEFAULT : !!prefs.demoNet);
   const SO = window.CantaSocial.create({
+    demo: demoNet,
     load: () => store.get(KEY_SOCIAL, null),
     save: v => store.set(KEY_SOCIAL, v),
     // a Rafa (perfil de exemplo) publica as partidas do demo.js, com estatística completa
@@ -1583,7 +1587,8 @@
     setRadio('feedKind', kind);
     const list = SO.feed(kind, myActivities()).slice(0, 60);
     let h = kind === 'geral' ? '<p class="feed-note">' + ic('i-pin') + 'Partidas públicas de quem joga em <b>' + esc(SO.me().city) + '</b></p>' : '';
-    if (!list.length) h += '<div class="empty-state">' + ic('i-users') + '<b>Nada por aqui ainda</b><span>Siga pessoas que jogam perto de você para ver as partidas delas.</span></div>';
+    if (!list.length) h += demoNet() ? '<div class="empty-state">' + ic('i-users') + '<b>Nada por aqui ainda</b><span>Siga pessoas que jogam perto de você para ver as partidas delas.</span></div>'
+      : '<div class="empty-state">' + ic('i-flag') + '<b>Suas partidas aparecem aqui</b><span>Marque a primeira pelo placar ou lance uma que já jogou. Crie um grupo para a sua turma e convide pelo link.</span><button class="btn btn-brand" type="button" data-action="choose">' + ic('i-plus') + 'Nova partida</button></div>';
     // 12 por vez: o resto entra quando a pessoa chega perto do fim (a tela abre mais rápido)
     feedRest = list.slice(FEED_PAGE);
     list.slice(0, FEED_PAGE).forEach((a, i) => { h += actCardHTML(a); if (i === 2) h += suggestHTML(); });
@@ -2475,8 +2480,11 @@
   function showWelcome() {
     const w = $('#welcome');
     w.hidden = false; document.body.classList.add('welcome-on');
-    wlStep(); wlRender(true);
-    clearInterval(wlTimer); wlTimer = setInterval(() => { if (!w.hidden) wlRender(false); }, 3000);
+    wlStep();
+    // números "ao vivo" são da rede de exemplo: sem ela, a tela de entrada não mostra contagem inventada
+    $('#wlLive').hidden = !demoNet();
+    clearInterval(wlTimer);
+    if (demoNet()) { wlRender(true); wlTimer = setInterval(() => { if (!w.hidden) wlRender(false); }, 3000); }
   }
   function hideWelcome(msg) {
     prefs.onboarded = true; savePrefs();
@@ -4457,6 +4465,7 @@
     $('#pDetail').addEventListener('change', e => { prefs.detail = e.target.checked; savePrefs(); voice.phrases = voicePhrases(); if (voice.wanted) voice.reopen(); });
     $('#pMic').addEventListener('change', e => { prefs.mic = e.target.value; savePrefs(); if (micTest) { toggleMicTest(); toggleMicTest(); } switchEngine(); });
     $('#btnMicTest').addEventListener('click', toggleMicTest);
+    $('#pDemoNet').addEventListener('change', e => { prefs.demoNet = e.target.checked; savePrefs(); renderBell(); renderGroupStripNow(); if (currentView !== 'jogar') go(currentView, currentMatchId, true); toast(prefs.demoNet ? 'Rede de exemplo ligada' : 'Rede de exemplo desligada: só o que é seu aparece'); });
     $$('input[name="engine"]').forEach(el => el.addEventListener('change', () => { prefs.engine = getRadio('engine'); savePrefs(); switchEngine(); renderEngineNote(); }));
     $('#pAwake').addEventListener('change', e => { prefs.awake = e.target.checked; savePrefs(); if (prefs.awake) requestWakeLock(); else if (wakeLock) wakeLock.release().catch(err => console.info('[tela] liberar falhou', err)); });
     $('#pLocal').addEventListener('change', e => { prefs.local = e.target.checked; if (voice.kind === 'web') { voice.useLocal = prefs.local; voice.phrases = voicePhrases(); voice.reopen(); } savePrefs(); });
@@ -4522,6 +4531,7 @@
     setRadio('engine', prefs.engine);
     renderEngineNote();
     $('#pDetail').checked = prefs.detail;
+    $('#pDemoNet').checked = demoNet();
     fillMics();
     refreshLocalStatus().catch(e => { console.error('[voz] status offline', e); $('#localStatus').textContent = 'Não consegui consultar a voz offline: ' + e.message; });
     openSheet('#sheetPrefs');
