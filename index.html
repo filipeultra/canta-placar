@@ -440,7 +440,11 @@
 
       <section class="group">
         <h3>Formato</h3>
-        <div class="list">
+        <div class="seg seg-wide fmt-mode" role="radiogroup" aria-label="Tipo de formato">
+          <label><input type="radio" name="fmtMode" value="std" checked><span>Padrão do esporte</span></label>
+          <label><input type="radio" name="fmtMode" value="custom"><span><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Personalizado</span></label>
+        </div>
+        <div class="list" id="fmtStd">
           <div class="row stack"><span>Sets</span>
             <div class="seg" role="radiogroup" aria-label="Sets">
               <label><input type="radio" name="setsToWin" value="1"><span>1 set</span></label>
@@ -497,6 +501,7 @@
             </div>
           </div>
         </div>
+        <div id="fmtCustom" class="fmt-custom" hidden></div>
         <p class="hint" id="formatHint"></p>
       </section>
 
@@ -507,13 +512,15 @@
         <div class="list teams-edit">
           <div class="team-edit" data-team="0">
             <div class="swatches" role="radiogroup" aria-label="Cor do time 1"></div>
-            <input type="text" id="t0name" maxlength="24" placeholder="Nome do time" autocomplete="off">
-            <input type="text" id="t0players" maxlength="60" placeholder="Jogadores (opcional): Ana, Bia" autocomplete="off">
+            <div class="pl-slots" id="pl0"></div>
+            <input type="hidden" id="t0players">
+            <input type="text" id="t0name" maxlength="24" placeholder="Nome do time (opcional)" autocomplete="off" aria-label="Nome do time 1 (opcional)">
           </div>
           <div class="team-edit" data-team="1">
             <div class="swatches" role="radiogroup" aria-label="Cor do time 2"></div>
-            <input type="text" id="t1name" maxlength="24" placeholder="Nome do time" autocomplete="off">
-            <input type="text" id="t1players" maxlength="60" placeholder="Jogadores (opcional): Caio, Duda" autocomplete="off">
+            <div class="pl-slots" id="pl1"></div>
+            <input type="hidden" id="t1players">
+            <input type="text" id="t1name" maxlength="24" placeholder="Nome do time (opcional)" autocomplete="off" aria-label="Nome do time 2 (opcional)">
           </div>
         </div>
         <p class="hint" id="aliasHint"></p>
@@ -527,6 +534,7 @@
         </div>
       </section>
 
+      <div class="dup-box" id="dupBox" translate="no" hidden></div>
       <p class="form-error" id="newError" role="alert" hidden></p>
       <button class="btn-primary" type="submit" id="btnStart">Começar partida</button>
       <p class="hint center" id="newNote"></p>
@@ -545,7 +553,8 @@
       <section class="group">
         <h3>Seu perfil</h3>
         <div class="list">
-          <div class="row stack"><span>Nome<small>É assim que você aparece na timeline e nas marcações</small></span><input class="text-in" type="text" id="pName" maxlength="40" autocomplete="name" placeholder="Seu nome"></div>
+          <div class="row stack"><span>Nome completo</span><input class="text-in" type="text" id="pFull" maxlength="60" autocomplete="name" placeholder="João Pedro Amaral"></div>
+          <div class="row stack"><span>Nome nos pontos<small>Nome e sobrenome curtos (ex.: João Amaral). É como você aparece no placar, nas estatísticas e na voz.</small></span><input class="text-in" type="text" id="pName" maxlength="24" autocomplete="off" placeholder="João Amaral"></div>
           <div class="row stack"><span>Cidade<small>Define o que aparece no Geral (pessoas que jogam perto)</small></span><input class="text-in" type="text" id="pCity" maxlength="60" placeholder="Montes Claros, MG"></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-users"/></svg></span><span>Rede de demonstração<small>Pessoas, partidas, zaps e convites fictícios para ver a timeline funcionando</small></span><button class="btn" type="button" id="btnSocialReset">Recomeçar</button></div>
         </div>
@@ -660,7 +669,6 @@
     <header class="sheet-head">
       <h2 id="logTitle" tabindex="-1" autofocus>Lances</h2>
       <div class="head-actions">
-        <button class="btn" type="button" id="btnCsv"><svg><use href="#i-download"/></svg>CSV</button>
         <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
       </div>
     </header>
@@ -1002,6 +1010,7 @@
 
 <div class="scrim" id="scrim" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="xc-toast" id="xcToast" role="status" translate="no" hidden></div>
 
 <script src="i18n-en.js"></script>
 <script src="i18n.js"></script>

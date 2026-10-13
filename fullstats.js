@@ -194,7 +194,12 @@
       x.n++; if (r.won === true) x.w++; if (r.won === false) x.l++;
       map.set(k, x);
     }
-    return [...map.values()].sort((a, b) => a.k - b.k).slice(-6);
+    // sempre os últimos 6 meses (mês sem partida aparece zerado), terminando no mês da partida mais recente
+    const last = list.length ? new Date(list[list.length - 1].endedAt) : new Date();
+    const end = Math.max(last.getFullYear() * 12 + last.getMonth(), new Date().getFullYear() * 12 + new Date().getMonth());
+    const out = [];
+    for (let k = end - 5; k <= end; k++) out.push(map.get(k) || { k, y: Math.floor(k / 12), m: k % 12, w: 0, l: 0, n: 0 });
+    return out;
   }
 
   // ---------- análise do dia ----------

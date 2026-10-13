@@ -131,6 +131,11 @@ O reel atual (`marketing/reels/vem-ai.html`) ficou com "cara de IA". A versão 2
 - Hoje a análise do dia das estatísticas completas sai por regras no próprio aparelho (`fullstats.js`), uma vez por dia por esporte e só quando há partida nova.
 - Quando a IA estiver ligada (`AI_URL`), a mesma regra de "uma por dia, só com partida nova" vale no servidor: a função recebe só os números (`CantaFull.facts()`, sem nomes) e guarda o texto por pessoa e esporte, para não gastar IA à toa.
 
+### 6.10 Guardado para depois (13/10/2026)
+- **Exportar planilha (CSV) e dados (JSON):** saiu da tela da partida (pouco útil por partida). O código continua em `app.js` (`exportMatch`); a ideia é voltar nas estatísticas completas, exportando o período filtrado inteiro.
+- **Mais de 2 jogadores por time:** hoje cada time aceita até 2 (`MAX_PER_TEAM` em `app.js`). Para vôlei de quadra, futevôlei 4x4 e futebol, subir o limite por esporte e mostrar a escolha de "quem fez o ponto" em grade.
+- **Lances editáveis:** na lista de Lances, tocar num ponto antigo para corrigir o tipo ou o jogador (hoje só dá para desfazer os últimos).
+
 ### Fila dos ajustes finais (tudo o que ficou "para depois")
 | # | O quê | Onde está o detalhe |
 |---|---|---|
@@ -146,6 +151,7 @@ O reel atual (`marketing/reels/vem-ai.html`) ficou com "cara de IA". A versão 2
 | 10 | Reel "vem aí" v2 com iPhone e uso ao vivo | 6.7 |
 | 11 | Relógios e pulseiras: km, kcal e batimentos | 6.8 |
 | 12 | Análise do dia por IA no servidor | 6.9 |
+| 13 | Exportar CSV/JSON nas estatísticas gerais; mais de 2 por time; editar lances | 6.10 |
 
 ## Antes de abrir para o público (checklist)
 

@@ -63,6 +63,12 @@ Já estão no `schema.sql`, com testes em `tests/ao-vivo.sql` (24 verificações
 - **Tempo real:** Supabase Realtime avisando que o placar mudou; o app chama `live_for_viewer` de novo (assim as regras valem sempre).
 - **`daily_analyses`:** uma análise por pessoa, por esporte e por dia, e só com partida nova (`last_match_at` maior que o da última, conferido por gatilho). Pelo app só entra a análise por regras (`source = 'regras'`); a da IA quem grava é a função do servidor.
 
+## Jogadores, apelido e predefinições de formato
+Testes em `tests/formato.sql` (11 verificações).
+- **`profiles.name`** é o "nome nos pontos" (nome e sobrenome curtos, usado no placar, nas estatísticas e na voz) e **`profiles.full_name`** o nome completo.
+- **`match_players.nickname`:** apelido só naquela partida, quando dois jogadores têm o mesmo nome (o `user_id` continua o mesmo, então as estatísticas vão para a pessoa certa).
+- **`format_presets`:** formato salvo com nome no padrão `BT1-Amigos de Segunda` (prefixo do esporte + número + até 18 letras). Cada um só vê e grava as suas; o servidor confere o prefixo e o limite do plano (grátis 1 por esporte, Pro 3).
+
 ## Como ligar (passo a passo)
 
 1. Criar o projeto em supabase.com (região São Paulo, `sa-east-1`). O plano grátis serve para o lançamento; o Pro custa US$ 25 por mês quando passar dos limites.
@@ -87,4 +93,5 @@ psql -d ultraplay_teste -f supabase/tests/supabase-stub.sql
 psql -d ultraplay_teste -f supabase/schema.sql
 psql -d ultraplay_teste -f supabase/tests/regras.sql
 psql -d ultraplay_teste -f supabase/tests/ao-vivo.sql   # jogando agora e análise do dia (numa base nova)
+psql -d ultraplay_teste -f supabase/tests/formato.sql   # predefinições e apelido (numa base nova)
 ```

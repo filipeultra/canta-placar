@@ -760,8 +760,11 @@
     if (d) d.hidden = true;
     if (!anySheetOpen()) { $('#scrim').hidden = true; document.body.classList.remove('modal-open'); }
     if (sel === '#sheetFinish') finishStep = 0;
+    // o Pro aberto de dentro de outra folha (ex.: Nova partida): ao fechar, volta para ela como estava
+    if (sel === '#sheetPro' && proFrom) { const f = proFrom; proFrom = null; setTimeout(() => { if (!anySheetOpen()) openSheet('#' + f); }, 0); }
   }
-  function closeAllSheets() { $$('.sheet').forEach(d => closeSheet('#' + d.id)); }
+  let proFrom = null;
+  function closeAllSheets() { proFrom = null; $$('.sheet').forEach(d => closeSheet('#' + d.id)); }
   $('#scrim').addEventListener('click', closeAllSheets);
   $$('.sheet').forEach(d => $$('[data-close]', d).forEach(b => b.addEventListener('click', () => closeSheet('#' + d.id))));
 
@@ -781,6 +784,150 @@
     const val = String(v);
     if (!Array.from(el.options).some(o => o.value === val)) el.add(new Option(id.toLowerCase().includes('cap') ? 'teto ' + val : val, val));
     el.value = val;
+  }
+
+
+  // ---------- Formato personalizado e predefinições ----------
+  // "Padrão do esporte" usa as opções rápidas; "Personalizado" abre cada regra com o número que quiser.
+  // A predefinição guarda o formato com um nome: prefixo do esporte + número + nome (BT2-Amigos de Segunda).
+  // Grátis: 1 por esporte. Pro: 3 por esporte.
+  let fmtMode = 'std', custom = null, customPreset = '';
+  const PRESET_PREFIX = { tenis: 'TEN', beach: 'BT', padel: 'PAD', peteca: 'PET', volei: 'VOL', futevolei: 'FUT' };
+  const PRESET_NAME_MAX = 18;
+  const presetMax = () => (isPro() ? 3 : 1);
+  const presetsOf = sp => ((prefs.presets || {})[sp] || []).filter(p => p && p.cfg);
+  const CF = {
+    games: [
+      { k: 'setsToWin', label: 'Sets para vencer', min: 1, max: 3, show: v => (v === 1 ? '1 set' : 'melhor de ' + (2 * v - 1)) },
+      { k: 'gamesPerSet', label: 'Games por set', min: 1, max: 12 },
+      { k: 'tiebreakTo', label: 'Tiebreak até', hint: 'quando empata em games', min: 3, max: 15 },
+      { k: 'deuce', label: 'No 40-40', opts: [['ad', 'Vantagem'], ['golden', 'Ponto de ouro'], ['star', 'Star point']] },
+      { k: 'decider', label: 'Set decisivo', opts: [['set', 'Set normal'], ['supertb', 'Super tiebreak'], ['tb10', 'Tiebreak de 10']], when: c => c.setsToWin > 1 },
+      { k: 'matchTiebreakTo', label: 'Super tiebreak até', min: 5, max: 21, when: c => c.setsToWin > 1 && c.decider === 'supertb' },
+      { k: 'tbSwitch', label: 'Troca de lado no tiebreak', opts: [['six', 'A cada 6'], ['oneFour', '1º e a cada 4']] },
+    ],
+    rally: [
+      { k: 'setsToWin', label: 'Sets para vencer', min: 1, max: 3, show: v => (v === 1 ? '1 set' : 'melhor de ' + (2 * v - 1)) },
+      { k: 'pointsToWin', label: 'Set até', min: 5, max: 50 },
+      { k: 'winBy', label: 'Diferença de 2 pontos', toggle: true },
+      { k: 'cap', label: 'Teto do set', hint: 'para de vez nesse placar', min: 6, max: 99, opt: true, minOf: c => c.pointsToWin + 1 },
+      { k: 'decidingSetPoints', label: 'Set decisivo até', min: 5, max: 50, when: c => c.setsToWin > 1 },
+      { k: 'decidingCap', label: 'Teto do set decisivo', min: 6, max: 99, opt: true, minOf: c => c.decidingSetPoints + 1, when: c => c.setsToWin > 1 },
+      { k: 'scoring', label: 'Quem pontua', opts: [['rally', 'Todo rally'], ['sideout', 'Só quem saca']] },
+      { k: 'switchMode', label: 'Troca de lado', opts: [['none', 'Sem troca'], ['every', 'A cada N'], ['reach', 'Ao chegar a N']] },
+      { k: 'switchAt', label: 'N (troca de lado)', min: 1, max: 30, when: c => c.switchMode !== 'none' },
+      { k: 'decidingSwitchAt', label: 'N no set decisivo', min: 1, max: 30, when: c => c.switchMode !== 'none' && c.setsToWin > 1 },
+    ],
+  };
+  // formato completo do esporte, para começar a personalizar
+  function customBase(sport, from) {
+    const c = E.makeConfig(Object.assign({}, from || {}, { sport }));
+    const keys = CF[c.kind].map(f => f.k);
+    const out = {};
+    keys.forEach(k => { out[k] = c[k]; });
+    if (c.kind === 'rally' && !('switchMode' in out)) out.switchMode = 'none';
+    return out;
+  }
+  function cfRowHTML(f, c) {
+    const v = c[f.k];
+    let ctl;
+    if (f.opts) ctl = '<div class="seg seg-sm" role="radiogroup" aria-label="' + esc(f.label) + '">' + f.opts.map(([val, l]) => '<label><input type="radio" name="cf-' + f.k + '" value="' + val + '"' + (String(v) === val ? ' checked' : '') + '><span>' + esc(l) + '</span></label>').join('') + '</div>';
+    else if (f.toggle) ctl = '<input class="switch" type="checkbox" data-cft="' + f.k + '"' + (v === 2 ? ' checked' : '') + ' aria-label="' + esc(f.label) + '">';
+    else {
+      const on = !f.opt || v > 0, lo = f.minOf ? Math.max(f.min, f.minOf(c)) : f.min;
+      const shown = on ? v : lo;
+      ctl = (f.opt ? '<input class="switch" type="checkbox" data-cfo="' + f.k + '"' + (on ? ' checked' : '') + ' aria-label="' + esc(f.label) + '">' : '') +
+        '<div class="stepper' + (on ? '' : ' off') + '"><button type="button" data-cfstep="' + f.k + '" data-d="-1" aria-label="' + esc(L('Menos', 'Less')) + '"' + (!on || shown <= lo ? ' disabled' : '') + '>−</button>' +
+        '<input type="number" inputmode="numeric" data-cf="' + f.k + '" min="' + lo + '" max="' + f.max + '" value="' + shown + '"' + (on ? '' : ' disabled') + ' aria-label="' + esc(f.label) + '">' +
+        '<button type="button" data-cfstep="' + f.k + '" data-d="1" aria-label="' + esc(L('Mais', 'More')) + '"' + (!on || shown >= f.max ? ' disabled' : '') + '>+</button></div>';
+    }
+    const sub = f.show ? f.show(v) : f.hint;
+    return '<div class="row cf-row' + (f.opts ? ' stack' : '') + '"><span>' + esc(f.label) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span><div class="cf-ctl">' + ctl + '</div></div>';
+  }
+  function renderCustomFmt() {
+    const box = $('#fmtCustom'); if (!box) return;
+    const sport = getRadio('sport') || 'beach', kind = E.SPORTS[sport].kind;
+    if (!custom) custom = customBase(sport);
+    const list = presetsOf(sport), max = presetMax();
+    let h = '<details class="cf-presets" translate="no"' + (list.length ? ' open' : '') + '><summary>' + ic('i-layers') + '<span>' + esc(L('Predefinições salvas', 'Saved presets')) + '</span><small>' + list.length + '/' + max + '</small>' + ic('i-chev', 'ic chev') + '</summary>' +
+      (list.length ? '<div class="cf-plist">' + list.map(p => '<div class="cf-p' + (customPreset === p.name ? ' on' : '') + '"><button class="cf-use" type="button" data-cfuse="' + esc(p.id) + '"><b translate="no">' + esc(p.name) + '</b><small>' + esc(formatExplain(Object.assign({ sport }, p.cfg)).split('. ')[0]) + '</small></button><button class="icon-btn sm" type="button" data-cfdel="' + esc(p.id) + '" title="' + esc(L('Apagar predefinição', 'Delete preset')) + '" aria-label="' + esc(L('Apagar ', 'Delete ') + p.name) + '">' + ic('i-trash') + '</button></div>').join('') + '</div>'
+        : '<p class="hint">' + esc(L('Nenhuma ainda. Ajuste o formato abaixo e salve para usar de novo com um toque.', 'None yet. Adjust the format below and save it to reuse with one tap.')) + '</p>') + '</details>';
+    h += '<div class="list cf-list">' + CF[kind].filter(f => !f.when || f.when(custom)).map(f => cfRowHTML(f, custom)).join('') + '</div>';
+    const n = [1, 2, 3].find(i => !list.some(p => p.n === i)) || list.length + 1;
+    h += '<div class="cf-save" id="cfSave" translate="no" hidden><span class="cf-prefix" translate="no">' + PRESET_PREFIX[sport] + n + '-</span><input type="text" id="cfName" maxlength="' + PRESET_NAME_MAX + '" placeholder="' + esc(L('Amigos de Segunda', 'Monday crew')) + '" autocomplete="off" aria-label="' + esc(L('Nome da predefinição', 'Preset name')) + '"><button class="btn btn-sm btn-brand" type="button" data-cfsave="' + n + '">' + esc(L('Salvar', 'Save')) + '</button><button class="icon-btn sm" type="button" data-cfcancel aria-label="' + esc(L('Cancelar', 'Cancel')) + '">' + ic('i-x') + '</button></div>' +
+      '<button class="btn btn-sm cf-savebtn" type="button" data-cfnew translate="no">' + ic('i-download') + esc(L('Salvar predefinição', 'Save preset')) + (list.length >= max && !isPro() ? '<span class="pro-badge">PRO</span>' : '') + '</button>';
+    box.innerHTML = h;
+  }
+  function setFmtMode(mode) {
+    fmtMode = mode === 'custom' ? 'custom' : 'std';
+    setRadio('fmtMode', fmtMode);
+    if (fmtMode === 'custom' && !custom) custom = customBase(getRadio('sport') || 'beach', readStdCi());
+    $('#fmtStd').hidden = fmtMode === 'custom';
+    $('#fmtCustom').hidden = fmtMode !== 'custom';
+    if (fmtMode === 'custom') renderCustomFmt();
+    updateFormKind();
+  }
+  function cfClamp(f, v) {
+    const lo = f.minOf ? Math.max(f.min, f.minOf(custom)) : f.min;
+    return Math.min(f.max, Math.max(lo, Math.round(Number(v) || lo)));
+  }
+  function cfField(k) { const kind = E.SPORTS[getRadio('sport') || 'beach'].kind; return CF[kind].find(f => f.k === k); }
+  // depois de mudar o alvo do set, o teto precisa continuar acima dele
+  function cfFix() {
+    if (custom.cap && custom.cap <= custom.pointsToWin) custom.cap = custom.pointsToWin + 1;
+    if (custom.decidingCap && custom.decidingCap <= custom.decidingSetPoints) custom.decidingCap = custom.decidingSetPoints + 1;
+  }
+  function cfChanged() { customPreset = ''; cfFix(); renderCustomFmt(); updateFormKind(); }
+  function wireCustomFmt() {
+    const box = $('#fmtCustom');
+    box.addEventListener('click', e => {
+      const st = e.target.closest('[data-cfstep]');
+      if (st) { const f = cfField(st.dataset.cfstep); custom[f.k] = cfClamp(f, (custom[f.k] || 0) + Number(st.dataset.d)); cfChanged(); return; }
+      const use = e.target.closest('[data-cfuse]');
+      if (use) { const p = presetsOf(getRadio('sport')).find(x => x.id === use.dataset.cfuse); if (p) { custom = Object.assign(customBase(getRadio('sport')), p.cfg); customPreset = p.name; renderCustomFmt(); updateFormKind(); toast(L('Usando ', 'Using ') + p.name); } return; }
+      const del = e.target.closest('[data-cfdel]');
+      if (del) {
+        const sp = getRadio('sport'), p = presetsOf(sp).find(x => x.id === del.dataset.cfdel); if (!p) return;
+        openModal({ icon: 'i-trash', tone: 'danger', title: L('Apagar a predefinição?', 'Delete this preset?'), text: p.name,
+          actions: [{ label: L('Apagar', 'Delete'), kind: 'brand', act: () => { prefs.presets = Object.assign({}, prefs.presets, { [sp]: presetsOf(sp).filter(x => x.id !== p.id) }); savePrefs(); if (customPreset === p.name) customPreset = ''; closeModal(); renderCustomFmt(); toast(L('Predefinição apagada', 'Preset deleted')); } }, { label: L('Cancelar', 'Cancel'), kind: 'link', act: closeModal }] });
+        return;
+      }
+      if (e.target.closest('[data-cfnew]')) {
+        const sp = getRadio('sport');
+        if (presetsOf(sp).length >= presetMax()) {
+          if (!isPro()) { openPro('predefinicoes', () => { renderCustomFmt(); }); return; }
+          toast(L('Já são 3 neste esporte. Apague uma para salvar outra.', 'You already have 3 for this sport. Delete one to save another.')); return;
+        }
+        $('#cfSave').hidden = false; e.target.closest('[data-cfnew]').hidden = true; $('#cfName').focus(); return;
+      }
+      if (e.target.closest('[data-cfcancel]')) { renderCustomFmt(); return; }
+      const sv = e.target.closest('[data-cfsave]');
+      if (sv) savePreset(Number(sv.dataset.cfsave));
+    });
+    box.addEventListener('keydown', e => { if (e.target.id === 'cfName' && e.key === 'Enter') { e.preventDefault(); const b = $('[data-cfsave]', box); if (b) savePreset(Number(b.dataset.cfsave)); } });
+    box.addEventListener('change', e => {
+      const t = e.target;
+      if (t.dataset.cf) { const f = cfField(t.dataset.cf); custom[f.k] = cfClamp(f, t.value); cfChanged(); }
+      else if (t.dataset.cft) { custom[t.dataset.cft] = t.checked ? 2 : 1; cfChanged(); }
+      else if (t.dataset.cfo) { const f = cfField(t.dataset.cfo); custom[f.k] = t.checked ? cfClamp(f, f.minOf ? f.minOf(custom) + 4 : f.min) : 0; cfChanged(); }
+      else if (t.name && t.name.startsWith('cf-')) { custom[t.name.slice(3)] = t.value; cfChanged(); }
+      e.stopPropagation(); // o resto do formulário não precisa redesenhar
+    });
+  }
+  function savePreset(n) {
+    const sp = getRadio('sport');
+    const label = ($('#cfName').value || '').replace(/[<>"]/g, '').replace(/\s+/g, ' ').trim().slice(0, PRESET_NAME_MAX);
+    if (!label) { toast(L('Dê um nome para a predefinição', 'Give the preset a name')); $('#cfName').focus(); return; }
+    const list = presetsOf(sp);
+    if (list.length >= presetMax()) { renderCustomFmt(); return; }
+    const name = PRESET_PREFIX[sp] + n + '-' + label;
+    if (list.some(p => S.fold(p.name.replace(/^[A-Z]+\d-/, '')) === S.fold(label))) { toast(L('Já existe uma com esse nome', 'There is already one with that name')); return; }
+    const p = { id: 'pr' + Date.now().toString(36), n, name, cfg: Object.assign({}, custom), at: Date.now() };
+    prefs.presets = Object.assign({}, prefs.presets, { [sp]: list.concat(p).sort((a, b) => a.n - b.n) });
+    savePrefs();
+    customPreset = name;
+    renderCustomFmt();
+    toast(L('Salva: ', 'Saved: ') + name);
   }
 
   function fillRally(d) {
@@ -819,9 +966,9 @@
     const c = E.makeConfig(ci);
     const s = [];
     if (c.kind === 'games') {
-      s.push('Set até ' + c.gamesPerSet + ' games com 2 de diferença; em ' + c.gamesPerSet + '-' + c.gamesPerSet + ', tiebreak até 7.');
+      s.push('Set até ' + c.gamesPerSet + ' games com 2 de diferença; em ' + c.gamesPerSet + '-' + c.gamesPerSet + ', tiebreak até ' + c.tiebreakTo + '.');
       s.push(c.deuce === 'ad' ? 'No 40-40 joga-se vantagem.' : c.deuce === 'golden' ? 'No 40-40 o ponto seguinte decide o game.' : 'No 40-40 joga-se vantagem duas vezes; no terceiro iguais, o ponto seguinte decide (star point).');
-      if (c.setsToWin > 1) s.push(c.decider === 'supertb' ? 'Empatou em sets: super tiebreak até 10.' : c.decider === 'tb10' ? 'Set decisivo com tiebreak até 10 no 6-6.' : 'Empatou em sets: set completo.');
+      if (c.setsToWin > 1) s.push(c.decider === 'supertb' ? 'Empatou em sets: super tiebreak até ' + c.matchTiebreakTo + '.' : c.decider === 'tb10' ? 'Set decisivo com tiebreak até 10 no 6-6.' : 'Empatou em sets: set completo.');
       s.push(c.tbSwitch === 'oneFour' ? 'No tiebreak, troca de lado depois do 1º ponto e a cada 4.' : 'No tiebreak, troca de lado a cada 6 pontos.');
     } else {
       s.push('Set até ' + c.pointsToWin + (c.winBy === 2 ? ' com 2 de diferença' : '') + (c.cap ? ', teto de ' + c.cap : ', sem teto') + '.');
@@ -833,11 +980,126 @@
     return s.join(' ');
   }
 
+
+  // ---------- Jogadores da partida: perfis ou convidados ----------
+  // Cada time tem até MAX_PER_TEAM jogadores (duplas, por enquanto; ver docs/ROADMAP.md para times maiores).
+  // O nome usado nos pontos e na voz é o "nome nos pontos" do perfil (nome e sobrenome curtos, ex.: João Amaral).
+  // Dois jogadores com o mesmo nome na partida: antes de começar, um deles ganha um apelido só para esta partida.
+  const MAX_PER_TEAM = 2;
+  let pl = [[], []]; // [{ name, userId, handle }]
+  function peopleForPicker() {
+    const out = [], seen = new Set();
+    const add = p => { const k = p.userId ? 'u:' + p.userId : 'n:' + S.fold(p.name); if (!p.name || seen.has(k)) return; seen.add(k); out.push(p); };
+    if (prefs.myName) add({ name: myName(), userId: 'me', handle: myUid(), me: true });
+    SO.following().forEach(u => add({ name: u.name, userId: u.id, handle: SO.publicId(u.id), color: u.color, follow: true }));
+    SO.users().forEach(u => add({ name: u.name, userId: u.id, handle: SO.publicId(u.id), color: u.color }));
+    S.knownPlayers(history()).forEach(k => { if (!out.some(p => S.fold(p.name) === k.key)) add({ name: k.name, userId: null, guest: true, n: k.matches }); });
+    return out;
+  }
+  function plSync() { [0, 1].forEach(t => { $('#t' + t + 'players').value = pl[t].map(p => p.name).join(', '); }); }
+  function plChipHTML(t, p, i) {
+    const col = p.userId === 'me' ? 'var(--brand)' : p.color || nameColor(p.name);
+    return '<span class="pl-chip" translate="no"><span class="mini-av" style="--av:' + col + '">' + esc(initials(p.name)) + '</span><span class="pl-txt"><b>' + esc(p.name) + (p.userId === 'me' ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (p.handle ? '<small>' + esc(p.handle) + '</small>' : p.userId ? '' : '<small>' + esc(L('convidado', 'guest')) + '</small>') + '</span>' +
+      '<button class="icon-btn sm" type="button" data-plrm="' + t + '|' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + p.name) + '">' + ic('i-x') + '</button></span>';
+  }
+  function renderPlSlots(t) {
+    const box = $('#pl' + t); if (!box) return;
+    box.innerHTML = pl[t].map((p, i) => plChipHTML(t, p, i)).join('') +
+      (pl[t].length < MAX_PER_TEAM ? '<div class="pl-add"><span class="pl-add-ic">' + ic('i-user-plus') + '</span><input type="text" id="plIn' + t + '" data-plin="' + t + '" maxlength="40" autocomplete="off" placeholder="' + esc(pl[t].length ? L('Parceiro(a): nome ou @', 'Partner: name or @') : L('Jogador: nome ou @', 'Player: name or @')) + '" aria-label="' + esc(L('Adicionar jogador ao time ', 'Add a player to team ') + (t + 1)) + '"><div class="pl-sug" id="plSug' + t + '" role="listbox" aria-label="' + esc(L('Sugestões de jogadores', 'Player suggestions')) + '" translate="no" hidden></div></div>'
+        : '<small class="pl-full">' + esc(L('Até ' + MAX_PER_TEAM + ' jogadores por time', 'Up to ' + MAX_PER_TEAM + ' players per team')) + '</small>');
+  }
+  function plSuggest(t, q) {
+    const sug = $('#plSug' + t); if (!sug) return;
+    const f = S.fold(q).replace(/^@/, '');
+    const taken = new Set(pl[0].concat(pl[1]).filter(p => p.userId).map(p => p.userId));
+    const list = peopleForPicker().filter(p => !taken.has(p.userId) || !p.userId).filter(p => !f || S.fold(p.name).includes(f) || S.fold(p.handle || '').includes(f)).slice(0, 6);
+    const guest = q.trim() && !list.some(p => S.fold(p.name) === f) ? '<button class="pl-opt guest" type="button" role="option" data-plguest="' + t + '">' + ic('i-plus') + '<span><b>' + esc(L('Adicionar “' + q.trim() + '”', 'Add “' + q.trim() + '”')) + '</b><small>' + esc(L('como convidado (sem perfil)', 'as a guest (no profile)')) + '</small></span></button>' : '';
+    if (!list.length && !guest) { sug.hidden = true; return; }
+    sug.innerHTML = list.map((p, i) => '<button class="pl-opt" type="button" role="option" data-plpick="' + t + '|' + i + '"><span class="mini-av" style="--av:' + (p.me ? 'var(--brand)' : p.color || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + (p.me ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b><small>' + esc(p.handle || (p.guest ? L('já jogou com você', 'played with you before') : '')) + (p.follow ? ' · ' + esc(L('você segue', 'you follow')) : '') + '</small></span></button>').join('') + guest;
+    sug.dataset.list = JSON.stringify(list.map(p => ({ name: p.name, userId: p.userId || null, handle: p.handle || '', color: p.color || '' })));
+    sug.hidden = false;
+  }
+  function plAdd(t, p) {
+    if (pl[t].length >= MAX_PER_TEAM) return;
+    const name = String(p.name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!name) return;
+    pl[t].push({ name, userId: p.userId || null, handle: p.handle || '', color: p.color || '' });
+    plSync(); renderPlSlots(t); updateTeamForm();
+    const inp = $('#plIn' + t); if (inp) inp.focus();
+  }
+  function wirePlayers() {
+    [0, 1].forEach(t => {
+      const box = $('#pl' + t);
+      box.addEventListener('input', e => { if (e.target.dataset.plin != null) { e.stopPropagation(); plSuggest(t, e.target.value); } });
+      box.addEventListener('focusin', e => { if (e.target.dataset.plin != null) plSuggest(t, e.target.value); });
+      box.addEventListener('focusout', () => setTimeout(() => { if (!box.contains(document.activeElement)) { const s = $('#plSug' + t); if (s) s.hidden = true; } }, 150));
+      box.addEventListener('keydown', e => {
+        if (e.target.dataset.plin == null) return;
+        if (e.key === 'Enter') { e.preventDefault(); const first = $('#plSug' + t + ' .pl-opt'); if (first) first.click(); }
+        if (e.key === 'Escape') { const s = $('#plSug' + t); if (s && !s.hidden) { e.stopPropagation(); s.hidden = true; } }
+        if (e.key === 'Backspace' && !e.target.value && pl[t].length) { pl[t].pop(); plSync(); renderPlSlots(t); updateTeamForm(); const i = $('#plIn' + t); if (i) i.focus(); }
+      });
+      box.addEventListener('mousedown', e => { if (e.target.closest('.pl-opt')) e.preventDefault(); }); // não perde o foco antes do clique
+      box.addEventListener('click', e => {
+        const rm = e.target.closest('[data-plrm]');
+        if (rm) { const [tt, i] = rm.dataset.plrm.split('|').map(Number); pl[tt].splice(i, 1); plSync(); renderPlSlots(tt); updateTeamForm(); return; }
+        const pk = e.target.closest('[data-plpick]');
+        if (pk) { const [tt, i] = pk.dataset.plpick.split('|').map(Number); const list = JSON.parse($('#plSug' + tt).dataset.list || '[]'); if (list[i]) plAdd(tt, list[i]); return; }
+        const gu = e.target.closest('[data-plguest]');
+        if (gu) { const inp = $('#plIn' + t); plAdd(t, { name: inp ? inp.value : '' }); }
+      });
+    });
+  }
+  function plLoad(teams) {
+    pl = [0, 1].map(t => ((teams[t] && teams[t].players) || []).slice(0, MAX_PER_TEAM).map((n, i) => {
+      const id = ((teams[t] && teams[t].ids) || [])[i] || null;
+      const u = id && id !== 'me' ? SO.user(id) : null;
+      return { name: n, userId: id, handle: id === 'me' ? myUid() : u ? SO.publicId(id) : '', color: u ? u.color : '' };
+    }));
+    // partida nova sem ninguém: você já entra no 1º time (assim as estatísticas são suas)
+    if (!pl[0].length && !pl[1].length && prefs.myName) pl[0] = [{ name: myName(), userId: 'me', handle: myUid() }];
+    plSync(); renderPlSlots(0); renderPlSlots(1);
+  }
+  // nomes iguais na partida (ex.: dois "João Amaral"): pede um apelido antes de começar
+  function plDuplicates() {
+    const all = [];
+    pl.forEach((ps, t) => ps.forEach((p, i) => all.push({ t, i, p })));
+    const groups = {};
+    all.forEach(x => { const k = S.fold(x.p.name); (groups[k] = groups[k] || []).push(x); });
+    return Object.values(groups).filter(g => g.length > 1);
+  }
+  function renderDupBox(groups) {
+    const box = $('#dupBox');
+    box.innerHTML = '<div class="dup-head">' + ic('i-users') + '<div><b>' + esc(L('Dois jogadores com o mesmo nome', 'Two players with the same name')) + '</b><span>' + esc(L('Dê um apelido para um deles nesta partida. É ele que aparece no placar e vale para a voz; o perfil continua o mesmo.', 'Give one of them a nickname for this match. It shows on the scoreboard and works with voice; the profile stays the same.')) + '</span></div></div>' +
+      groups.map(g => g.map((x, j) => '<div class="dup-row"><span class="mini-av" style="--av:' + (x.p.userId === 'me' ? 'var(--brand)' : x.p.color || nameColor(x.p.name)) + '">' + esc(initials(x.p.name)) + '</span><span class="dup-who"><b>' + esc(x.p.name) + '</b><small>' + esc((x.p.handle || L('convidado', 'guest')) + ' · ' + L('time ', 'team ') + match_teamName(x.t)) + '</small></span><input type="text" maxlength="24" data-dup="' + x.t + '|' + x.i + '" placeholder="' + esc(j === 0 ? L('Manter o nome', 'Keep the name') : L('Apelido, ex.: ' + x.p.name.split(' ')[0] + ' Baixinho', 'Nickname, e.g. ' + x.p.name.split(' ')[0] + ' Jr')) + '" aria-label="' + esc(L('Apelido de ', 'Nickname for ') + x.p.name) + '"></div>').join('')).join('') +
+      '<button class="btn btn-brand" type="button" data-dupok>' + ic('i-check') + esc(L('Usar apelido e começar', 'Use nickname and start')) + '</button>';
+    box.hidden = false;
+    const inp = box.querySelector('[data-dup]:not([placeholder^="' + L('Manter', 'Keep') + '"])') || box.querySelector('[data-dup]'); if (inp) inp.focus();
+    box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  const match_teamName = t => { const n = ($('#t' + t + 'name').value || '').trim(); return n || colorName(getRadio('color' + t) || (t ? 'laranja' : 'verde')); };
+  function applyDup() {
+    $$('#dupBox [data-dup]').forEach(inp => { const v = inp.value.replace(/\s+/g, ' ').trim(); if (!v) return; const [t, i] = inp.dataset.dup.split('|').map(Number); if (pl[t][i]) pl[t][i] = Object.assign({}, pl[t][i], { name: v.slice(0, 24), nick: true }); });
+    if (plDuplicates().length) { toast(L('Ainda tem nomes iguais: mude um deles', 'There are still equal names: change one')); return false; }
+    $('#dupBox').hidden = true;
+    plSync(); renderPlSlots(0); renderPlSlots(1); updateTeamForm();
+    return true;
+  }
+
   function splitPlayers(text) {
     return String(text || '').split(/[,;/]| e /).map(x => x.trim()).filter(Boolean).slice(0, 4);
   }
 
   function readNewForm() {
+    const sport = getRadio('sport') || 'beach';
+    const ci = fmtMode === 'custom' && custom
+      ? Object.assign({ sport, firstServer: Number(getRadio('firstServer') || 0) }, custom, { custom: true }, customPreset ? { preset: customPreset } : {})
+      : readStdCi();
+    const teams = readTeams();
+    return { ci, teams };
+  }
+  // formato pelas opções rápidas (padrão do esporte)
+  function readStdCi() {
     const sport = getRadio('sport') || 'beach';
     const kind = E.SPORTS[sport].kind;
     const ci = { sport, setsToWin: Number(getRadio('setsToWin') || 1), firstServer: Number(getRadio('firstServer') || 0) };
@@ -855,11 +1117,15 @@
       });
       if (rule) ci.petecaRule = rule;
     }
-    const teams = [0, 1].map(t => {
+    return ci;
+  }
+  function readTeams() {
+    return [0, 1].map(t => {
       const color = getRadio('color' + t) || (t ? 'laranja' : 'verde');
-      return { name: $('#t' + t + 'name').value.trim().slice(0, 24) || colorName(color), color, players: splitPlayers($('#t' + t + 'players').value) };
+      const team = { name: $('#t' + t + 'name').value.trim().slice(0, 24) || colorName(color), color, players: pl[t].map(p => p.name) };
+      if (pl[t].some(p => p.userId)) team.ids = pl[t].map(p => p.userId || null); // perfil de cada jogador (o nome pode ser apelido)
+      return team;
     });
-    return { ci, teams };
   }
 
   // Usa a propria gramatica para checar se cada apelido de voz aponta para o time certo.
@@ -894,12 +1160,18 @@
     newGroupId = null; renderNewGroup();
     const c = E.makeConfig(src.cfgInput);
     fillFormat(c.sport, src.cfgInput);
+    // partida feita com formato personalizado: abre de novo no personalizado, com os mesmos números
+    custom = src.cfgInput && src.cfgInput.custom ? customBase(c.sport, src.cfgInput) : null;
+    customPreset = (src.cfgInput && src.cfgInput.custom && src.cfgInput.preset) || '';
+    setFmtMode(custom ? 'custom' : 'std');
     [0, 1].forEach(t => {
       const tm = src.teams[t];
       setRadio('color' + t, tm.color);
       $('#t' + t + 'name').value = tm.name;
       $('#t' + t + 'players').value = (tm.players || []).join(', ');
     });
+    plLoad(src.teams);
+    $('#dupBox').hidden = true;
     setRadio('firstServer', c.firstServer);
     $('#newError').hidden = true;
     $('#newNote').textContent = match.events.length ? 'A partida em andamento será salva no seu feed antes de começar a nova.' : '';
@@ -976,8 +1248,9 @@
       const src = ev.src || 'toque';
       const heard = ev.heard ? '“' + esc(ev.heard) + '”' : src === 'toque' ? 'toque na tela' : src;
       const out = outcomeLabel(r.out);
-      return '<li><span class="n">' + (i + 1) + '</span>' +
-        '<span class="what"><i style="--tc:' + (team ? colorVar(team.color) : 'var(--fg-3)') + '"></i><span>' + esc(describe(ev)) + (out ? ' <em>' + esc(out) + '</em>' : '') + '</span></span>' +
+      const tic = ev.type !== 'point' ? 'i-sliders' : ev.tag === 'ace' ? 'i-bolt' : ev.tag === 'winner' ? 'i-zap' : ev.tag === 'error' || ev.tag === 'df' ? 'i-x-circle' : ev.shot ? 'i-racket' : 'i-plus';
+      return '<li style="--tc:' + (team ? colorVar(team.color) : 'var(--fg-3)') + '"><span class="n">' + (i + 1) + '</span>' +
+        '<span class="what"><span class="log-ic">' + ic(tic) + '</span><span>' + esc(describe(ev)) + (out ? ' <em>' + esc(out) + '</em>' : '') + '</span></span>' +
         '<button class="btn del" type="button" data-del="' + i + '" title="Apagar este lance"><svg><use href="#i-trash"/></svg></button>' +
         '<span class="meta"><span class="score">' + esc(r.score) + '</span><span>' + clock(ev.t - t0) + '</span><span><svg><use href="#' + (SRC_ICON[src] || 'i-hand') + '"/></svg> ' + heard + '</span></span></li>';
     }).reverse().join('');
@@ -1045,13 +1318,13 @@
     ];
     const list = items => '<div class="list cmds">' + items.map(([q, d]) => '<div class="cmd"><q>' + esc((prefs.wake ? 'placar, ' : '') + q) + '</q><span>' + esc(d) + '</span></div>').join('') + '</div>';
     $('#helpBody').innerHTML =
-      '<section class="group"><h3>Marcar ponto</h3>' + list(rows) + '</section>' +
-      '<section class="group"><h3>Com detalhe (estatística)</h3>' + list(detail) + '</section>' +
-      '<section class="group"><h3>Estatística de jogador</h3>' + list(pro) + '</section>' +
-      '<section class="group"><h3>Corrigir, consultar e encerrar</h3>' + list(fix) + '</section>' +
-      '<section class="group"><h3>Onde deixar o aparelho</h3><p class="hint">Na lateral, na altura da rede e perto do meio da quadra, nunca no fundo atrás de um time. Longe do alto-falante de música. Com barulho ou quadra grande, use uma lapela sem fio ou fone e escolha em Ajustes, Microfone. Faça o teste de nível do lugar onde você joga.</p></section>' +
-      '<section class="group"><h3>Como falar</h3><p class="hint">Fale depois que o lance acabar, numa frase curta e virado para o aparelho. Um bipe agudo confirma; um bipe grave quer dizer que faltou o time. O aparelho não escuta enquanto anuncia o placar. Se dois jogadores gritarem juntos, só o primeiro conta (intervalo mínimo em Ajustes).</p></section>' +
-      '<section class="group"><h3>Teclado e controle</h3><div class="list cmds">' +
+      '<section class="group"><h3 class="h3ic">' + ic('i-hand') + 'Marcar ponto</h3>' + list(rows) + '</section>' +
+      '<section class="group"><h3 class="h3ic">' + ic('i-target') + 'Com detalhe (estatística)</h3>' + list(detail) + '</section>' +
+      '<section class="group"><h3 class="h3ic">' + ic('i-users') + 'Estatística de jogador</h3>' + list(pro) + '</section>' +
+      '<section class="group"><h3 class="h3ic">' + ic('i-undo') + 'Corrigir, consultar e encerrar</h3>' + list(fix) + '</section>' +
+      '<section class="group"><h3 class="h3ic">' + ic('i-phone') + 'Onde deixar o aparelho</h3><p class="hint">Na lateral, na altura da rede e perto do meio da quadra, nunca no fundo atrás de um time. Longe do alto-falante de música. Com barulho ou quadra grande, use uma lapela sem fio ou fone e escolha em Ajustes, Microfone. Faça o teste de nível do lugar onde você joga.</p></section>' +
+      '<section class="group"><h3 class="h3ic">' + ic('i-mic') + 'Como falar</h3><p class="hint">Fale depois que o lance acabar, numa frase curta e virado para o aparelho. Um bipe agudo confirma; um bipe grave quer dizer que faltou o time. O aparelho não escuta enquanto anuncia o placar. Se dois jogadores gritarem juntos, só o primeiro conta (intervalo mínimo em Ajustes).</p></section>' +
+      '<section class="group"><h3 class="h3ic">' + ic('i-keyboard') + 'Teclado e controle</h3><div class="list cmds">' +
       '<div class="cmd"><span><span class="kbd">←</span> <span class="kbd">1</span> <span class="kbd">PgUp</span></span><span>ponto ' + esc(name(0)) + '</span></div>' +
       '<div class="cmd"><span><span class="kbd">→</span> <span class="kbd">2</span> <span class="kbd">PgDn</span></span><span>ponto ' + esc(name(1)) + '</span></div>' +
       '<div class="cmd"><span><span class="kbd">Z</span> <span class="kbd">Y</span></span><span>desfazer, refazer</span></div>' +
@@ -1358,10 +1631,8 @@
     } else {
       h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
     }
-    const pb = isPro() ? '' : ' <span class="pro-badge">PRO</span>';
-    h += '<div class="actions"><button class="btn" type="button" data-export="csv"' + (live && !embed ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Planilha (CSV)' + pb + '</button>' +
-      '<button class="btn" type="button" data-export="json"' + (live && !embed ? '' : ' data-mid="' + esc(m.id) + '"') + '><svg><use href="#i-download"/></svg>Dados (JSON)' + pb + '</button></div>';
-    if (!live && !embed && !m.demo) h += '<button class="danger-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">Excluir partida</button>';
+    // exportar planilha (CSV) e dados (JSON) saiu da partida em 13/10/2026: volta depois nas estatísticas gerais (ver ROADMAP)
+    if (!live && !embed && !m.demo) h += '<button class="del-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">' + ic('i-trash') + 'Excluir partida</button>';
     if (m.demo) h += '<p class="hint center">Partida do perfil de exemplo (fictícia).</p>';
     return h + '</div>';
   }
@@ -1507,11 +1778,16 @@
     const r = m.demo ? (parseInt(String(m.id).replace(/\D/g, ''), 10) || 0) : 0;
     const a = {
       id: m.id, ownerId, matchId: m.id, playedAt: m.endedAt || m.createdAt, sport: st.cfg.sport, source: p.sourceOrig || (m.manual ? 'manual' : 'live'),
-      type: p.type || (m.demo ? ['amistoso', 'treino', 'amistoso', 'resenha', 'amistoso', 'campeonato'][r % 6] : 'amistoso'),
+      type: p.type || m.demoType || (m.demo ? ['amistoso', 'treino', 'amistoso', 'resenha', 'amistoso', 'campeonato'][r % 6] : 'amistoso'),
       title: p.title || '', caption: p.caption || (m.demo && r % 4 === 1 ? ['Jogão hoje!', 'Saque calibrado', 'Que virada', 'Dupla afinada'][r % 4] : ''),
       visibility: p.visibility || 'todos', place: p.place || (owner && owner.place) || '',
       city: mine ? SO.me().city : (owner && owner.city) || SO.CITY,
-      teams: m.teams.map(t => ({ name: t.name, color: t.color, players: (t.players || []).map(asPlayer) })),
+      teams: m.teams.map(t => ({ name: t.name, color: t.color, players: (t.players || []).map((n, i) => {
+        const id = (t.ids || [])[i]; // jogador escolhido pelo perfil (vale mesmo com apelido na partida)
+        if (id === 'me' && mine) return { userId: 'me' };
+        if (id && id !== 'me' && SO.user(id)) return { userId: id };
+        return asPlayer(n);
+      }) })),
       result: { sets: st.state.sets.length ? st.state.sets.map(x => (x.matchTb && x.tb ? x.tb : x.games)) : null, final: st.manual ? st.manual.final : null, winner: st.winner },
       durationMs: st.durationMs, stats: m.manual ? null : { pts: [st.teams[0].pts, st.teams[1].pts], aces: [st.teams[0].aces, st.teams[1].aces] },
       timeline: m.manual ? null : st.timeline, tagged: p.tagged || [], groupId: (p.groupId !== undefined ? p.groupId : m.groupId) || null, fromActivity: p.fromActivity || null, draft: p.status === 'rascunho',
@@ -2121,7 +2397,8 @@
   // ---------- Botão +: escolher como registrar ----------
   function openChoose() {
     $('#sportQuick').innerHTML = Object.keys(E.SPORTS).map(sp =>
-      '<button class="quick-tile" type="button" data-sport="' + sp + '"><svg><use href="#s-' + sp + '"/></svg>' + esc(SPORT_SHORT[sp] || E.SPORTS[sp].label) + '</button>').join('');
+      '<button class="quick-tile" type="button" data-sport="' + sp + '"><svg><use href="#s-' + sp + '"/></svg>' + esc(SPORT_SHORT[sp] || E.SPORTS[sp].label) + '</button>').join('') +
+      quickPresetsHTML();
     openSheet('#sheetChoose');
   }
 
@@ -2172,7 +2449,12 @@
       const rm = e.target.closest('[data-lnrm]');
       if (rm) { lnSets.splice(Number(rm.dataset.lnrm), 1); renderLaunchScore(true); launchAutoWinner(); }
     });
-    $('#pName').addEventListener('change', e => { prefs.myName = e.target.value.trim(); savePrefs(); syncMe(); refreshSocial(); });
+    $('#pName').addEventListener('change', e => {
+      const v = e.target.value.replace(/\s+/g, ' ').trim().slice(0, 24);
+      if (v && v.split(' ').length < 2) toast('Dica: use nome e sobrenome (ex.: João Amaral) para não confundir com outro João.');
+      prefs.myName = v; savePrefs(); syncMe(); refreshSocial();
+    });
+    $('#pFull').addEventListener('change', e => { prefs.fullName = e.target.value.replace(/\s+/g, ' ').trim().slice(0, 60); savePrefs(); });
     $('#pCity').addEventListener('change', e => { prefs.city = e.target.value.trim(); savePrefs(); syncMe(); refreshSocial(); });
     $('#btnSocialReset').addEventListener('click', () => { SO.reset(); toast('Rede de demonstração recomeçada'); refreshSocial(); });
   }
@@ -2439,6 +2721,24 @@
         const all = cur.concat(add).sort((a, b) => (b.endedAt || b.createdAt || 0) - (a.endedAt || a.createdAt || 0));
         if (!writeHist(all)) return;
         if (!prefs.myName && d.perfil && cTxt(d.perfil.nome, 40)) { prefs.myName = cTxt(d.perfil.nome, 40); prefs.city = prefs.city || cTxt(d.perfil.cidade, 60); savePrefs(); }
+        // predefinições de formato do backup: só o que o app conhece (esporte, até 3, nome com o prefixo certo, regras validadas)
+        const pr = d.ajustes && d.ajustes.presets;
+        if (pr && typeof pr === 'object') {
+          const out = Object.assign({}, prefs.presets);
+          Object.keys(E.SPORTS).forEach(sp => {
+            const list = Array.isArray(pr[sp]) ? pr[sp] : [];
+            const mine = presetsOf(sp);
+            list.forEach(x => {
+              if (!x || typeof x.name !== 'string' || !x.cfg || typeof x.cfg !== 'object' || mine.length >= 3 || mine.some(m => m.name === x.name)) return;
+              const n = [1, 2, 3].find(i => !mine.some(m => m.n === i));
+              const label = cTxt(String(x.name).replace(/^[A-Z]+\d-/, ''), PRESET_NAME_MAX);
+              if (!n || !label) return;
+              mine.push({ id: 'pr' + Date.now().toString(36) + n, n, name: PRESET_PREFIX[sp] + n + '-' + label, cfg: customBase(sp, x.cfg), at: Date.now() });
+            });
+            if (mine.length) out[sp] = mine.sort((a1, b1) => a1.n - b1.n);
+          });
+          prefs.presets = out; savePrefs();
+        }
         toast(add.length ? add.length + (add.length === 1 ? ' partida restaurada' : ' partidas restauradas') : 'As partidas do arquivo já estavam aqui');
         if (!$('#welcome').hidden) hideWelcome();
         closeAllSheets(); refreshSocial(); go('voce');
@@ -2503,7 +2803,8 @@
     const box = $('#wlStep');
     if (kind === 'signup' || kind === 'complete') {
       box.innerHTML = '<form class="wl-form" id="wlForm"><b class="wl-form-title">' + (kind === 'complete' ? 'Complete seu perfil' : 'Criar conta') + '</b>' +
-        '<label class="field"><span>Seu nome</span><input type="text" id="wlName" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="' + esc(prefs.myName || '') + '"></label>' +
+        '<label class="field"><span>Nome completo</span><input type="text" id="wlFull" maxlength="60" autocomplete="name" placeholder="João Pedro Amaral" value="' + esc(prefs.fullName || prefs.myName || '') + '"></label>' +
+        '<label class="field"><span>Nome nos pontos<small>Nome e sobrenome curtos: é como você aparece no placar e na voz (“ponto João Amaral”)</small></span><input type="text" id="wlName" maxlength="24" autocomplete="off" placeholder="João Amaral" value="' + esc(prefs.myName || '') + '"></label>' +
         '<label class="field"><span>Cidade</span><input type="text" id="wlCity2" maxlength="60" placeholder="Montes Claros, MG" value="' + esc(prefs.city || '') + '"></label>' +
         '<span class="field"><span>O que você joga</span><span class="chips-pick">' + Object.keys(E.SPORTS).map(k => '<label class="cpick"><input type="checkbox" name="wlSport" value="' + k + '"' + ((prefs.mySports || []).includes(k) ? ' checked' : '') + '><span>' + ic('s-' + k) + esc(SPORT_SHORT[k] || E.SPORTS[k].label) + '</span></label>').join('') + '</span></span>' +
         '<p class="form-error" id="wlErr" hidden></p><button class="btn-primary" type="submit">' + ic('i-check') + 'Começar</button><button class="linkish center" type="button" data-wl="back">Voltar</button></form>';
@@ -2547,12 +2848,24 @@
       else if (k === 'restore') $('#restoreInput').click();
       else wlStep(k);
     });
+    $('#welcome').addEventListener('input', e => {
+      if (e.target.id !== 'wlFull') return;
+      const nm = $('#wlName'); if (!nm || nm.dataset.touched) return;
+      const w = e.target.value.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+      nm.value = w.length > 1 ? w[0] + ' ' + w[w.length - 1] : (w[0] || '');
+    });
+    $('#welcome').addEventListener('change', e => { if (e.target.id === 'wlName') e.target.dataset.touched = '1'; });
     $('#welcome').addEventListener('submit', e => {
       if (e.target.id !== 'wlForm') return;
       e.preventDefault();
-      const n = $('#wlName').value.trim();
-      if (!n) { const er = $('#wlErr'); er.textContent = 'Diga seu nome para criar a conta.'; er.hidden = false; return; }
-      prefs.myName = n; prefs.city = $('#wlCity2').value.trim(); prefs.mySports = $$('input[name="wlSport"]:checked').map(x => x.value);
+      const full = $('#wlFull').value.replace(/\s+/g, ' ').trim();
+      let n = $('#wlName').value.replace(/\s+/g, ' ').trim();
+      if (!n && full) { const w = full.split(' '); n = w.length > 1 ? w[0] + ' ' + w[w.length - 1] : w[0]; $('#wlName').value = n; }
+      const er = $('#wlErr');
+      if (!full && !n) { er.textContent = 'Diga seu nome completo para criar a conta.'; er.hidden = false; return; }
+      if (n.split(' ').length < 2) { er.textContent = 'No nome nos pontos, use nome e sobrenome (ex.: João Amaral). Assim ninguém confunde você com outro João.'; er.hidden = false; $('#wlName').focus(); return; }
+      prefs.fullName = (full || n).slice(0, 60);
+      prefs.myName = n.slice(0, 24); prefs.city = $('#wlCity2').value.trim(); prefs.mySports = $$('input[name="wlSport"]:checked').map(x => x.value);
       if (!prefs.privacy) prefs.privacy = { level: 'aberto' }; // toda conta nova começa com perfil aberto
       savePrefs(); myUid();
       hideWelcome('Conta criada. Bem-vindo, ' + firstName(n) + '!');
@@ -2948,6 +3261,40 @@
       xcShow(el, e.key === 'Home' ? 0 : e.key === 'End' ? d.pts.length - 1 : i + (e.key === 'ArrowRight' ? 1 : -1));
     });
     document.addEventListener('focusout', e => { const el = at(e); if (el) xcHide(el); });
+    // toque (ou clique) num ponto: mostra o resumo e, embaixo, um aviso de 3 s para abrir a partida
+    document.addEventListener('click', e => { const el = at(e); if (!el) return; const d = xcData.get(el.dataset.xc); if (!d) return; const i = xcIndex(el, e.clientX); xcShow(el, i); xcToast(d.pts[i]); });
+    document.addEventListener('keydown', e => { const el = at(e); if (!el || e.key !== 'Enter') return; const d = xcData.get(el.dataset.xc); if (!d) return; const i = el.dataset.i == null ? d.pts.length - 1 : Number(el.dataset.i); openMatchCard(d.pts[i].id); });
+    const t = $('#xcToast');
+    t.addEventListener('click', e => {
+      if (e.target.closest('[data-xct-close]')) { hideXcToast(); return; }
+      if (e.target.closest('[data-xct-open]') && t.dataset.id) { const id = t.dataset.id; hideXcToast(); openMatchCard(id); }
+    });
+  }
+  let xcToastTimer = null;
+  function xcToast(p) {
+    const t = $('#xcToast'); if (!t || !p) return;
+    t.dataset.id = p.id;
+    t.innerHTML = '<button class="xct-open" type="button" data-xct-open aria-label="' + esc(L('Abrir a partida de ', 'Open the match on ') + fmtDay(p.t)) + '"><span class="xct-txt">' + ic('i-flag') + '<span><b>' + esc(L('Abrir a partida', 'Open the match')) + '</b><small>' + esc(fmtDay(p.t)) + ' · ' + (p.won === true ? L('vitória', 'win') : p.won === false ? L('derrota', 'loss') : L('sem resultado', 'no result')) + '</small></span></span>' +
+      '<span class="xct-go">' + ic('i-chev') + '</span></button><button class="xct-x" type="button" data-xct-close aria-label="' + esc(L('Fechar aviso', 'Close')) + '">' + ic('i-x') + '</button><i class="xct-bar"></i>';
+    t.hidden = false; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+    clearTimeout(xcToastTimer); xcToastTimer = setTimeout(hideXcToast, 3000);
+  }
+  function hideXcToast() { const t = $('#xcToast'); if (!t || t.hidden) return; clearTimeout(xcToastTimer); t.classList.remove('show'); setTimeout(() => { if (!t.classList.contains('show')) t.hidden = true; }, 220); }
+  // card curto da partida (a partir do gráfico): resultado, os seus números e o atalho para a partida inteira
+  function openMatchCard(id) {
+    const m = findMatch(id); if (!m) return;
+    hideXcToast();
+    const st = S.matchStats(m), who = meSubject().who, r = F.rowOf(m, who);
+    const kind = F.kindOf(st.cfg.sport);
+    let h = '<div class="mc-head" translate="no"><span class="rec-ic rec-sport">' + ic('s-' + st.cfg.sport) + '</span><div><b>' + esc(sportLabel(st.cfg.sport)) + '</b><span>' + esc(fmtWhen(m.endedAt || m.createdAt)) + '</span></div>' + (r && r.won === true ? '<span class="mc-res w">' + esc(L('Vitória', 'Win')) + '</span>' : r && r.won === false ? '<span class="mc-res l">' + esc(L('Derrota', 'Loss')) + '</span>' : '') + '</div>' +
+      resultHTML(m, st);
+    if (r) {
+      h += '<div class="mc-tags" translate="no">' + '<span>' + ic('i-tag') + esc(TYPE_LABEL[r.type] || '') + '</span>' + (r.ms ? '<span>' + ic('i-clock') + esc(fmtDur(r.ms)) + '</span>' : '') + '<span>' + ic('i-target') + esc(L(Math.round(r.detail * 100) + '% dos pontos detalhados', Math.round(r.detail * 100) + '% of points detailed')) + '</span></div>';
+      if (r.attributed) h += '<div class="mc-kpis">' + kpiHTML([['Seus pontos', String(r.pts)], ['Winners', String(r.winners)], kind === 'games' ? ['Aces', String(r.aces)] : ['Assistências', String(r.assists)], ['Erros', String(r.errors + r.df)]]) + '</div>';
+      else h += kpiHTML([['Pontos do time', String(r.teamPts)], ['Pontos sofridos', String(r.oppPts)], ['Maior sequência', String(r.streak)]]);
+    }
+    h += '<button class="btn btn-brand" type="button" translate="no" data-open="' + esc(m.id) + '">' + ic('i-chart') + esc(L('Ver a partida completa', 'See the full match')) + '</button>';
+    openInfo(L('Partida', 'Match'), h);
   }
 
   function statsSubject() {
@@ -3294,6 +3641,7 @@
     estatisticas: 'as estatísticas completas',
     detalhe: 'o filtro de pontos detalhados',
     jogador: 'as estatísticas com um jogador',
+    predefinicoes: 'até 3 predefinições de formato por esporte',
     momento: 'Momento ponto a ponto',
     exportar: 'Exportar planilha (CSV) e dados (JSON)',
     video: 'Vídeo animado da partida (MP4 e GIF)',
@@ -3303,6 +3651,8 @@
   function openPro(feature, back) {
     trk('pro_view', { feature: feature || '' });
     proBack = back || null;
+    const from = $$('.sheet').find(d => !d.hidden && d.id !== 'sheetPro');
+    proFrom = from ? from.id : null;
     $('#proBody').innerHTML =
       '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
       '<ul class="pro-list">' +
@@ -3311,7 +3661,7 @@
       '<li><svg><use href="#i-camera"/></svg><span><b>Gravar a partida em vídeo</b>Com este celular (miniatura no canto) ou com outro aparelho pelo QR Code. Cada ponto marcado vira um lance em vídeo para assistir e mandar.</span></li>' +
       '<li><svg><use href="#i-film"/></svg><span><b>Vídeo animado da partida</b>O replay ponto a ponto vira vídeo MP4 ou GIF para o story: gráfico, placar e lances evoluindo, com fundo de quadra, foto ou vídeo seu, ou transparente.</span></li>' +
       '<li><svg><use href="#i-target"/></svg><span><b>Pontos decisivos</b>Break points, set points e match points convertidos e salvos por cada time, viradas na liderança e maior vantagem.</span></li>' +
-      '<li><svg><use href="#i-download"/></svg><span><b>Exportar planilha e dados</b>Todos os lances em CSV para Excel e Google Planilhas, e em JSON para análise.</span></li>' +
+      '<li><svg><use href="#i-layers"/></svg><span><b>Predefinições de formato</b>Até 3 formatos salvos por esporte (BT1, BT2, BT3…) para começar a partida da turma com um toque.</span></li>' +
       '<li><svg><use href="#i-trophy"/></svg><span><b>Histórico completo</b>Hoje o aparelho guarda as últimas ' + HIST_MAX + ' partidas. No Pro, todas, com recordes e confrontos de tudo (quando houver conta na nuvem).</span></li>' +
       '</ul>' +
       '<p class="hint center">Preço ainda não definido. Nesta versão de teste o Pro é só uma demonstração, sem cobrança.</p>' +
@@ -3373,21 +3723,27 @@
     const T = m.teams, nm = t => esc(T[t].name), dot = t => '<i class="tdot" style="--tc:' + colorVar(T[t].color) + '"></i>';
     const runT = st.teams[0].maxStreak >= st.teams[1].maxStreak ? 0 : 1;
     const leadT = mom.maxLead[0] >= mom.maxLead[1] ? 0 : 1;
-    let h = '<div class="mom-tiles">' +
-      '<div class="mt"><b>' + mom.changes + '</b><span>' + (mom.changes === 1 ? 'virada na liderança' : 'viradas na liderança') + '</span></div>' +
-      '<div class="mt">' + dot(runT) + '<b>' + st.teams[runT].maxStreak + '</b><span>maior sequência · ' + nm(runT) + '</span></div>' +
-      '<div class="mt">' + dot(leadT) + '<b>+' + mom.maxLead[leadT] + '</b><span>maior vantagem · ' + nm(leadT) + '</span></div>' +
-      '<div class="mt"><b>' + pts.length + '</b><span>pontos disputados</span></div></div>';
+    const tchip = t => '<span class="mt-team" style="--tc:' + colorVar(T[t].color) + '">' + nm(t) + '</span>';
+    let h = '<div class="mom-score">' + resultHTML(m, st) + '</div>';
+    h += '<div class="mom-tiles">' +
+      '<div class="mt"><span class="mt-ic">' + ic('i-swap') + '</span><b>' + mom.changes + '</b><span>' + (mom.changes === 1 ? 'virada na liderança' : 'viradas na liderança') + '</span></div>' +
+      '<div class="mt"><span class="mt-ic">' + ic('i-flame') + '</span><b>' + st.teams[runT].maxStreak + '</b><span>maior sequência</span>' + tchip(runT) + '</div>' +
+      '<div class="mt"><span class="mt-ic">' + ic('i-trend') + '</span><b>+' + mom.maxLead[leadT] + '</b><span>maior vantagem</span>' + tchip(leadT) + '</div>' +
+      '<div class="mt"><span class="mt-ic">' + ic('i-activity') + '</span><b>' + pts.length + '</b><span>pontos disputados</span></div></div>';
     const keyRows = ['break', 'set', 'match'].filter(k => key[k][0][1] + key[k][1][1] > 0 && (k !== 'break' || c.kind === 'games'));
-    if (keyRows.length) h += '<div class="mom-keys"><span class="cp-label">Pontos decisivos · convertidos</span>' + keyRows.map(k => '<div class="mk-row"><span>' + KEY_NAME[k] + 's</span>' +
-      [0, 1].map(t => '<span class="mk-team">' + dot(t) + '<b>' + key[k][t][0] + '/' + key[k][t][1] + '</b></span>').join('') + '</div>').join('') + '</div>';
+    if (keyRows.length) h += '<div class="mom-keys">' + ph('i-target', 'Pontos decisivos', '<span class="sec-meta">convertidos</span>') + keyRows.map(k => '<div class="mk-card"><b class="mk-name">' + KEY_NAME[k] + 's</b>' +
+      [0, 1].map(t => { const [w, n] = key[k][t]; return '<div class="mk-team" style="--tc:' + colorVar(T[t].color) + '"><span>' + nm(t) + '</span><u><em class="liq" style="width:' + (n ? Math.round(w / n * 100) : 0) + '%"></em></u><b>' + w + '<small>/' + n + '</small></b></div>'; }).join('') + '</div>').join('') + '</div>';
     // filtros: tipo de lance e jogadores
     const players = st.players.filter(p => p.pts + p.errors + p.df + p.assists > 0).map(p => p.name);
     const F = [['todos', 'Todos'], ['decisivos', 'Decisivos'], ['ace', 'Aces'], ['winner', 'Winners'], ['erro', 'Erros']].concat(players.map(p => ['p:' + p, firstName(p)]));
-    h += '<div class="mom-filters" role="radiogroup" aria-label="Filtrar lances">' + F.map(([v, l]) => '<button class="pill' + (v === 'todos' ? ' on' : '') + '" type="button" data-momf="' + esc(v) + '">' + esc(l) + '</button>').join('') + '</div>';
-    h += momentChartHTML() + '<div class="mom-legend"><span><i class="lg dot"></i>ponto</span><span><i class="lg big"></i>ace ou winner</span><span><i class="lg x">✕</i>erro de quem perdeu</span><span><i class="lg ring"></i>ponto decisivo</span></div>';
-    h += '<div class="pt-info" id="ptInfo"><span class="pt-info-txt">Toque num ponto do gráfico ou da lista.</span><span class="pt-nav"><button class="icon-btn" type="button" data-ptnav="-1" title="Ponto anterior">' + ic('i-back') + '</button><button class="icon-btn" type="button" data-ptnav="1" title="Próximo ponto">' + ic('i-chev') + '</button></span></div>';
-    h += '<div class="pt-list" id="ptList">' + momentListHTML() + '</div>';
+    const cnt = { todos: pts.length, decisivos: pts.filter(r => r.keys.length).length, ace: pts.filter(r => r.ev.tag === 'ace').length, winner: pts.filter(r => r.ev.tag === 'winner').length, erro: pts.filter(r => r.ev.tag === 'error' || r.ev.tag === 'df').length };
+    const FIC = { todos: 'i-list', decisivos: 'i-target', ace: 'i-bolt', winner: 'i-zap', erro: 'i-x-circle' };
+    h += '<div class="panel mom-chart">' + ph('i-activity', 'Ponto a ponto') +
+      '<div class="mom-filters" role="radiogroup" aria-label="Filtrar lances">' + F.map(([v, l]) => '<button class="fchip' + (v === 'todos' ? ' on' : '') + '" type="button" data-momf="' + esc(v) + '">' + (FIC[v] ? ic(FIC[v]) : '<span class="mini-av xs" style="--av:' + nameColor(v.slice(2)) + '">' + esc(initials(v.slice(2))) + '</span>') + esc(l) + (cnt[v] != null ? '<small>' + cnt[v] + '</small>' : '') + '</button>').join('') + '</div>' +
+      '<span class="mom-side top" style="--tc:' + colorVar(T[0].color) + '">▲ ' + nm(0) + ' na frente</span>' + momentChartHTML() + '<span class="mom-side bottom" style="--tc:' + colorVar(T[1].color) + '">▼ ' + nm(1) + ' na frente</span>' +
+      '<div class="mom-legend"><span><i class="lg dot"></i>ponto</span><span><i class="lg big"></i>ace ou winner</span><span><i class="lg x">✕</i>erro de quem perdeu</span><span><i class="lg ring"></i>ponto decisivo</span></div></div>';
+    h += '<div class="pt-info" id="ptInfo"><span class="pt-info-txt"><span class="pt-empty">' + ic('i-hand') + 'Toque num ponto do gráfico ou da lista.</span></span><span class="pt-nav"><button class="icon-btn" type="button" data-ptnav="-1" title="Ponto anterior">' + ic('i-back') + '</button><button class="icon-btn" type="button" data-ptnav="1" title="Próximo ponto">' + ic('i-chev') + '</button></span></div>';
+    h += '<div class="panel">' + ph('i-list', 'Todos os lances', '<span class="sec-meta">por game</span>') + '<div class="pt-list" id="ptList">' + momentListHTML() + '</div></div>';
     $('#momentBody').innerHTML = h;
     $('#momentBody').dataset.mid = m.id;
     openSheet('#sheetMoment');
@@ -3421,7 +3777,6 @@
     return '<div class="mom-scroll" tabindex="0" role="region" aria-label="Gráfico ponto a ponto"><svg class="mom" viewBox="0 0 ' + W + ' ' + H + '" style="width:' + W + 'px;height:' + H + 'px">' +
       '<defs><clipPath id="' + uid + 't"><rect x="0" y="0" width="' + W + '" height="' + y(0) + '"/></clipPath><clipPath id="' + uid + 'b"><rect x="0" y="' + y(0) + '" width="' + W + '" height="' + (H - y(0)) + '"/></clipPath></defs>' +
       '<path d="' + area + '" clip-path="url(#' + uid + 't)" style="fill:' + c0 + ';fill-opacity:.16;stroke:none"/><path d="' + area + '" clip-path="url(#' + uid + 'b)" style="fill:' + c1 + ';fill-opacity:.16;stroke:none"/>' +
-      '<text class="sidelbl" x="' + pl + '" y="' + (pt - 12) + '" style="fill:' + c0 + '">▲ ' + esc(m.teams[0].name) + ' na frente</text><text class="sidelbl" x="' + pl + '" y="' + (H - 6) + '" style="fill:' + c1 + '">▼ ' + esc(m.teams[1].name) + ' na frente</text>' +
       setLines + '<line class="zero" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(0) + '" y2="' + y(0) + '"/><path class="mom-line" d="' + line + '"/>' + mk + '</svg></div>';
   }
   function momentListHTML() {
@@ -3439,7 +3794,8 @@
       }
       const kinds = [ev.tag === 'error' || ev.tag === 'df' ? 'erro' : ev.tag || ''].concat(r.keys.length ? ['decisivos'] : []);
       const who = [ev.player, ev.assist].filter(Boolean);
-      h += '<div class="pt-row" data-pt="' + i + '" data-g="' + esc(gk) + '" data-k="' + esc(kinds.join(' ')) + '" data-p="' + esc(who.join('|')) + '"><span class="pt-n">' + (i + 1) + '</span><i style="--tc:' + colorVar(m.teams[ev.team].color) + '"></i><span class="pt-what"><b>' + esc(m.teams[ev.team].name) + '</b>' +
+      const tic = ev.tag === 'ace' ? 'i-bolt' : ev.tag === 'winner' ? 'i-zap' : ev.tag === 'error' || ev.tag === 'df' ? 'i-x-circle' : ev.shot ? 'i-racket' : 'i-plus';
+      h += '<div class="pt-row" data-pt="' + i + '" data-g="' + esc(gk) + '" data-k="' + esc(kinds.join(' ')) + '" data-p="' + esc(who.join('|')) + '" style="--tc:' + colorVar(m.teams[ev.team].color) + '"><span class="pt-n">' + (i + 1) + '</span><span class="pt-tic">' + ic(tic) + '</span><span class="pt-what"><b>' + esc(m.teams[ev.team].name) + '</b>' +
         (ev.tag ? ' · ' + esc(TAG_LBL[ev.tag]) + (ev.errType ? ' ' + esc(ERR_LABEL[ev.errType]) : '') : '') + (ev.shot && ev.tag !== 'ace' ? ' · ' + esc(G.SHOT_LABEL[ev.shot] || ev.shot) : '') +
         (ev.player ? ' · ' + esc(ev.player) : '') + (ev.assist ? ' (assist. ' + esc(ev.assist) + ')' : '') + '</span>' +
         (r.keys.length ? '<span class="kbadge' + (r.pre.sit.some(s => KEY_LBL[s.type] && s.team === ev.team) ? ' won' : '') + '" title="' + esc(r.keys.map(k => KEY_NAME[k]).join(', ')) + '">' + r.keys.map(k => KEY_LBL[k]).join(' ') + '</span>' : '') +
@@ -3472,8 +3828,9 @@
     const t0 = pts[0].ev.t;
     const det = describe(Object.assign({}, ev)).replace(/^Ponto [^·]*·?\s*/, '') || 'ponto direto, sem detalhe';
     const keyTxt = r.keys.length ? r.pre.sit.filter(s => KEY_NAME[s.type]).map(s => KEY_NAME[s.type] + ' ' + m.teams[s.team].name + (s.team === ev.team ? ' · convertido' : ' · salvo')).join(' · ') : '';
-    $('#ptInfo .pt-info-txt').innerHTML = '<b>Ponto ' + (i + 1) + ' · ' + esc(m.teams[ev.team].name) + '</b><span>' + esc(det) + '</span>' + (keyTxt ? '<span class="pt-key">' + esc(keyTxt) + '</span>' : '') +
-      '<span>Placar depois: <b>' + esc(r.score) + '</b> · ' + clock(ev.t - t0) + (ev.heard ? ' · “' + esc(ev.heard) + '”' : '') + '</span>';
+    $('#ptInfo').style.setProperty('--tc', colorVar(m.teams[ev.team].color));
+    $('#ptInfo .pt-info-txt').innerHTML = '<span class="pt-top"><i class="tdot" style="--tc:' + colorVar(m.teams[ev.team].color) + '"></i><b>Ponto ' + (i + 1) + ' · ' + esc(m.teams[ev.team].name) + '</b><span class="pt-clock">' + ic('i-clock') + clock(ev.t - t0) + '</span></span><span class="pt-det">' + esc(det) + '</span>' + (keyTxt ? '<span class="pt-key">' + ic('i-target') + esc(keyTxt) + '</span>' : '') +
+      '<span class="pt-after">Placar depois <b>' + esc(r.score) + '</b></span>' + (ev.heard ? '<span class="pt-heard">“' + esc(ev.heard) + '”</span>' : '');
     $$('#momentBody .pt-row').forEach(el => el.classList.toggle('on', Number(el.dataset.pt) === i));
     $$('#momentBody .mom g').forEach(el => el.classList.toggle('on', Number(el.dataset.pt) === i));
     const row = $('#momentBody .pt-row[data-pt="' + i + '"]'); if (row && !row.hidden) row.scrollIntoView({ block: 'nearest' });
@@ -4676,28 +5033,28 @@
     box.hidden = !gr;
     if (!gr) { box.innerHTML = ''; return; }
     const ds = SO.delegatesToMe(gr.id);
-    const inTeam = n => [0, 1].find(t => splitPlayers($('#t' + t + 'players').value).some(x => S.fold(x) === S.fold(n)));
+    const inTeam = n => [0, 1].find(t => pl[t].some(x => S.fold(x.name) === S.fold(n)));
     box.innerHTML = '<div class="gnew-head">' + groupBadge(gr) + '<span><b>Partida do grupo</b><small>' + esc(gr.name) + '</small></span><button class="linkish" type="button" data-gnone>Tirar do grupo</button></div>' +
       '<p class="hint">Toque nos membros para pôr nos times (vão para o campo de jogadores selecionado). Quem é de fora: digite o nome, entra como convidado.' + (ds.length ? ' ' + ic('i-check', 'ic ok') + ' autorizou você a lançar por ele.' : '') + '</p>' +
       '<div class="chips-pick gmem-pick">' + gr.members.map(m => {
         const n = m.userId === 'me' ? myName() : memberName(m);
         const t = inTeam(n);
         const ok = m.userId && ds.some(x => x.userId === m.userId);
-        return '<button type="button" class="gm-chip' + (t != null ? ' on' : '') + '" data-gmadd="' + esc(n) + '" aria-pressed="' + (t != null) + '">' + (t != null ? '<i class="tdot" style="--tc:' + colorVar(getRadio('color' + t) || (t ? 'laranja' : 'verde')) + '"></i>' : '') + esc(m.userId === 'me' ? 'Você' : n) + (ok ? ic('i-check', 'ic ok') : '') + '</button>';
+        return '<button type="button" class="gm-chip' + (t != null ? ' on' : '') + '" data-gmadd="' + esc(n) + '" data-gmuid="' + esc(m.userId || '') + '" aria-pressed="' + (t != null) + '">' + (t != null ? '<i class="tdot" style="--tc:' + colorVar(getRadio('color' + t) || (t ? 'laranja' : 'verde')) + '"></i>' : '') + esc(m.userId === 'me' ? 'Você' : n) + (ok ? ic('i-check', 'ic ok') : '') + '</button>';
       }).join('') + '</div>';
   }
-  function toggleGroupPlayer(n) {
-    const per = E.SPORTS[getRadio('sport') || 'beach'] && getRadio('sport') === 'tenis' ? 1 : 2;
-    const lists = [0, 1].map(t => splitPlayers($('#t' + t + 'players').value));
-    const at = lists.findIndex(l => l.some(x => S.fold(x) === S.fold(n)));
-    if (at >= 0) lists[at] = lists[at].filter(x => S.fold(x) !== S.fold(n));
+  function toggleGroupPlayer(n, uid) {
+    const per = Math.min(MAX_PER_TEAM, getRadio('sport') === 'tenis' ? 1 : 2);
+    const at = pl.findIndex(l => l.some(x => S.fold(x.name) === S.fold(n)));
+    if (at >= 0) pl[at] = pl[at].filter(x => S.fold(x.name) !== S.fold(n));
     else {
-      let t = newFocusTeam != null ? newFocusTeam : lists[0].length < per ? 0 : 1;
-      if (newFocusTeam == null && lists[1].length >= per && lists[0].length >= per) t = 0;
-      lists[t].push(n);
-      if (newFocusTeam != null && lists[t].length >= per) newFocusTeam = null;
+      let t = newFocusTeam != null && pl[newFocusTeam].length < MAX_PER_TEAM ? newFocusTeam : pl[0].length < per ? 0 : 1;
+      if (pl[t].length >= MAX_PER_TEAM) { toast(L('Os dois times já estão completos', 'Both teams are full')); return; }
+      const u = uid && uid !== 'me' ? SO.user(uid) : null;
+      pl[t].push({ name: n, userId: uid || null, handle: uid === 'me' ? myUid() : u ? SO.publicId(uid) : '', color: u ? u.color : '' });
+      if (newFocusTeam != null && pl[t].length >= per) newFocusTeam = null;
     }
-    [0, 1].forEach(t => { $('#t' + t + 'players').value = lists[t].join(', '); });
+    plSync(); renderPlSlots(0); renderPlSlots(1);
     updateTeamForm(); renderNewGroup();
   }
   // partidas lançadas por quem organiza o grupo: quem autorizou já entra confirmado
@@ -4742,7 +5099,7 @@
         SO.leaveGroup(gr.id); toast(own ? 'Grupo apagado' : 'Você saiu do grupo'); go('grupos'); return;
       }
       if ((el = hit('[data-gwdel]'))) { e.stopPropagation(); SO.deleteWall(gUI.id, el.dataset.gwdel); refreshGroupTab(); return; }
-      if ((el = hit('[data-gmadd]'))) { e.stopPropagation(); toggleGroupPlayer(el.dataset.gmadd); return; }
+      if ((el = hit('[data-gmadd]'))) { e.stopPropagation(); toggleGroupPlayer(el.dataset.gmadd, el.dataset.gmuid || null); return; }
       if ((el = hit('[data-gnone]'))) { e.stopPropagation(); newGroupId = null; renderNewGroup(); return; }
       if ((el = hit('[data-group]')) && !hit('button:not([data-group]), a, input')) { e.stopPropagation(); closeAllSheets(); go('grupo', el.dataset.group); return; }
     }, true);
@@ -4756,7 +5113,7 @@
       if (SO.postWall(gUI.id, $('#gwallText').value)) { refreshGroupTab(); const w = $('.gwall'); if (w) w.lastElementChild && w.lastElementChild.scrollIntoView({ block: 'nearest' }); }
     });
     $('#formGroup').addEventListener('submit', e => { e.preventDefault(); submitGroupForm(); });
-    ['t0players', 't1players'].forEach((id, t) => { $('#' + id).addEventListener('focus', () => { newFocusTeam = t; }); $('#' + id).addEventListener('input', () => { if (newGroupId) renderNewGroup(); }); });
+    ['pl0', 'pl1'].forEach((id, t) => { $('#' + id).addEventListener('focusin', () => { newFocusTeam = t; }); });
   }
   function renderGroupStripNow() { const el = $('#groupStrip'); if (el) el.innerHTML = groupStripHTML(); }
 
@@ -4992,6 +5349,13 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13h', date: '13/10/2026', title: 'Formato personalizado, jogadores e ponto a ponto novo', items: [
+      'Nova partida: formato personalizado em todos os esportes e predefinições salvas com nome (BT1-Amigos de Segunda). Grátis: 1 por esporte; Pro: 3.',
+      'Jogadores: escolha o perfil de cada um (ou um convidado), até 2 por time. O painel Lançar pergunta quem fez o ponto ou quem errou.',
+      'Nomes iguais na mesma partida: o app pede um apelido antes de começar.',
+      'Momento ponto a ponto redesenhado; no gráfico de evolução, toque num ponto para abrir a partida.',
+      'Excluir partida agora pede para digitar “excluir de vez”. Exportar planilha saiu da partida (volta depois nas estatísticas).',
+    ] },
     { id: '2026-10-13g', date: '13/10/2026', title: 'Pontos detalhados e retrospecto com cada jogador', items: [
       'Estatísticas: filtro Pontos detalhados (Todas, 50%+ ou 80%+) para contar só as partidas bem lançadas. Números mais confiáveis.',
       'Estatísticas: aba Com um jogador, com o seu retrospecto contra ou junto de cada pessoa, por esporte.',
@@ -5161,6 +5525,9 @@
       { sel: '#btnUndo', title: 'Errou? Volta', text: 'Desfaz o último lance na hora.' },
       { sel: '#btnMic', title: 'Voz, se quiser', text: 'Ligue o microfone e diga “ponto azul” ou “ace laranja”. Bom para quem joga sem largar a raquete.' },
       { sel: '#btnCam', title: 'Filmar a partida', text: 'Grave com este celular ou use outro aparelho como câmera pelo QR Code. Cada ponto vira um lance em vídeo.' },
+      { sel: '#btnTv', title: 'Modo TV', text: 'Placar em letras grandes para deixar o celular ou a TV de frente para a quadra. No computador, a tecla T também liga.' },
+      { sel: '#btnStats', title: 'Estatísticas ao vivo', text: 'Aces, winners, erros, saque e o momento da partida enquanto ela acontece.' },
+      { sel: '#btnLog', title: 'Lances', text: 'A lista de todos os pontos marcados, com o placar de cada momento. Dá para apagar um lance errado.' },
       { sel: '#btnFinish', title: 'Encerrar e salvar', text: 'No fim: estatísticas, análise do jogo e imagem ou vídeo para mandar no grupo.', done: 'Bom jogo!' },
     ],
     // 1ª vez nas estatísticas completas
@@ -5345,12 +5712,36 @@
     el.innerHTML = show ? '<div class="news-card">' + ic('i-chart') + '<span><b>Ajude a melhorar o ULTRA PLAY</b>Enviar estatísticas de uso anônimas (telas e recursos usados), sem nomes nem partidas? Dá para mudar em Ajustes.</span><span class="consent-a"><button class="btn btn-sm btn-brand" type="button" data-consent="1">Pode</button><button class="btn btn-sm" type="button" data-consent="0">Não</button></span></div>' : '';
   }
 
-  function deleteMatch(id, btn) {
-    if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
+  // Excluir partida: pede para digitar "excluir de vez" (some do histórico, da timeline, das estatísticas e o vídeo do aparelho)
+  const DEL_WORD = 'excluir de vez';
+  function deleteMatch(id) {
+    const m = findMatch(id); if (!m) return;
+    openInfo(L('Excluir partida', 'Delete match'), '<div class="del-box" translate="no"><span class="del-ic">' + ic('i-trash') + '</span>' +
+      '<p><b>' + esc(L('Isto apaga a partida de tudo:', 'This deletes the match from everywhere:')) + '</b></p><ul class="del-list">' +
+      [L('histórico e timeline', 'history and timeline'), L('estatísticas, recordes e conquistas', 'stats, records and achievements'), L('vídeo e lances gravados neste aparelho', 'video and clips recorded on this device'), L('quem foi marcado deixa de ver', 'people tagged will no longer see it')].map(x => '<li>' + ic('i-x') + esc(x) + '</li>').join('') + '</ul>' +
+      '<p class="hint">' + esc(L('Não dá para desfazer. Para confirmar, digite ', 'This cannot be undone. To confirm, type ')) + '<b translate="no">' + DEL_WORD + '</b>.</p>' +
+      '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type excluir de vez')) + '">' +
+      '<button class="btn btn-danger" type="button" id="delGo" data-delmid="' + esc(id) + '" disabled>' + ic('i-trash') + esc(L('Excluir de vez', 'Delete for good')) + '</button></div>');
+    setTimeout(() => { const i = $('#delWord'); if (i) i.focus(); }, 80);
+  }
+  async function deleteMatchNow(id) {
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
+    try { if (CVd && CVd.removeMatch) await CVd.removeMatch(id); } catch (e) { console.info('[excluir] vídeo não apagado', e); }
+    closeAllSheets();
     go('inicio');
+    toast(L('Partida excluída', 'Match deleted'));
   }
 
+  // predefinições salvas viram atalhos no "Nova partida"
+  function quickPresetsHTML() {
+    const all = Object.keys(E.SPORTS).flatMap(sp => presetsOf(sp).map(p => ({ sp, p })));
+    if (!all.length) return '';
+    return '<div class="quick-presets"><span>' + esc(L('Suas predefinições', 'Your presets')) + '</span>' + all.map(({ sp, p }) => '<button class="pchip" type="button" data-qpreset="' + esc(sp + '|' + p.id) + '">' + ic('s-' + sp) + '<span translate="no">' + esc(p.name) + '</span></button>').join('') + '</div>';
+  }
+  function quickPreset(key) {
+    const [sp, id] = key.split('|'); const p = presetsOf(sp).find(x => x.id === id); if (!p) return;
+    openNew({ cfgInput: Object.assign({ sport: sp, firstServer: 0 }, p.cfg, { custom: true, preset: p.name }), teams: match.teams });
+  }
   function quickStart(sp) {
     const base = Object.assign({ sport: sp, firstServer: 0 }, E.SPORTS[sp].defaults);
     openNew({ cfgInput: base, teams: match.teams });
@@ -5493,7 +5884,6 @@
     $('#btnCopyImg').addEventListener('click', () => doShare('copy'));
     $('#btnTv').addEventListener('click', () => toggleTv(true));
     $('#btnTvExit').addEventListener('click', () => toggleTv(false));
-    $('#btnCsv').addEventListener('click', () => exportMatch('csv'));
     window.addEventListener('hashchange', routeFromHash);
 
     $('#logList').addEventListener('click', e => {
@@ -5561,6 +5951,8 @@
       if (ac) { openAch(ac.dataset.ach); return; }
       const op = e.target.closest('[data-open]');
       if (op) { closeAllSheets(); go('partida', op.dataset.open); return; }
+      const qp = e.target.closest('[data-qpreset]');
+      if (qp) { closeSheet('#sheetChoose'); quickPreset(qp.dataset.qpreset); return; }
       const sp = e.target.closest('[data-sport]');
       if (sp) { quickStart(sp.dataset.sport); return; }
       const ms = e.target.closest('[data-mesport]');
@@ -5592,7 +5984,7 @@
         if (a === 'home') go('inicio');
         if (a === 'share') openShare(currentMatchId);
         if (a === 'share-ach') { closeSheet('#sheetAch'); openShareAch(act.dataset.achId); }
-        if (a === 'delete-match') deleteMatch(act.dataset.mid, act);
+        if (a === 'delete-match') deleteMatch(act.dataset.mid);
         if (a === 'moment') openMoment(findMatch(act.dataset.mid));
       }
       if (e.target.closest('#endSave')) { closeSheet('#sheetEnd'); finalize(); }
@@ -5625,11 +6017,18 @@
     $('#pAnalytics').checked = prefs.analytics === true;
     $('#analyticsRow').hidden = !(window.CantaTrack && window.CantaTrack.configured());
     $('#pAnalytics').addEventListener('change', e => { prefs.analytics = e.target.checked; savePrefs(); renderConsentCard(); toast(prefs.analytics ? 'Obrigado! Estatísticas de uso anônimas ligadas' : 'Estatísticas de uso desligadas'); });
+    $('#infoBody').addEventListener('input', e => { if (e.target.id === 'delWord') $('#delGo').disabled = S.fold(e.target.value).replace(/\s+/g, ' ').trim() !== DEL_WORD; });
+    $('#infoBody').addEventListener('click', e => { const b = e.target.closest('#delGo'); if (b && !b.disabled) deleteMatchNow(b.dataset.delmid); });
+    $('#infoBody').addEventListener('keydown', e => { if (e.target.id === 'delWord' && e.key === 'Enter') { const b = $('#delGo'); if (b && !b.disabled) deleteMatchNow(b.dataset.delmid); } });
     $('#infoBody').addEventListener('submit', e => { if (e.target.id === 'fbForm') { e.preventDefault(); sendFeedback(); } });
     $('#infoBody').addEventListener('change', e => { if (e.target.name === 'fbKind') { const k = e.target.value; $('#fbText').placeholder = k === 'problema' ? 'O que aconteceu? Em que tela? Dá para repetir?' : k === 'elogio' ? 'O que você mais curtiu? Podemos usar como depoimento?' : 'O que faria o ULTRA PLAY ficar melhor para você?'; } });
     wireGroups();
     wireTour();
     wireStats();
+    wireCustomFmt();
+    wirePlayers();
+    $('#dupBox').addEventListener('click', e => { if (e.target.closest('[data-dupok]') && applyDup()) $('#formNew').requestSubmit(); });
+    $('#dupBox').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.dup) { e.preventDefault(); if (applyDup()) $('#formNew').requestSubmit(); } });
     document.addEventListener('keydown', e => { const t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[data-live][role="button"]')) { e.preventDefault(); openLive(t.dataset.live); } });
     if (match && match.camTopic && match.events.length) linkOpenPlacar(); // partida em andamento com câmera conectada: volta a ouvir
     wireClips();
@@ -5643,7 +6042,8 @@
     buildSwatches();
     $('#formNew').addEventListener('change', e => {
       const t = e.target;
-      if (t.name === 'sport') fillFormat(t.value);
+      if (t.name === 'sport') { fillFormat(t.value); if (fmtMode === 'custom') { custom = customBase(t.value); customPreset = ''; renderCustomFmt(); } }
+      if (t.name === 'fmtMode') { setFmtMode(t.value); return; }
       if (t.name === 'petecaRule') fillRally(Object.assign({}, E.SPORTS.peteca.defaults, t.value === 'peteca2020' ? E.PRESETS.peteca2020 : {}));
       if (/^color[01]$/.test(t.name)) {
         const idx = Number(t.name.slice(-1));
@@ -5656,6 +6056,8 @@
     $('#formNew').addEventListener('input', e => { if (e.target.matches('input[type="text"]')) updateTeamForm(); });
     $('#formNew').addEventListener('submit', e => {
       e.preventDefault();
+      const dups = plDuplicates();
+      if (dups.length) { renderDupBox(dups); return; }
       const { ci, teams } = readNewForm();
       const err = validateTeams(teams);
       const box = $('#newError');
@@ -5733,6 +6135,7 @@
   function openPrefs() {
     renderVidStore();
     $('#pName').value = prefs.myName || (myName() === 'Você' ? '' : myName());
+    $('#pFull').value = prefs.fullName || '';
     renderPrivacy(); $('#pUid').innerHTML = esc(myUid()) + ic('i-copy'); $('#pUid').dataset.copy = myUid();
     $('#pCity').value = prefs.city || '';
     $('#pTts').checked = prefs.tts;
@@ -5801,5 +6204,5 @@
     }
   }
   // Para testes manuais no console: Canta.hear('ponto azul')
-  window.Canta = { pro: on => setPro(on), hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match, go, history };
+  window.Canta = { pro: on => setPro(on), hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match, go, history, players: (t, names) => { pl[t] = splitPlayers(names).slice(0, MAX_PER_TEAM).map(n => ({ name: n, userId: null })); plSync(); renderPlSlots(t); updateTeamForm(); } };
 })();

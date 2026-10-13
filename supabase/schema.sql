@@ -26,7 +26,8 @@ create table public.profiles (
   id             uuid primary key references auth.users(id) on delete cascade,
   public_id      text not null unique default ('UP-' || public.short_code(6)),
   handle         citext unique check (handle ~ '^[a-z0-9_.]{3,24}$'),
-  name           text not null check (char_length(name) between 1 and 60),
+  name           text not null check (char_length(name) between 1 and 60),   -- "nome nos pontos" (nome e sobrenome curtos, usado no placar e na voz)
+  full_name      text check (char_length(full_name) <= 60),
   city           text check (char_length(city) <= 60),
   bio            text check (char_length(bio) <= 160),
   avatar_url     text,
@@ -208,6 +209,7 @@ create table public.match_players (
   slot           smallint not null check (slot between 0 and 5),
   user_id        uuid references public.profiles(id) on delete set null,
   guest_name     text check (char_length(guest_name) <= 40),
+  nickname       text check (char_length(nickname) between 1 and 24),   -- apelido só nesta partida (dois jogadores com o mesmo nome)
   tag_status     text check (tag_status in ('pendente', 'aceito', 'recusado')),
   auto_accepted  boolean not null default false,   -- aceito pela autorização ao organizador do grupo
   responded_at   timestamptz,
@@ -693,6 +695,32 @@ begin
 end $$;
 create trigger daily_only_new before insert on public.daily_analyses for each row execute function public.daily_only_new();
 
+-- predefinições de formato (BT1-Amigos de Segunda): grátis 1 por esporte, Pro até 3
+create table public.format_presets (
+  user_id     uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  sport       text not null check (sport in ('tenis', 'beach', 'padel', 'peteca', 'volei', 'futevolei')),
+  n           smallint not null check (n between 1 and 3),
+  name        text not null check (name ~ '^(TEN|BT|PAD|PET|VOL|FUT)[1-3]-.{1,18}$'),
+  cfg         jsonb not null check (jsonb_typeof(cfg) = 'object' and pg_column_size(cfg) < 2000),
+  created_at  timestamptz not null default now(),
+  primary key (user_id, sport, n)
+);
+alter table public.format_presets enable row level security;
+create policy presets_own on public.format_presets for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- o prefixo tem que ser do esporte e do número certos, e o limite do plano vale no servidor
+create or replace function public.presets_check() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare pre text := case new.sport when 'tenis' then 'TEN' when 'beach' then 'BT' when 'padel' then 'PAD' when 'peteca' then 'PET' when 'volei' then 'VOL' else 'FUT' end;
+        lim int; used int;
+begin
+  if left(new.name, char_length(pre) + 2) <> pre || new.n || '-' then raise exception 'nome fora do padrão' using errcode = 'check_violation'; end if;
+  select case when p.pro_until > now() then 3 else 1 end into lim from profiles p where p.id = new.user_id;
+  select count(*) into used from format_presets f where f.user_id = new.user_id and f.sport = new.sport;
+  if used >= coalesce(lim, 1) then raise exception 'limite de predefinições do plano' using errcode = 'check_violation'; end if;
+  return new;
+end $$;
+create trigger presets_check before insert on public.format_presets for each row execute function public.presets_check();
+
 -- ============================================================
 -- permissões por coluna (o Supabase dá acesso amplo às tabelas; as regras por linha dizem QUAIS linhas,
 -- e estes grants dizem QUAIS COLUNAS cada um pode mudar)
@@ -703,7 +731,7 @@ grant insert, update, delete on all tables in schema public to authenticated;
 grant execute on all functions in schema public to anon, authenticated;
 -- perfil: a pessoa não mexe no Pro, no ID público nem no consentimento do responsável
 revoke update on public.profiles from authenticated;
-grant update (handle, name, city, bio, avatar_url, sports, privacy_level, privacy_show, show_online, live_view, birth_date, deleted_at) on public.profiles to authenticated;
+grant update (handle, name, full_name, city, bio, avatar_url, sports, privacy_level, privacy_show, show_online, live_view, birth_date, deleted_at) on public.profiles to authenticated;
 revoke insert, delete on public.profiles from authenticated;
 -- marcado só responde (aceitar/recusar); dono troca jogador apagando e inserindo de novo
 revoke update on public.match_players from authenticated;
@@ -737,3 +765,5 @@ grant update (sport, place_name, last_point_at, score, guests) on public.live_ma
 revoke update on public.live_players, public.daily_analyses from authenticated;
 revoke execute on function public.live_for_viewer(uuid), public.live_cleanup() from public, anon;
 revoke execute on function public.live_cleanup() from authenticated;
+revoke all on public.format_presets from anon;
+revoke update on public.format_presets from authenticated;
