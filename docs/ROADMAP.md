@@ -97,6 +97,34 @@ Aparecem no placar, no modo TV e, opcionalmente, falados.
 - Uma seção de artigos curtos no site (e no Instagram) com o que as pessoas não descobrem sozinhas: marcar ponto pelo **relógio** (Garmin, Apple Watch, Galaxy, Amazfit) ou fone, **passador de slides** como botão sem fio, **placar na TV** pela segunda janela, outro celular como **câmera** por QR Code, lente **0.5×** e brilho na gravação, grupos com ranking, backup entre celulares, comandos de voz com detalhe ("ace", "dupla falta", "na rede").
 - Cada post com um GIF ou vídeo curto, link para o app (`utm_source=blog`) e a pergunta frequente correspondente em `help.js`.
 
+### 6.6 Ideias do FitFolio (prints de 13/10/2026), para os ajustes finais
+- **Ranking em pódio:** abas "Mês · Sempre" e um link "Como funciona".
+  - Top 3 num pódio, com foto, nome e número grande na fonte condensada (o 1º no meio, mais alto).
+  - Embaixo, "Outras posições" numa lista limpa (04, 05… à esquerda e o número à direita).
+  - O que medir para nós: vitórias, semanas seguidas jogando, partidas e aproveitamento.
+  - Onde: no grupo (já existe o ranking, ganha o visual), na arena, na cidade e geral.
+  - Selo de verificado para professor e arena.
+- **Perfil com redes sociais:** campos de Instagram e TikTok (só o @, validado; o toque abre o app da rede).
+  - Topo com fundo em degradê da foto ou da cor da pessoa e os números em linha: Seguidores · Seguindo · Partidas · Sequência.
+  - "Seu progresso": calendário do mês com o ícone do esporte (ou miniatura) em cada dia que jogou, e "Ver calendário" para os outros meses.
+  - No banco: `profiles` ganha `instagram` e `tiktok` (texto curto, `^[a-z0-9._]{1,30}$`), com permissão de edição só do próprio.
+- **Seletor da timeline mais minimalista:** trocar o seletor com fundo (Seguindo/Geral) por abas de texto com um sublinhado na aba atual, como no FitFolio.
+  - Considerar uma 3ª aba: **Grupos** (partidas e resenha das suas turmas).
+- **Prints para as lojas no mesmo estilo:** título grande em 2 linhas, a 2ª em cinza ("Cada ponto. / Por voz."), e o celular com a tela real em fundo preto.
+
+### Fila dos ajustes finais (tudo o que ficou "para depois")
+| # | O quê | Onde está o detalhe |
+|---|---|---|
+| 1 | Cidade por lista: país → estado → cidade (IBGE) | 6.4 |
+| 2 | Pro "borrado" nas estatísticas, com cadeado e atalho para o Pro | 6.3 |
+| 3 | Seletor da timeline minimalista (e talvez a aba Grupos) | 6.6 |
+| 4 | Perfil com Instagram/TikTok, números no topo e calendário do mês | 6.6 |
+| 5 | Ranking em pódio (grupo, arena, cidade, geral) | 6.6 |
+| 6 | Posts de "curiosidades e dicas" no site | 6.5 |
+| 7 | Indicação para professores e influenciadores (comissão e metas) | 6.1 |
+| 8 | Kit ULTRA nas arenas (tripé e banner com QR Code) | 6.2 |
+| 9 | Prints das lojas no estilo do FitFolio | 6.6 |
+
 ## Antes de abrir para o público (checklist)
 
 Já feito na revisão de 12/10/2026:
