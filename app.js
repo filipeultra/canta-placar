@@ -21,7 +21,7 @@
   const DETAIL_KEYS = ['tag', 'shot', 'errType', 'player', 'playerTeam', 'assist'];
   const pick = r => { const o = {}; DETAIL_KEYS.forEach(k => { if (r[k] !== undefined && r[k] !== null) o[k] = r[k]; }); return o; };
   const DEUCE_LABEL = { ad: 'vantagem', golden: 'ponto de ouro', star: 'star point' };
-  const SRC_ICON = { voz: 'i-mic', toque: 'i-hand', teclado: 'i-keyboard', painel: 'i-grid' };
+  const SRC_ICON = { voz: 'i-mic', toque: 'i-hand', teclado: 'i-keyboard', painel: 'i-grid', remoto: 'i-watch' };
 
   const KEY_MATCH = 'canta.match.v1', KEY_PREFS = 'canta.prefs.v1', KEY_HIST = 'canta.history.v1';
   const store = {
@@ -492,6 +492,7 @@
     $('#lanceMenu').addEventListener('click', e => {
       const b = e.target.closest('[data-lance]'); if (!b) return;
       toggleLanceMenu(false);
+      if (b.dataset.lance === 'remote') { if (remote.on) { remoteStop(); toast('Controle do relógio desligado'); } else remoteStart().then(ok => { if (ok) toast('Controle ligado: próxima = ponto ' + name(0) + ', anterior = ponto ' + name(1) + ', tocar/pausar = desfazer'); }); return; }
       if (b.dataset.lance === 'panel') setPanel(true); else { setPanel(false); showTyper(true); }
     });
     document.addEventListener('click', e => { if (!$('#lanceMenu').hidden && !e.target.closest('#lanceMenu, #btnType')) toggleLanceMenu(false); });
@@ -537,6 +538,7 @@
 
   // ---------- desenho ----------
   function render() {
+    if (typeof remoteMeta === 'function') remoteMeta(); // placar na tela "tocando agora" do relógio
     renderBoard();
     renderChips();
     renderMatchChip();
@@ -1038,7 +1040,7 @@
       '<div class="cmd"><span><span class="kbd">→</span> <span class="kbd">2</span> <span class="kbd">PgDn</span></span><span>ponto ' + esc(name(1)) + '</span></div>' +
       '<div class="cmd"><span><span class="kbd">Z</span> <span class="kbd">Y</span></span><span>desfazer, refazer</span></div>' +
       '<div class="cmd"><span><span class="kbd">Espaço</span> <span class="kbd">T</span> <span class="kbd">P</span></span><span>microfone, modo TV, falar placar</span></div>' +
-      '</div><p class="hint">Passadores de slide (PgUp/PgDn) funcionam como botão de ponto sem fio.</p></section>';
+      '</div><p class="hint">Passadores de slide (PgUp/PgDn) funcionam como botão de ponto sem fio. Relógio ou fone: ligue em Lançar → Relógio ou fone; próxima faixa = ponto ' + esc(name(0)) + ', anterior = ponto ' + esc(name(1)) + ', tocar/pausar = desfazer.</p></section>';
   }
 
   // ---------- exportar ----------
@@ -3644,6 +3646,86 @@
     });
   }
 
+  // ---------- Controle remoto: botões de música do relógio (Garmin, Amazfit, Apple Watch, Galaxy…) e dos fones ----------
+  // O celular manda os botões "próxima / anterior / tocar-pausar" para quem está tocando áudio. Com o controle ligado,
+  // o app toca um áudio mudo em loop e vira esse "tocador": próxima = ponto do 1º time, anterior = ponto do 2º,
+  // tocar/pausar = desfazer. A tela "tocando agora" do relógio mostra o placar.
+  const remote = { on: false, audio: null, url: '', last: 0, pending: false };
+  const hasMediaSession = () => 'mediaSession' in navigator && typeof MediaMetadata !== 'undefined';
+  function silentLoopURL() {
+    // 10 s de áudio quase mudo (8 kHz, 16 bits): um sopro de ruído baixíssimo, porque silêncio absoluto
+    // às vezes não conta como "tocando" e o celular não entrega os botões
+    const rate = 8000, n = rate * 10, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    let seed = 7; for (let i = 0; i < n; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; v.setInt16(44 + i * 2, (seed % 5) - 2, true); }
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+  function remoteMeta() {
+    if (!remote.on || !hasMediaSession()) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: name(0) + '  ' + E.scoreLine(state, cfg) + '  ' + name(1),
+        artist: 'Próxima: ponto ' + name(0) + ' · Anterior: ponto ' + name(1),
+        album: 'ULTRA PLAY · tocar/pausar desfaz',
+        artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }],
+      });
+      navigator.mediaSession.playbackState = 'playing';
+    } catch (e) { console.info('[controle] metadados indisponíveis', e); }
+  }
+  function remoteAct(kind) {
+    return () => {
+      const now = Date.now();
+      if (now - remote.last < 700) return; // alguns relógios mandam o mesmo toque duas vezes
+      remote.last = now;
+      if (remote.audio && remote.audio.paused) remote.audio.play().catch(() => {});
+      if (!match || state.done && kind !== 'undo') { earcon.play('miss'); return; }
+      if (kind === 'undo') undo({ src: 'remoto' }); else addPoint(kind, { src: 'remoto' });
+      remoteMeta();
+    };
+  }
+  async function remoteStart() {
+    if (!hasMediaSession()) { toast('Este navegador não recebe os botões do relógio ou dos fones.'); return false; }
+    if (!remote.url) remote.url = silentLoopURL();
+    if (!remote.audio) { remote.audio = new Audio(remote.url); remote.audio.loop = true; remote.audio.setAttribute('playsinline', ''); }
+    try { await remote.audio.play(); } catch (e) { toast('Toque na tela para ligar o controle do relógio.'); remote.pending = true; return false; }
+    const ms = navigator.mediaSession;
+    const set = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) { /* ação não suportada neste aparelho */ } };
+    set('nexttrack', remoteAct(0)); set('previoustrack', remoteAct(1));
+    set('seekforward', remoteAct(0)); set('seekbackward', remoteAct(1));
+    set('play', remoteAct('undo')); set('pause', remoteAct('undo')); set('stop', null);
+    remote.on = true; remote.pending = false;
+    prefs.remote = true; savePrefs();
+    remoteMeta(); renderRemote();
+    return true;
+  }
+  function remoteStop() {
+    remote.on = false; remote.pending = false;
+    if (remote.audio) remote.audio.pause();
+    if (hasMediaSession()) {
+      for (const a of ['nexttrack', 'previoustrack', 'seekforward', 'seekbackward', 'play', 'pause']) { try { navigator.mediaSession.setActionHandler(a, null); } catch (e) { /* ok */ } }
+      try { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = 'none'; } catch (e) { /* ok */ }
+    }
+    prefs.remote = false; savePrefs();
+    renderRemote();
+  }
+  function renderRemote() {
+    $('#btnType').classList.toggle('remote-on', remote.on);
+    const it = $('#lanceRemote'); if (it) { it.classList.toggle('on', remote.on); it.querySelector('em').textContent = remote.on ? 'Ligado' : 'Desligado'; }
+    const sw = $('#pRemote'); if (sw) sw.checked = remote.on;
+  }
+  function wireRemote() {
+    // controle ligado da última vez: o navegador só deixa tocar depois de um toque, então religa no primeiro toque
+    if (prefs.remote && hasMediaSession()) {
+      remote.pending = true;
+      const once = () => { document.removeEventListener('pointerdown', once, true); if (remote.pending && !remote.on) remoteStart(); };
+      document.addEventListener('pointerdown', once, true);
+    }
+    const pr = $('#pRemote'); if (pr) pr.addEventListener('change', e => { if (e.target.checked) remoteStart().then(ok => { if (ok) toast('Controle ligado: próxima = ponto ' + name(0) + ', anterior = ponto ' + name(1)); else e.target.checked = false; }); else { remoteStop(); toast('Controle do relógio desligado'); } });
+    renderRemote();
+  }
+
   function deleteMatch(id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
@@ -3888,6 +3970,7 @@
     wireLinks();
     wireCam();
     wireClips();
+    wireRemote();
     askPersist();
     wireClaims();
     wirePrivacy();

@@ -55,6 +55,16 @@ Aparecem no placar, no modo TV e, opcionalmente, falados.
 7. **Som opcional** na gravação (hoje é só imagem, para não disputar o microfone com a voz).
 8. **Câmeras das arenas parceiras** no mesmo esquema de horário e quadra (ver `MARKETING.md`).
 
+## 5. Relógios e fones
+
+### Já existe
+- **Controle pelo relógio ou fone:** em Lançar → Relógio ou fone (ou em Ajustes). Os botões de música do relógio (Garmin, Amazfit, Apple Watch, Galaxy Watch) e os toques dos fones Bluetooth marcam o ponto: próxima = 1º time, anterior = 2º time, tocar/pausar = desfazer. A tela "tocando agora" do relógio mostra o placar. Funciona tocando um áudio mudo em loop, que é o que faz o celular entregar os botões ao app; precisa ser testado em cada modelo, principalmente no iPhone.
+- **Microfone sem fio:** fone Bluetooth com microfone ou lapela sem fio, escolhido em Ajustes → Microfone, com teste de nível.
+
+### Para depois
+- **Voz no próprio relógio:** app nativo para Apple Watch e Wear OS (reconhecimento de voz no relógio, que manda o ponto para o celular). Garmin (Connect IQ) não libera o microfone para apps: lá, um app de relógio com botões de ponto na tela. Amazfit (Zepp OS): verificar por modelo.
+- **Kit Pró com a pulseira** (ver `MARKETING.md`).
+
 ## Antes de abrir para o público (checklist)
 
 Já feito na revisão de 12/10/2026:
