@@ -2606,3 +2606,31 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .install-card > .ic { color: var(--brand-ink, var(--brand)); }
 .retro-link { display: inline-flex; align-items: center; gap: 8px; } .retro-link .ic { width: 18px; height: 18px; }
 .consent-a { display: flex; flex-direction: column; gap: 6px; flex: none; }
+
+/* ===== v23 · aviso no centro (modal) ===== */
+.modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px 20px; background: rgba(0, 0, 0, 0); -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); transition: background 0.2s ease, backdrop-filter 0.2s ease, -webkit-backdrop-filter 0.2s ease; }
+.modal.show { background: rgba(0, 0, 0, 0.5); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); }
+.modal-card { position: relative; width: min(360px, 100%); display: grid; justify-items: center; gap: 10px; padding: 34px 24px 22px; border-radius: 28px; background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 9%, var(--surface)), var(--surface) 46%); box-shadow: 0 0 0 1px var(--hair-strong), 0 30px 80px -20px rgba(0, 0, 0, 0.6); text-align: center; opacity: 0; transform: translateY(10px) scale(0.96); transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.modal.show .modal-card { opacity: 1; transform: none; }
+.modal-x { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; font-size: 18px; color: var(--fg-2); }
+.modal-ic { display: grid; place-items: center; width: 76px; height: 76px; margin-bottom: 6px; border-radius: 26px; background: var(--fill, rgba(127, 127, 127, 0.14)); color: var(--fg); position: relative; }
+.modal-ic .ic { width: 38px; height: 38px; }
+.modal-ic.brand { background: var(--brand); color: #0B1200; box-shadow: 0 14px 40px -10px color-mix(in srgb, var(--brand) 80%, transparent); }
+.modal-ic.brand::after { content: ""; position: absolute; inset: -8px; border-radius: 32px; border: 2px solid color-mix(in srgb, var(--brand) 55%, transparent); animation: ring 1.8s ease-out infinite; }
+.modal.show .modal-ic { animation: modalPop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4) both; }
+@keyframes modalPop { from { transform: scale(0.6) rotate(-8deg); opacity: 0; } }
+.modal-card h2 { margin: 0; font: 800 23px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.modal-card p { margin: 0 0 8px; color: var(--fg-2); font-size: 15px; line-height: 1.45; max-width: 30ch; }
+.modal-a { display: grid; gap: 10px; width: 100%; margin-top: 6px; }
+.modal-a .btn { width: 100%; height: 50px; border-radius: 16px; font-size: 16px; }
+.modal-a .linkish { justify-self: center; margin-top: 2px; color: var(--fg-2); font-size: 14px; }
+.confetti { position: absolute; left: 50%; top: 72px; width: 0; height: 0; pointer-events: none; }
+.confetti i { position: absolute; width: 8px; height: 12px; border-radius: 2px; background: var(--c); opacity: 0; animation: confetti 0.95s cubic-bezier(0.15, 0.7, 0.3, 1) var(--d) forwards; }
+@keyframes confetti { 0% { opacity: 1; transform: translate(0, 0) rotate(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x), calc(var(--y) + 60px)) rotate(var(--r)); } }
+@media (prefers-reduced-motion: reduce) { .modal-card, .modal { transition: none; } .modal-ic.brand::after, .modal.show .modal-ic { animation: none; } }
+/* miniatura da gravação no formato do vídeo (horizontal 16:9 por padrão) */
+.rec-dock.o-h .rec-mini { width: 156px; aspect-ratio: 16 / 9; }
+@media (min-width: 900px) { .rec-dock.o-h .rec-mini { width: 200px; } .rec-dock:not(.o-h) .rec-mini { width: 108px; aspect-ratio: 9 / 16; } }
+.rec-mini video { background: #000; }
+.rec-dock.mini-off.o-h .rec-mini, .rec-dock.mini-off .rec-mini { width: auto; aspect-ratio: auto; }
+body .toast.top, body[data-view] .toast.top { top: calc(72px + env(safe-area-inset-top, 0px)); bottom: auto; }

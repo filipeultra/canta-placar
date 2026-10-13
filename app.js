@@ -1158,7 +1158,7 @@
     if (raw !== histMemo.raw) { histMemo = { raw, list: readHist(raw).filter(validMatch) }; histVer++; }
     return histMemo.list.slice();
   };
-  const fmtDur = ms => { const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
+  const fmtDur = ms => { if (ms > 0 && ms < 60000) return '<1 min'; const m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' min'; };
   function fmtWhen(t) {
     if (!t) return '';
     const d = new Date(t), now = new Date();
@@ -1855,9 +1855,10 @@
   window.addEventListener('unhandledrejection', onCrash);
 
   let toastTimer = null;
-  function toast(msg) {
+  function toast(msg, opts) {
     const t = $('#toast');
     t.textContent = msg; t.hidden = false;
+    t.classList.toggle('top', !!(opts && opts.top)); // no alto: quando embaixo há algo que não pode ser coberto (miniatura da gravação)
     requestAnimationFrame(() => t.classList.add('show'));
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.classList.remove('show'); setTimeout(() => { t.hidden = true; }, 250); }, 2600);
@@ -3225,7 +3226,7 @@
         if (err && ev.playerTeam !== ev.team) { sub = ev.player + ' errou'; subTeam = errTeam; } else sub = ev.player + (ev.assist ? ' · assist. ' + ev.assist : '');
       }
       const tsub = err ? 'Erro ' + tn(errTeam) : 'Ponto ' + tn(ev.team);
-      return { team: ev.team, diff: r.diff, after: r.after, tag: ev.tag || '', label, sub, subTeam, tsub, tsubTeam: err ? errTeam : ev.team, key, hl: !!(ev.tag || key || (shot && ev.player)) };
+      return { team: ev.team, diff: r.diff, after: r.after, tag: ev.tag || '', label, sub, subTeam, tsub, tsubTeam: err ? errTeam : ev.team, key, hl: !!(ev.tag || key || (shot && ev.player)), t: ev.t, score: r.score };
     });
     const live = !st.state.done && m === match;
     return {
@@ -3461,6 +3462,7 @@
     $('#recDock').hidden = !on && !paused;
     $('#recDock').classList.toggle('mini-off', !recState.mini || paused);
     $('#recDock').classList.toggle('paused', paused);
+    $('#recDock').classList.toggle('o-h', vidOrient() === 'h'); // a miniatura tem o formato do vídeo que está saindo
     $('#btnCam').classList.toggle('on', on);
     $('#btnCam').classList.toggle('warn', paused);
     if (on) $('#recTime').textContent = fmtClock(Date.now() - recState.startedAt);
@@ -3495,7 +3497,7 @@
     clearInterval(recState.timer); recState.timer = setInterval(renderRecDock, 1000);
     requestWakeLock();
     renderRecDock();
-    toast('Gravando. Os pontos que você marcar viram lances em vídeo.');
+    toast('Gravando. Os pontos que você marcar viram lances em vídeo.', { top: true });
   }
   async function stopRecHere(quiet) {
     if (!recState.r) return;
@@ -3684,8 +3686,9 @@
     clip.m = m; clip.key = videoKey(m);
     clip.segs = await CVd.segments(clip.key).catch(() => []);
     const d = canReplay(m) ? motionData(m) : null;
-    const raw = (m.events || []).filter(e => e && e.type === 'point');
-    clip.rows = d ? d.pts.map((p, i) => ({ i, team: p.team, label: p.label, sub: o => (p.sub || p.tsub), t: raw[i] && raw[i].t, score: '' })) : [];
+    // cada lance leva o próprio horário (pontos ignorados ou desfeitos não deslocam os outros)
+    const cap = t => t.charAt(0) + t.slice(1).toLowerCase();
+    clip.rows = d ? d.pts.map((p, i) => ({ i, team: p.team, label: p.tsub, sub: () => [p.score, p.label !== 'PONTO' ? cap(p.label) : '', p.sub, p.key].filter(Boolean).join(' · '), t: p.t, score: p.score })) : [];
     clip.sync = (prefs.vidSync && prefs.vidSync[clip.key]) || 0;
     const T = m.teams;
     $('#clipsTitle').textContent = 'Lances · ' + T[0].name + ' × ' + T[1].name;
@@ -4274,7 +4277,7 @@
       '<p class="hint small">A marca ULTRA PLAY vai no canto do vídeo.' + (live ? '' : ' O formato não muda ao girar o celular: só por aqui.') + '</p>';
   }
   function onVidOpt(t) {
-    if (t.name === 'vidOrient') { prefs.vidOrient = t.value; savePrefs(); [recState.r, cam.r].forEach(r => { if (r) r.setOrient(t.value); }); if (!cam.r && cam.pcomp) camPreview(); renderCamOrient(); return true; }
+    if (t.name === 'vidOrient') { prefs.vidOrient = t.value; savePrefs(); [recState.r, cam.r].forEach(r => { if (r) r.setOrient(t.value); }); if (!cam.r && cam.pcomp) camPreview(); renderCamOrient(); renderRecDock(); return true; }
     if (t.name === 'vidScore' || t.name === 'vidPlays') { prefs.vidFlags = Object.assign(vidFlags(), { [t.name === 'vidScore' ? 'score' : 'plays']: t.checked }); savePrefs(); [recState.r, cam.r].forEach(r => { if (r) r.setFlags(vidFlags()); }); if (cam.pcomp) camPreview(); return true; }
     return false;
   }
@@ -4416,6 +4419,7 @@
       'Aviso de game, set e troca de lado menor, com OK e barra de tempo. Tocar fora só fecha o aviso, não marca ponto.',
       'Instale na tela inicial pelo aviso no Início. Novidades, sugestões e convite com o seu código ficam em Ajustes.',
       'Retrospectiva do mês para o story, em Você.',
+      'Pedido de opinião agora no centro da tela. Miniatura da gravação no formato do vídeo (horizontal). Lista de lances em vídeo com o placar de cada momento.',
       'Estatísticas de uso anônimas (com o seu consentimento) para a equipe saber o que funciona: liga e desliga em Ajustes.',
     ] },
     { id: '2026-10-13a', date: '13/10/2026', title: 'Grupos e câmera conectada', items: [
@@ -4485,17 +4489,53 @@
     prefs.origin = o; savePrefs();
   }
   // "Curtiu?" no momento bom: depois da 3ª, 10ª e 25ª partida salva, no máximo 3 vezes por ano
+  // aviso no centro da tela (pedido de opinião, comemorações): fundo desfocado, ícone, até 3 botões
+  let modalActs = [], modalBack = null;
+  function openModal(o) {
+    modalBack = document.activeElement;
+    $('#modalIc').className = 'modal-ic' + (o.tone ? ' ' + o.tone : '');
+    $('#modalIc').innerHTML = ic(o.icon || 'i-sparkles');
+    $('#modalTitle').textContent = o.title || '';
+    $('#modalText').textContent = o.text || '';
+    modalActs = o.actions || [];
+    $('#modalActions').innerHTML = modalActs.map((a, i) => '<button class="' + (a.kind === 'link' ? 'linkish center' : 'btn ' + (a.kind === 'brand' ? 'btn-brand' : '')) + '" type="button" data-modal-act="' + i + '">' + (a.icon ? ic(a.icon) : '') + esc(a.label) + '</button>').join('');
+    const m = $('#modal'); m.hidden = false; requestAnimationFrame(() => m.classList.add('show'));
+    document.body.classList.add('modal-on');
+    setTimeout(() => { const b = $('#modalActions button'); if (b) b.focus(); }, 60);
+  }
+  function closeModal() {
+    const m = $('#modal'); if (m.hidden) return;
+    m.classList.remove('show'); document.body.classList.remove('modal-on');
+    setTimeout(() => { m.hidden = true; $('#confetti').innerHTML = ''; }, 200);
+    if (modalBack && modalBack.focus) modalBack.focus();
+  }
+  function confetti() {
+    const box = $('#confetti'); if (!box || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cols = ['#AFFB48', '#FF5A1F', '#FFFFFF', '#45E0D2', '#FFD84D'];
+    box.innerHTML = Array.from({ length: 28 }, (_, i) => { const a = (Math.PI * 2 * i) / 28 + Math.random() * 0.3, d = 90 + Math.random() * 90; return '<i style="--x:' + Math.round(Math.cos(a) * d) + 'px;--y:' + Math.round(Math.sin(a) * d - 40) + 'px;--r:' + Math.round(Math.random() * 540 - 270) + 'deg;--c:' + cols[i % cols.length] + ';--d:' + (Math.random() * 0.15).toFixed(2) + 's"></i>'; }).join('');
+  }
+  // "Curtindo?" no momento bom: depois da 3ª, 10ª e 25ª partida salva, no máximo 3 vezes por ano
   function maybeAskLove() {
     const n = history().filter(m => !isDraft(m) && !m.demo).length;
     if (![3, 10, 25].includes(n)) return;
     const asks = (prefs.loveAsks || []).filter(t => Date.now() - t < 365 * 864e5);
     if (asks.length >= 3 || (asks.length && Date.now() - asks[asks.length - 1] < 30 * 864e5)) return;
     prefs.loveAsks = asks.concat(Date.now()); savePrefs();
-    setTimeout(() => openInfo('Curtindo o ULTRA PLAY?', '<p class="love-q">Já são ' + n + ' partidas marcadas. Está ajudando no seu jogo?</p><div class="love-a"><button class="btn btn-brand" type="button" data-love="sim">' + ic('i-check') + 'Sim, curti</button><button class="btn" type="button" data-love="nao">Ainda não</button></div>'), 1200);
+    setTimeout(() => askLove(n), 1200);
+  }
+  function askLove(n) {
+    openModal({ icon: 'i-bolt', tone: 'brand', title: 'Curtindo o ULTRA PLAY?', text: 'Já são ' + n + ' partidas marcadas por aqui. O app está ajudando no seu jogo?',
+      actions: [{ label: 'Sim, tô curtindo', kind: 'brand', icon: 'i-check', act: () => onLove('sim') }, { label: 'Ainda não', act: () => onLove('nao') }] });
   }
   function onLove(v) {
-    if (v === 'sim') openInfo('Que bom!', '<p class="love-q">Duas coisas que ajudam muito:</p><div class="love-a col"><button class="btn btn-brand" type="button" data-action="invite">' + ic('i-user-plus') + 'Chamar um parceiro de quadra</button><button class="btn" type="button" data-fb="elogio">' + ic('i-sparkles') + 'Deixar um depoimento</button></div>');
-    else openFeedback('sugestao');
+    if (v === 'sim') {
+      openModal({ icon: 'i-trophy', tone: 'brand', title: 'Valeu demais!', text: 'O ULTRA PLAY cresce no boca a boca da quadra. Duas coisas que ajudam muito:',
+        actions: [{ label: 'Chamar um parceiro de quadra', kind: 'brand', icon: 'i-user-plus', act: () => { closeModal(); shareInvite(); } }, { label: 'Deixar um depoimento', icon: 'i-sparkles', act: () => { closeModal(); openFeedback('elogio'); } }, { label: 'Agora não', kind: 'link', act: closeModal }] });
+      confetti();
+    } else {
+      openModal({ icon: 'i-help', tone: 'muted', title: 'O que falta para ficar bom?', text: 'Conta pra gente: cada sugestão é lida, e muita coisa do app nasceu assim.',
+        actions: [{ label: 'Escrever sugestão', kind: 'brand', icon: 'i-pencil-line', act: () => { closeModal(); openFeedback('sugestao'); } }, { label: 'Agora não', kind: 'link', act: closeModal }] });
+    }
   }
   // sequência de semanas: lembrete no Início quando a semana ainda não teve partida
   function streakHTML() {
@@ -4830,6 +4870,11 @@
     ['pointerdown', 'click'].forEach(ev => $('#banner').addEventListener(ev, e => { if (!$('#banner').classList.contains('show')) return; e.preventDefault(); e.stopPropagation(); if (ev === 'click') hideBanner(); }));
     wireCam();
     noteOrigin();
+    $('#modal').addEventListener('click', e => {
+      const a = e.target.closest('[data-modal-act]'); if (a) { const f = modalActs[Number(a.dataset.modalAct)]; if (f && f.act) f.act(); return; }
+      if (e.target.closest('[data-modal-close]') || e.target === e.currentTarget) closeModal();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#modal').hidden) { e.stopPropagation(); closeModal(); } }, true);
     if (window.CantaTrack) { window.CantaTrack.init({ consent: () => prefs.analytics === true, deviceId: () => { if (!prefs.did) { prefs.did = window.CantaTrack.newDeviceId(); savePrefs(); } return prefs.did; }, version: APP_VERSION }); trk('app_open', { standalone: isStandalone() }); }
     $('#pAnalytics').checked = prefs.analytics === true;
     $('#analyticsRow').hidden = !(window.CantaTrack && window.CantaTrack.configured());
