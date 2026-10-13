@@ -47,10 +47,18 @@ Nada aqui é garantia de aprovação: a revisão é das lojas. Esta lista cobre 
    - privacidade ("nutrition labels");
    - URL de suporte e URL da política;
    - classificação indicativa (com rede social, em geral 12+);
-   - notas para o revisor explicando a voz ("fale 'ponto verde'") e o modo câmera com dois aparelhos;
+   - notas para o revisor (em inglês) explicando que o placar é por toque, a voz é opcional e em português, e o modo câmera com dois aparelhos;
    - conta de demonstração quando houver login.
 7. **Rede de exemplo desligada** na versão da loja (ou marcada claramente como exemplo). Números "ao vivo" fictícios na tela de entrada são motivo de recusa por informação enganosa (2.3).
 8. **Controle pelo relógio ou fone:** dentro do app iOS, o "tocando agora" depende de áudio em segundo plano (`UIBackgroundModes: audio`). Justifique na revisão; senão, deixe esse recurso só na versão web.
+
+## Página da loja (pronto)
+- **Textos** (nome, subtítulo, texto promocional, palavras-chave, descrição) em português e inglês: `docs/POSICIONAMENTO.md`.
+- **Imagens** em `marketing/lojas/`:
+  - `appstore/`: 1320 × 2868 (iPhone de 6,9", o tamanho que a Apple pede como principal), 6 telas em português (`pt-…`) e 6 em inglês (`en-…`);
+  - `playstore/`: 1080 × 1920, as mesmas 6 telas nos dois idiomas;
+  - `modelo.html`: o modelo que gera as imagens (título em cima, celular com a tela real do app).
+- **Inglês no app:** Ajustes → Idioma (ver `docs/IDIOMAS.md`). A Apple não exige o app em inglês; ajuda o revisor e a venda fora do Brasil.
 
 ## Ordem sugerida
 

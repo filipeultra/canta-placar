@@ -1,7 +1,7 @@
 {
   "name": "ULTRA PLAY",
   "short_name": "ULTRA PLAY",
-  "description": "Placar por voz e estatísticas das suas partidas: tênis, beach tennis, padel, peteca, vôlei de praia e futevôlei.",
+  "description": "Estatísticas de atleta para as suas partidas: placar, números de cada jogo, vídeo dos lances e ranking da turma. Beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
@@ -77,7 +77,7 @@
       "sizes": "600x1298",
       "type": "image/webp",
       "form_factor": "narrow",
-      "label": "Placar por voz"
+      "label": "Placar da partida"
     },
     {
       "src": "site/img/stats2.webp",

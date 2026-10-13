@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>ULTRA PLAY Press Kit</title>
-<meta name="description" content="Press kit do ULTRA PLAY: o placar que escuta. Para jogadores, arenas, professores, imprensa e investidores.">
+<meta name="description" content="Press kit do ULTRA PLAY: jogue no modo Ultra. Estatísticas de profissional para quem joga por amor. Para jogadores, arenas, professores, imprensa e investidores.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
@@ -55,7 +55,7 @@ a { color: inherit; }
 .hero { position: relative; overflow: hidden; padding-block: clamp(40px, 7vw, 88px) clamp(40px, 6vw, 72px); }
 .hero::before { content: ""; position: absolute; inset: -30% -20% auto; height: 900px; background: radial-gradient(520px 340px at 18% 30%, rgba(175, 251, 72, .14), transparent 70%), radial-gradient(480px 320px at 88% 40%, rgba(255, 90, 31, .12), transparent 70%); pointer-events: none; }
 .hero .wrap { position: relative; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: clamp(28px, 5vw, 64px); align-items: center; }
-.hero h1 { margin: 18px 0 20px; font-size: clamp(64px, 11vw, 150px); }
+.hero h1 { margin: 18px 0 20px; font-size: clamp(56px, 8.6vw, 122px); }
 .hero h1 em { font-style: normal; color: var(--lime); }
 .hero .lead { margin: 0 0 30px; max-width: 34ch; font-size: clamp(18px, 2vw, 22px); line-height: 1.45; color: var(--chalk-2); }
 .hero .lead b { color: var(--chalk); font-weight: 650; }
@@ -95,6 +95,7 @@ a { color: inherit; }
 .ok.show { opacity: 1; }
 .bubble { position: absolute; left: -26px; top: 46%; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: 26px 26px 26px 8px; background: var(--lime); color: var(--lime-ink); font: 900 26px/1 var(--display); font-stretch: 70%; text-transform: uppercase; box-shadow: 0 20px 50px -14px rgba(175, 251, 72, .6); transform-origin: 10% 100%; transform: scale(.4); opacity: 0; transition: transform .3s cubic-bezier(.2, .9, .3, 1.4), opacity .2s; white-space: nowrap; }
 .bubble.show { transform: none; opacity: 1; }
+.bubble.tap { background: var(--chalk); color: var(--sand); font-size: 22px; box-shadow: 0 20px 50px -14px rgba(0, 0, 0, .7); }
 .bubble svg { width: 22px; height: 22px; flex: none; }
 .demo-cap { margin-top: 16px; text-align: center; color: var(--chalk-3); font-size: 13.5px; }
 @media (max-width: 420px) { .bubble { left: -6px; font-size: 22px; } }
@@ -244,6 +245,7 @@ footer .logo { width: 104px; height: 26px; }
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <symbol id="logo-h" viewBox="0 0 182 46" class="sym-fill"><path fill="currentColor" stroke="none" d="M0.595607 22.7648L13.3915 0.583801H26.1638L10.5924 27.5398H4.19444C0.689691 27.5398 -0.956837 25.3758 0.57208 22.7413L0.595607 22.7648Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M45.8045 23.0471L33.0087 45.2282H20.2363L35.8078 18.2722H42.2057C45.7105 18.2722 47.357 20.4362 45.8281 23.0706L45.8045 23.0471Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M26.1874 13.4737V0.583801H45.9928L35.7843 18.2722H32.5618C29.057 18.2722 26.1639 16.1082 26.1639 13.4737H26.1874Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M20.2128 32.3382V45.2282H0.407471L10.6159 27.5398H13.8384C17.3432 27.5398 20.2364 29.7038 20.2364 32.3382H20.2128Z" fill-rule="evenodd"/><path fill="currentColor" stroke="none" d="M64.2158 44.7909C58.0965 44.7909 53.8067 40.6272 53.8067 34.4448V0H60.4938V34.4448C60.4938 37.0313 62.0709 32.96 64.2158 32.96C66.3608 32.96 67.9379 37.0313 67.9379 34.4448V0H74.4988V34.4448C74.4988 40.6272 70.3352 44.7909 64.2158 44.7909Z"/><path fill="currentColor" stroke="none" d="M79.0124 44.16V0H85.6995V37.8514H97.6227V44.16H79.0124Z"/><path fill="currentColor" stroke="none" d="M94.0583 6.30857L91.2001 3.15429L94.0583 0H115.381L112.4 3.15429L115.381 6.30857H108.063V44.16H101.376V6.30857H94.0583Z"/><path fill="currentColor" stroke="none" d="M139.968 44.16H133.029L128.171 25.9282H124.702V44.16H118.015V0H128.487C134.859 0 138.959 4.16366 138.959 10.5353V15.3929C138.959 19.4935 137.256 22.6478 134.354 24.4142L139.968 44.16ZM124.702 6.30857V19.6197H128.171C130.758 19.6197 132.272 18.1056 132.272 15.5191V10.4091C132.272 7.82263 130.758 6.30857 128.171 6.30857H124.702Z"/><path fill="currentColor" stroke="none" d="M157.542 44.16L156.091 34.3817L152.495 32.16L148.9 34.3817L147.449 44.16H140.761L148.079 0H157.038L164.356 44.16H157.542ZM149.783 27.947H155.208L152.495 9.46286L149.783 27.947Z"/><path fill="currentColor" stroke="none" d="M161.007 38.4H179.407L175.8 44.156L161.007 44.1564V38.4Z"/><path fill="currentColor" stroke="none" d="M164.064 18V5.15911H167.109C168.962 5.15911 170.154 6.36983 170.154 8.22258V9.7268C170.154 11.5796 168.962 12.7903 167.109 12.7903H166.008V18H164.064ZM166.008 10.9559H167.017C167.769 10.9559 168.21 10.5156 168.21 9.76349V8.18589C168.21 7.43378 167.769 6.99353 167.017 6.99353H166.008V10.9559ZM171.418 18V5.15911H173.363V16.1656H176.83V18H171.418ZM171.625 33L171.203 30.1567H169.112L168.69 33H166.746L168.874 20.1591H171.479L173.606 33H171.625ZM169.369 28.2856H170.947L170.158 22.9107L169.369 28.2856ZM178.374 20.1591H180.41L177.806 27.6252V33H175.861V27.6252L173.256 20.1591H175.329L176.833 25.057L178.374 20.1591Z"/></symbol>
 <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></symbol>
+<symbol id="hand" viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-.5V4a1.5 1.5 0 0 1 3 0v6m0-3.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.6a6 6 0 0 1-4.6-2.2L3.6 15.9a1.6 1.6 0 0 1 2.4-2.1L9 16.5"/></symbol>
 <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
 <symbol id="whistle" viewBox="0 0 24 24"><circle cx="9" cy="14" r="5.5"/><path d="M13 9.5 21 6v5l-6.5 1.5"/><circle cx="9" cy="14" r="1.6"/></symbol>
 <symbol id="rules" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
@@ -270,10 +272,10 @@ footer .logo { width: 104px; height: 26px; }
     <div class="wrap">
       <div>
         <span class="kicker">Press kit · outubro 2026</span>
-        <h1 class="disp">O placar<br>que <em>escuta.</em></h1>
-        <p class="lead">Você fala <b>“ponto verde”</b>. O ULTRA PLAY marca, segue a regra do esporte, filma o lance e, no fim, entrega os números do jogo. <b>Ninguém para a partida. Ninguém discute o placar.</b></p>
+        <h1 class="disp">Jogue no<br>modo <em>Ultra.</em></h1>
+        <p class="lead">Estatísticas de profissional para quem joga por amor. <b>Um toque por ponto</b> e o ULTRA PLAY registra a partida, segue a regra do esporte, filma o lance e entrega os seus números de atleta. <b>E se quiser, marca por voz.</b></p>
         <div class="cta">
-          <a class="btn lime" href="https://filipeultra.github.io/canta-placar/?utm_source=presskit&amp;utm_medium=hero">Marcar meu próximo jogo</a>
+          <a class="btn lime" href="https://filipeultra.github.io/canta-placar/?utm_source=presskit&amp;utm_medium=hero">Registrar minha próxima partida</a>
           <a class="btn" href="#marca">Baixar fotos e logo</a>
         </div>
       </div>
@@ -283,16 +285,16 @@ footer .logo { width: 104px; height: 26px; }
             <div class="s-top"><span><i></i>Beach tennis</span><span id="dSet">Set 1</span></div>
             <div class="team t0" id="dT0"><div class="tn">Verde<small>Rafa · Lu</small><em id="dG0">2</em></div><div class="sc"><span id="dS0">30</span></div></div>
             <div class="team t1" id="dT1"><div class="tn">Laranja<small>Caio · Duda</small><em id="dG1">1</em></div><div class="sc"><span id="dS1">15</span></div></div>
-            <div class="listen on" id="dListen"><span class="mic"><svg class="ico"><use href="#mic"/></svg></span><span><b>Ouvindo</b><small id="dHeard">fale o ponto depois do lance</small></span><span class="ok" id="dOk">Ponto</span></div>
+            <div class="listen" id="dListen"><span class="mic"><svg class="ico"><use href="#mic"/></svg></span><span><b>Toque · painel · voz</b><small id="dHeard">toque no time ou em Lançar</small></span><span class="ok" id="dOk">Ponto</span></div>
           </div>
         </div>
-        <div class="bubble" id="dBubble"><svg class="ico"><use href="#mic"/></svg><span id="dSay">“ponto verde!”</span></div>
-        <p class="demo-cap">Demonstração: o placar seguindo os comandos de voz.</p>
+        <div class="bubble tap" id="dBubble"><svg class="ico"><use id="dBubbleIc" href="#hand"/></svg><span id="dSay">Ponto Verde</span></div>
+        <p class="demo-cap">Demonstração: cada toque vira ponto e estatística. A voz entra quando você quiser.</p>
       </div>
       <div class="facts" style="grid-column: 1 / -1">
-        <div><b>0</b><span>toques na tela para marcar um ponto</span></div>
+        <div><b>1</b><span>toque por ponto, com a estatística do lance junto</span></div>
         <div><b>6</b><span>esportes, cada um com a sua regra: beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei</span></div>
-        <div><b>1</b><span>celular vira placar, câmera e analista do jogo</span></div>
+        <div><b>3 em 1</b><span>o celular vira placar, câmera e analista do jogo</span></div>
         <div><b>100%</b><span>funciona sem internet na quadra, direto do navegador</span></div>
       </div>
     </div>
@@ -323,16 +325,16 @@ footer .logo { width: 104px; height: 26px; }
     <div class="wrap">
       <span class="kicker">Como funciona</span>
       <h2 class="disp">Antes, durante<br>e depois do jogo</h2>
-      <p class="sub">Um celular encostado na rede faz o trabalho de um juiz, um cinegrafista e um analista. Do navegador, sem baixar nada.</p>
+      <p class="sub">Um celular encostado na rede faz o trabalho de um juiz, um cinegrafista e um analista. Você joga; os números ficam.</p>
       <div class="moments">
         <div class="mo"><figure><img src="img/feed.webp" width="600" height="1298" alt="Tela inicial do ULTRA PLAY com os grupos e a timeline de partidas"></figure><span class="when">Antes · 10 segundos</span><h3>Escolhe o esporte e os times</h3><p>Formato, sets e regra já vêm certos para cada esporte. Dá para jogar só com as cores ou pôr o nome de cada um.</p></div>
-        <div class="mo"><figure><img src="img/placar.webp" width="600" height="1298" alt="Placar ao vivo do ULTRA PLAY ouvindo o comando ponto verde"></figure><span class="when">Durante · de mãos livres</span><h3>Fala o ponto e segue jogando</h3><p>“Ponto verde”, “ace Bia”, “desfazer”. Também marca por toque, pelo relógio ou pelo fone. O placar avisa a troca de lado e quem saca.</p></div>
+        <div class="mo"><figure><img src="img/placar.webp" width="600" height="1298" alt="Placar ao vivo do ULTRA PLAY durante a partida"></figure><span class="when">Durante · um toque por ponto</span><h3>Marca e segue jogando</h3><p>Um toque no lado do time ou um botão por lance: ace, winner, erro. Também pelo relógio, pelo fone ou por voz. O placar avisa a troca de lado e quem saca.</p></div>
         <div class="mo"><figure><img src="img/stats2.webp" width="600" height="1298" alt="Estatísticas da partida com placar, pontos, aces, winners e o momento do jogo"></figure><span class="when">Depois · o melhor momento</span><h3>Números, replay e story pronto</h3><p>Aces, winners, erros, sequências, onde o jogo virou e uma análise com dica para o próximo. O replay animado vira vídeo para o story.</p></div>
       </div>
       <div class="feats">
-        <div class="feat"><svg class="ico"><use href="#mic"/></svg><b>Voz que entende a quadra</b><span>Comandos curtos em português, com o nome dos jogadores, golpe e tipo de erro.</span></div>
+        <div class="feat"><svg class="ico"><use href="#spark"/></svg><b>Números de atleta</b><span>Aces, winners, erros, sequências, aproveitamento, recordes e a evolução no mês e no ano.</span></div>
         <div class="feat"><svg class="ico"><use href="#rules"/></svg><b>Regra certa de cada esporte</b><span>Vantagem ou ponto de ouro, tie-break, troca de lado, set a 21 da peteca.</span></div>
-        <div class="feat"><svg class="ico"><use href="#watch"/></svg><b>Relógio e fone viram controle</b><span>Garmin, Apple Watch, Galaxy, Amazfit ou fone Bluetooth marcam o ponto.</span></div>
+        <div class="feat"><svg class="ico"><use href="#watch"/></svg><b>Relógio, fone e voz</b><span>Marque pelo Garmin, Apple Watch, Galaxy, Amazfit, pelo fone ou falando “ponto verde”.</span></div>
         <div class="feat"><svg class="ico"><use href="#camera"/></svg><b>Cada ponto vira um lance em vídeo</b><span>Grava com o celular ou com um segundo aparelho pelo QR Code, com lente 0.5×.</span></div>
         <div class="feat"><svg class="ico"><use href="#replay"/></svg><b>Replay animado</b><span>A partida inteira em 15 segundos, em MP4 ou GIF, com placar e gráfico do jogo.</span></div>
         <div class="feat"><svg class="ico"><use href="#spark"/></svg><b>Análise do jogo</b><span>Onde a partida foi decidida e uma dica para o próximo, ao fim de cada jogo.</span></div>
@@ -363,9 +365,9 @@ footer .logo { width: 104px; height: 26px; }
       <span class="kicker">Para quem</span>
       <h2 class="disp">Um app, três<br>quadras de valor</h2>
       <div class="who">
-        <article><span class="tag">Jogadores</span><h3>Jogue. A gente cuida do resto.</h3><ul><li>Placar por voz, sem largar a raquete nem parar o ponto.</li><li>Os números de cada jogo: aces, winners, erros, sequências e evolução.</li><li>O vídeo de cada lance e o replay pronto para o story.</li><li>Ranking da turma, conquistas e confrontos contra cada adversário.</li></ul></article>
+        <article><span class="tag">Jogadores</span><h3>Jogue. A gente cuida do resto.</h3><ul><li>Cada partida registrada em um toque, com a regra certa do esporte.</li><li>Os números de cada jogo: aces, winners, erros, sequências e evolução.</li><li>O vídeo de cada lance e o replay pronto para o story.</li><li>Ranking da turma, conquistas e confrontos contra cada adversário.</li></ul></article>
         <article><span class="tag">Arenas e professores</span><h3>A quadra que todo mundo posta.</h3><ul><li>Rankings e recordes da arena, por quadra, esporte e temporada.</li><li>Placar na TV para torneios e eventos, com a marca da arena.</li><li>Professor acompanha a evolução de cada aluno com dados reais.</li><li>Cada story de partida leva o nome da arena para a cidade toda.</li></ul></article>
-        <article><span class="tag">Investidores e parceiros</span><h3>O esporte que mais cresce, sem dados.</h3><ul><li>Milhões jogam toda semana e quase nada de cada jogo fica registrado.</li><li>Produto pronto e funcionando, com custo de servidor por usuário baixo.</li><li>Crescimento que se espalha sozinho: cada partida gera um story e um convite.</li><li>Dados ponto a ponto abrem caminho para arenas, marcas e campeonatos.</li></ul></article>
+        <article><span class="tag">Investidores e parceiros</span><h3>O Strava das quadras.</h3><ul><li>O esporte que mais cresce no Brasil ainda não tem um lugar para guardar cada jogo.</li><li>Produto pronto e funcionando, com custo de servidor por usuário baixo.</li><li>Crescimento que se espalha sozinho: cada partida gera um story e um convite.</li><li>Dados ponto a ponto abrem caminho para arenas, marcas e campeonatos.</li></ul></article>
       </div>
     </div>
   </section>
@@ -394,7 +396,7 @@ footer .logo { width: 104px; height: 26px; }
       <h2 class="disp">Grátis para jogar,<br>Pro para evoluir</h2>
       <p class="sub">Preços de lançamento em estudo, comparados com os apps de esporte que o brasileiro já paga.</p>
       <div class="plans">
-        <div class="plan"><span class="n">Grátis</span><span class="p">R$ 0</span><span>Placar por voz e toque, estatísticas, timeline, grupos, conquistas e imagens para compartilhar.</span></div>
+        <div class="plan"><span class="n">Grátis</span><span class="p">R$ 0</span><span>Placar por toque, painel e voz, estatísticas de atleta, timeline, grupos, conquistas e imagens para compartilhar.</span></div>
         <div class="plan hi"><span class="n">Pro</span><span class="p">R$ 24,90<small> /mês</small></span><span>Ou R$ 179,90 por ano. Vídeo de cada ponto, momento ponto a ponto, replay em MP4 e GIF, análise por IA e histórico completo.</span></div>
         <div class="plan"><span class="n">Professor</span><span class="p">R$ 59,90<small> /mês</small></span><span>Pro do professor mais 10 licenças para presentear alunos e o painel da turma.</span></div>
         <div class="plan"><span class="n">Arena e organizador</span><span class="p">R$ 149,90<small> /mês</small></span><span>Torneios e rankings da arena, placar na TV com a marca e licenças para a equipe.</span></div>
@@ -409,7 +411,7 @@ footer .logo { width: 104px; height: 26px; }
       <h2 class="disp">Já funciona.<br>Vem aí para todos.</h2>
       <p class="sub">O ULTRA PLAY está pronto e em testes, rodando no navegador do celular. A abertura para o público é o próximo passo.</p>
       <ul class="built">
-        <li><svg class="ico"><use href="#check"/></svg>Placar por voz e toque, com a regra de 6 esportes</li>
+        <li><svg class="ico"><use href="#check"/></svg>Placar por toque, painel, relógio, fone e voz, com a regra de 6 esportes</li>
         <li><svg class="ico"><use href="#check"/></svg>Controle pelo relógio, fone e passador de slides</li>
         <li><svg class="ico"><use href="#check"/></svg>Gravação com o lance de cada ponto, até com 2 celulares</li>
         <li><svg class="ico"><use href="#check"/></svg>Estatísticas, conquistas, recordes e confrontos</li>
@@ -467,14 +469,14 @@ footer .logo { width: 104px; height: 26px; }
           <h3>Vídeo de 10 segundos</h3>
           <div class="reel">
             <video controls playsinline preload="metadata" poster="img/capa-reel.jpg"><source src="video/vem-ai.mp4" type="video/mp4"><source src="../reels/vem-ai.mp4" type="video/mp4"></video>
-            <div style="display:grid;gap:12px;min-width:0"><p class="muted" style="margin:0">“O placar que escuta”: a interface em movimento, do primeiro ponto ao “vem aí”. Em 1080 × 1920, para Reels, Stories e TikTok, com som próprio sem direitos autorais.</p><div class="row"><a class="btn sm" href="https://filipeultra.github.io/canta-placar/marketing/reels/vem-ai.mp4" target="_blank" rel="noopener">Abrir o vídeo em MP4</a></div></div>
+            <div style="display:grid;gap:12px;min-width:0"><p class="muted" style="margin:0">“Jogue no modo Ultra”: a interface em movimento, do primeiro ponto ao “vem aí”. Em 1080 × 1920, para Reels, Stories e TikTok, com som próprio sem direitos autorais.</p><div class="row"><a class="btn sm" href="https://filipeultra.github.io/canta-placar/marketing/reels/vem-ai.mp4" target="_blank" rel="noopener">Abrir o vídeo em MP4</a></div></div>
           </div>
         </div>
         <div class="tile">
           <h3>Ficha</h3>
           <dl class="sheet">
             <dt>Nome</dt><dd>ULTRA PLAY</dd>
-            <dt>O que é</dt><dd>Placar por voz com estatísticas e vídeo para esportes de raquete e areia</dd>
+            <dt>O que é</dt><dd>App de estatísticas, vídeo e comunidade para atletas amadores de esportes de raquete e de areia</dd><dt>Slogan</dt><dd>Jogue no modo Ultra.</dd>
             <dt>Esportes</dt><dd>Beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei</dd>
             <dt>Onde</dt><dd>No navegador do celular; lojas de apps em seguida</dd>
             <dt>Origem</dt><dd>Feito no Brasil</dd>
@@ -485,7 +487,7 @@ footer .logo { width: 104px; height: 26px; }
       </div>
       <div class="tile" style="margin-top:18px">
         <h3>Sobre o ULTRA PLAY (texto pronto)</h3>
-        <p class="boiler" id="boiler">O ULTRA PLAY é o placar que escuta. Os jogadores falam o ponto, como “ponto verde” ou “ace Bia”, e o app marca, segue a regra de cada esporte, avisa a troca de lado e grava o lance de cada ponto. No fim, entrega as estatísticas do jogo, uma análise com dica para o próximo e um replay animado pronto para as redes. Funciona no navegador do celular, sem internet na quadra, para beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei. Feito no Brasil.</p>
+        <p class="boiler" id="boiler">O ULTRA PLAY leva estatísticas de profissional para quem joga por amor. Cada partida é registrada com um toque por ponto (ou pelo relógio, pelo fone e por voz), seguindo a regra de cada esporte. O atleta amador vê os próprios números, como aces, winners, erros e evolução, grava os lances em vídeo, compartilha o replay e disputa o ranking com a sua turma. Funciona no navegador do celular, sem internet na quadra, para beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei. Feito no Brasil.</p>
         <div class="row"><button class="btn sm" type="button" id="copyBoiler">Copiar texto</button><span class="copied" id="boilMsg" role="status"></span></div>
       </div>
     </div>
@@ -495,7 +497,7 @@ footer .logo { width: 104px; height: 26px; }
     <div class="wrap">
       <svg class="logo" viewBox="0 0 182 46" width="220" height="56" role="img" aria-label="ULTRA PLAY"><use href="#logo-h"/></svg>
       <h2 class="disp">Vem <em>aí…</em></h2>
-      <p>No próximo jogo, deixa o placar com a gente. Você só precisa jogar.</p>
+      <p>No próximo jogo, jogue no modo Ultra. Você joga; os números ficam.</p>
       <a class="btn lime" href="https://filipeultra.github.io/canta-placar/?utm_source=presskit&amp;utm_medium=fim">Abrir o ULTRA PLAY</a>
     </div>
   </section>
@@ -509,7 +511,8 @@ footer .logo { width: 104px; height: 26px; }
   var $ = function (id) { return document.getElementById(id); };
   var PTS = ['0', '15', '30', '40'];
   var st = { p: [2, 1], g: [2, 1] };
-  var script = [['ponto verde', 0], ['ace laranja', 1], ['ponto verde', 0], ['laranja errou', 0], ['ponto Caio', 1], ['dupla falta verde', 1], ['smash Duda', 1], ['ponto laranja', 1], ['ponto Rafa', 0], ['ponto verde', 0], ['winner Lu', 0], ['ponto verde', 0]];
+  // a maioria dos pontos é por toque (com o lance); de vez em quando, um por voz
+  var script = [['toque', 'Ponto Verde', 0], ['toque', 'Ace · Laranja', 1], ['voz', 'ponto verde', 0], ['toque', 'Erro · Laranja', 0], ['toque', 'Winner · Caio', 1], ['toque', 'Dupla falta · Verde', 1], ['voz', 'smash Duda', 1], ['toque', 'Ponto Laranja', 1], ['toque', 'Winner · Rafa', 0], ['toque', 'Ponto Verde', 0], ['voz', 'winner Lu', 0], ['toque', 'Ace · Verde', 0]];
   var i = 0, reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   function show(t, v) {
     var el = $('dS' + t);
@@ -528,17 +531,20 @@ footer .logo { width: 104px; height: 26px; }
     render();
   }
   function step() {
-    var c = script[i % script.length], who = c[1]; // "laranja errou" e "dupla falta verde" dão o ponto ao outro time
-    $('dSay').textContent = '“' + c[0] + '!”';
+    var c = script[i % script.length], who = c[2], voice = c[0] === 'voz'; // "Erro · Laranja" e "Dupla falta · Verde" dão o ponto ao outro time
+    $('dSay').textContent = voice ? '“' + c[1] + '!”' : c[1];
+    $('dBubble').classList.toggle('tap', !voice);
+    $('dBubbleIc').setAttribute('href', voice ? '#mic' : '#hand');
     $('dBubble').classList.add('show');
-    $('dHeard').textContent = '…';
+    $('dListen').classList.toggle('on', voice);
+    $('dHeard').textContent = voice ? '…' : 'toque no time ou em Lançar';
     setTimeout(function () {
-      $('dHeard').textContent = '“' + c[0] + '”';
+      if (voice) $('dHeard').textContent = '“' + c[1] + '”';
       $('dOk').textContent = 'Ponto ' + (who === 0 ? 'Verde' : 'Laranja');
       $('dOk').classList.add('show');
       var tm = $('dT' + who); tm.classList.add('hit'); setTimeout(function () { tm.classList.remove('hit'); }, 380);
       point(who);
-    }, 700);
+    }, voice ? 700 : 260);
     setTimeout(function () { $('dBubble').classList.remove('show'); $('dOk').classList.remove('show'); }, 1900);
     i++;
   }

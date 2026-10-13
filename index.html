@@ -13,11 +13,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ULTRA PLAY">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Placar por voz e estatísticas de partida para tênis, beach tennis, padel, peteca, vôlei de praia e futevôlei.">
+<meta name="description" content="Estatísticas de atleta para quem joga por amor: placar, números de cada partida, vídeo dos lances e ranking da turma. Beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei.">
 <!-- prévia do link no WhatsApp, Instagram e redes -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ULTRA PLAY">
-<meta property="og:title" content="ULTRA PLAY · o placar que escuta">
+<meta property="og:title" content="ULTRA PLAY · jogue no modo Ultra">
 <meta property="og:description" content="Marque os pontos falando, veja as estatísticas e o replay da partida. Beach tennis, padel, tênis, peteca e vôlei.">
 <meta property="og:image" content="https://filipeultra.github.io/canta-placar/og.jpg">
 <meta property="og:image:width" content="1200">
@@ -255,6 +255,8 @@
   
     <div class="rec-dock" id="recDock" hidden>
       <button class="rec-mini" type="button" id="recMini" title="Mostrar ou esconder a imagem da câmera"><video id="recPreview" muted playsinline autoplay></video><span class="rec-pill"><i class="rec-dot"></i><b id="recTime">00:00</b></span></button>
+      <button class="rec-gear" type="button" id="recGear" aria-label="Ajustar a câmera: zoom e brilho" aria-expanded="false" title="Zoom e brilho"><svg><use href="#i-sliders"/></svg></button>
+      <div class="rec-tune" id="recTune" role="dialog" aria-label="Ajustes da câmera" hidden></div>
     </div>
     <footer class="dock" id="dock">
       <button class="voice" id="voice" type="button" data-state="off">
@@ -275,11 +277,11 @@
       <div class="dock-row">
         <button class="dock-btn" id="btnHelp" type="button"><svg><use href="#i-help"/></svg><span>Comandos</span></button>
         <button class="dock-btn" id="btnUndo" type="button"><svg><use href="#i-undo"/></svg><span>Desfazer</span></button>
-        <button class="mic-btn" id="btnMic" type="button" aria-pressed="false" title="Ligar microfone (espaço)">
-          <svg class="on"><use href="#i-mic"/></svg><svg class="off"><use href="#i-mic-off"/></svg>
-        </button>
+        <button class="lance-btn" id="btnType" type="button" aria-pressed="false" aria-haspopup="menu" aria-expanded="false" aria-label="Lançar com detalhe" title="Lançar com detalhe: painel, relógio ou digitar"><svg><use href="#i-grid"/></svg><span>Lançar</span></button>
         <button class="dock-btn" id="btnRedo" type="button"><svg><use href="#i-redo"/></svg><span>Refazer</span></button>
-        <button class="dock-btn" id="btnType" type="button" aria-pressed="false" aria-haspopup="menu" aria-expanded="false"><svg><use href="#i-grid"/></svg><span>Lançar</span></button>
+        <button class="dock-btn mic-dock" id="btnMic" type="button" aria-pressed="false" title="Ligar microfone (espaço)">
+          <svg class="on"><use href="#i-mic"/></svg><svg class="off"><use href="#i-mic-off"/></svg><span>Voz</span>
+        </button>
       </div>
       <div class="lance-menu" id="lanceMenu" role="menu" hidden>
         <button type="button" role="menuitem" data-lance="panel"><span class="lm-ic"><svg><use href="#i-grid"/></svg></span><span><b>Painel de comandos</b><small>Botões para cada lance: ideal para juiz ou quem está de fora</small></span></button>
@@ -361,8 +363,8 @@
 <section class="welcome" id="welcome" role="dialog" aria-modal="true" aria-label="Boas-vindas ao ULTRA PLAY" hidden>
   <div class="wl-inner">
     <svg class="wl-logo" viewBox="0 0 182 46" aria-hidden="true"><use href="#logo-h"/></svg>
-    <h1 class="wl-title">O placar que escuta.<br>A rede de quem joga.</h1>
-    <p class="wl-sub">Marque os pontos falando, guarde suas estatísticas e veja quem está jogando perto de você.</p>
+    <h1 class="wl-title">Jogue no modo Ultra.<br>Seus números de atleta.</h1>
+    <p class="wl-sub">Estatísticas de profissional para quem joga por amor: cada partida registrada, seus lances em vídeo e o ranking da sua turma.</p>
     <div class="wl-live" id="wlLive" aria-live="off">
       <span class="wl-badge"><i></i>Ao vivo no Brasil</span>
       <div class="wl-big"><b id="wlNow">0</b><span>pessoas jogando agora</span></div>
@@ -602,6 +604,7 @@
       <section class="group">
         <h3>Ajuda e novidades</h3>
         <div class="list">
+          <label class="row" for="pLang"><span class="row-ic"><svg><use href="#i-globe"/></svg></span><span>Idioma · Language<small>Os comandos de voz continuam em português.</small></span><select id="pLang" class="row-select"><option value="pt">Português</option><option value="en">English</option></select></label>
           <div class="row"><span class="row-ic"><svg><use href="#i-help"/></svg></span><span>Central de ajuda<small>Primeiros passos, dicas e perguntas frequentes</small></span><button class="btn" type="button" data-action="helpcenter">Abrir</button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-play"/></svg></span><span>Tutorial<small>O tour rápido pelo app e pelo placar</small></span><button class="btn" type="button" data-action="tour">Ver</button></div>
           <div class="row"><span class="row-ic"><svg><use href="#i-sparkles"/></svg></span><span>Novidades<small>O que mudou nas últimas versões</small></span><button class="btn" type="button" data-action="news">Ver</button></div>
@@ -844,7 +847,7 @@
     </header>
     <div class="sheet-body">
       <section class="choose-card">
-        <div class="choose-head"><span class="choose-ic"><svg><use href="#i-mic"/></svg></span><span><b>Marcar ao vivo</b><small>Placar por voz, ponto a ponto, com estatísticas</small></span></div>
+        <div class="choose-head"><span class="choose-ic"><svg><use href="#i-play"/></svg></span><span><b>Marcar ao vivo</b><small>Placar ponto a ponto, com estatísticas de atleta</small></span></div>
         <div class="quick" id="sportQuick"></div>
       </section>
       <button class="choose-card choose-btn" type="button" data-action="launch">
@@ -957,6 +960,8 @@
 <div class="scrim" id="scrim" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+<script src="i18n-en.js"></script>
+<script src="i18n.js"></script>
 <script src="engine.js"></script>
 <script src="grammar.js"></script>
 <script src="stats.js"></script>

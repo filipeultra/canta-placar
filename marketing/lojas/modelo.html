@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>ULTRA PLAY · imagens das lojas</title>
+<!-- Modelo das imagens da App Store e da Play Store. render({ w, h, img, l1, l2, tag }) desenha uma imagem; o script de
+     marketing/README.md tira a captura em 1320×2868 (iPhone 6,9") e 1080×1920 (Play Store). -->
+<style>
+@font-face { font-family: "Archivo Condensed"; src: url("../../fonts/archivo-condensed-latin.woff2") format("woff2"); font-weight: 600 900; }
+@font-face { font-family: "Bricolage Grotesque"; src: url("../../fonts/bricolage-grotesque-latin.woff2") format("woff2"); font-weight: 400 800; }
+:root { --bg: #060708; --lime: #affb48; --clay: #ff5a1f; --chalk: #f4f6f2; --chalk-2: #9aa09c; }
+* { box-sizing: border-box; margin: 0; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); overflow: hidden; }
+#art { position: relative; overflow: hidden; background: var(--bg); color: var(--chalk); font-family: "Bricolage Grotesque", system-ui, sans-serif; }
+.glow { position: absolute; border-radius: 50%; filter: blur(160px); }
+.g1 { background: rgba(175, 251, 72, .2); } .g2 { background: rgba(255, 90, 31, .14); }
+.court { position: absolute; inset: 0; opacity: .5; }
+.court line { stroke: rgba(255, 255, 255, .06); stroke-width: 4; }
+.head { position: absolute; left: 0; right: 0; text-align: center; font: 900 1px/.92 "Archivo Condensed", sans-serif; text-transform: uppercase; letter-spacing: -.01em; }
+.head .a { display: block; color: var(--chalk); }
+.head .b { display: block; color: var(--lime); }
+.tag { position: absolute; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: .5em; padding: .45em 1em; border-radius: 999px; border: 2px solid rgba(175, 251, 72, .45); color: var(--lime); font: 800 1px/1 "Bricolage Grotesque"; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+/* iPhone 17 Pro Max: moldura fina de titânio, cantos grandes, Dynamic Island */
+.phone { position: absolute; left: 50%; transform: translateX(-50%); border-radius: var(--r); background: linear-gradient(145deg, #4a4d52, #1d1f22 30%, #2c2f33 60%, #121315); padding: var(--bz); box-shadow: 0 0 0 2px #0b0c0d, 0 60px 160px -40px rgba(0, 0, 0, .95), 0 0 140px -40px rgba(175, 251, 72, .35); }
+.phone::before, .phone::after { content: ""; position: absolute; width: 1.2%; border-radius: 4px; background: #2a2c30; }
+.phone::before { left: -1%; top: 18%; height: 7%; box-shadow: 0 160% 0 #2a2c30, 0 320% 0 #2a2c30; }
+.phone::after { right: -1%; top: 24%; height: 11%; }
+.screen { position: relative; width: 100%; height: 100%; border-radius: calc(var(--r) - var(--bz)); overflow: hidden; background: #000; }
+.status { position: absolute; left: 0; right: 0; top: 0; height: var(--sb); display: flex; align-items: center; justify-content: space-between; padding: 0 9%; color: #fff; font: 700 1px/1 -apple-system, "SF Pro Text", "Bricolage Grotesque", system-ui, sans-serif; z-index: 2; background: #060708; }
+.status svg { height: .9em; width: auto; fill: #fff; }
+.status .r { display: inline-flex; align-items: center; gap: .35em; }
+.island { position: absolute; left: 50%; transform: translateX(-50%); background: #000; border-radius: 999px; z-index: 3; }
+.screen img { position: absolute; left: 0; width: 100%; display: block; }
+.home { position: absolute; left: 50%; transform: translateX(-50%); bottom: 1.1%; width: 34%; height: .55%; border-radius: 9px; background: rgba(255, 255, 255, .55); z-index: 3; }
+</style>
+</head>
+<body>
+<div id="art">
+  <div class="glow g1" id="g1"></div><div class="glow g2" id="g2"></div>
+  <svg class="court" id="court" aria-hidden="true"></svg>
+  <h1 class="head" id="head"><span class="a" id="l1"></span><span class="b" id="l2"></span></h1>
+  <span class="tag" id="tag"></span>
+  <div class="phone" id="phone">
+    <div class="screen" id="screen">
+      <div class="status" id="status"><span>9:41</span><span class="r">
+        <svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.3-1.4A10.7 10.7 0 0 0 8 .3 10.7 10.7 0 0 0 .4 3.3l1.3 1.4A8.8 8.8 0 0 1 8 2.2Zm0 3.7c1.4 0 2.7.5 3.7 1.4L13 5.9a7.4 7.4 0 0 0-10 0l1.3 1.4C5.3 6.4 6.6 5.9 8 5.9Zm0 3.6c.5 0 1 .2 1.3.5L8 11.6 6.7 10c.3-.3.8-.5 1.3-.5Z"/></svg>
+        <svg viewBox="0 0 27 12"><rect x=".5" y=".5" width="23" height="11" rx="3.2" fill="none" stroke="#fff" stroke-opacity=".45"/><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="24.6" y="4" width="1.8" height="4" rx=".9" fill-opacity=".45"/></svg>
+      </span></div>
+      <div class="island" id="island"></div>
+      <img id="shot" alt="">
+      <div class="home"></div>
+    </div>
+  </div>
+</div>
+<script>
+window.render = function (o) {
+  const W = o.w, H = o.h, art = document.getElementById('art');
+  art.style.width = W + 'px'; art.style.height = H + 'px';
+  const tall = H / W > 2; // 6,9" (2,17) ou Play Store (1,78)
+  // título
+  const hs = tall ? W * 0.118 : W * 0.092;
+  const head = document.getElementById('head'); head.style.fontSize = hs + 'px'; head.style.top = (tall ? H * 0.055 : H * 0.05) + 'px';
+  document.getElementById('l1').textContent = o.l1; document.getElementById('l2').textContent = o.l2;
+  const tag = document.getElementById('tag'); tag.textContent = o.tag || ''; tag.hidden = !o.tag; tag.style.fontSize = (W * 0.022) + 'px'; tag.style.top = (head.offsetTop + head.offsetHeight + hs * 0.35) + 'px';
+  // celular: tela de 440×956 pt
+  const top = head.offsetTop + head.offsetHeight + (o.tag ? hs * 1.25 : hs * 0.55);
+  const avail = H - top + (tall ? H * 0.05 : H * 0.2); // pode sair um pouco por baixo da imagem
+  const sw = Math.min(W * (tall ? 0.78 : 0.62), (avail / 956) * 440), sh = sw * 956 / 440, bz = sw * 0.022;
+  const ph = document.getElementById('phone');
+  ph.style.width = (sw + 2 * bz) + 'px'; ph.style.height = (sh + 2 * bz) + 'px'; ph.style.top = top + 'px';
+  ph.style.setProperty('--r', (sw * 0.15) + 'px'); ph.style.setProperty('--bz', bz + 'px');
+  const sb = sw * 54 / 440; ph.style.setProperty('--sb', sb + 'px');
+  document.getElementById('status').style.fontSize = (sw * 0.04) + 'px';
+  const isl = document.getElementById('island'); isl.style.width = (sw * 0.28) + 'px'; isl.style.height = (sw * 0.082) + 'px'; isl.style.top = (sw * 0.026) + 'px';
+  const img = document.getElementById('shot'); img.style.top = sb + 'px'; img.src = o.img;
+  // fundo
+  const g1 = document.getElementById('g1'), g2 = document.getElementById('g2');
+  Object.assign(g1.style, { width: W * 0.9 + 'px', height: W * 0.9 + 'px', left: -W * 0.3 + 'px', top: H * 0.18 + 'px' });
+  Object.assign(g2.style, { width: W * 0.8 + 'px', height: W * 0.8 + 'px', right: -W * 0.3 + 'px', bottom: -H * 0.05 + 'px' });
+  const c = document.getElementById('court'); c.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  c.innerHTML = ['M' + W * 0.3 + ' ' + H * 0.62 + 'L' + -W * 0.2 + ' ' + H, 'M' + W * 0.7 + ' ' + H * 0.62 + 'L' + W * 1.2 + ' ' + H, 'M' + W * 0.3 + ' ' + H * 0.62 + 'H' + W * 0.7, 'M' + W * 0.12 + ' ' + H * 0.8 + 'H' + W * 0.88].map(d => '<path d="' + d + '" stroke="rgba(255,255,255,.06)" stroke-width="' + W * 0.003 + '" fill="none"/>').join('');
+  return new Promise(r => { if (img.complete && img.naturalWidth) r(); else img.onload = () => r(); });
+};
+</script>
+</body>
+</html>

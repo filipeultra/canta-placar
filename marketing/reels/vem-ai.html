@@ -97,9 +97,9 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
 
   <!-- 1 · gancho -->
   <div class="s1" id="s1">
-    <div class="w" id="w1">O placar</div>
-    <div class="w" id="w2">que</div>
-    <div class="w lime" id="w3">escuta.<i id="w3bar"></i></div>
+    <div class="w" id="w1">Jogue</div>
+    <div class="w" id="w2">no modo</div>
+    <div class="w lime" id="w3">Ultra.<i id="w3bar"></i></div>
     <div class="bars" id="bars"></div>
   </div>
   <div class="wipe" id="wipe1"></div>
@@ -130,13 +130,13 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
   <div class="limebg" id="limebg"></div>
   <div class="s3" id="s3">
     <div class="va"><span id="v1">Vem</span> <span id="v2">aí</span><span class="d" id="d1">.</span><span class="d" id="d2">.</span><span class="d" id="d3">.</span></div>
-    <p id="s3sub">o seu jogo vai ganhar voz</p>
+    <p id="s3sub">o seu jogo no modo Ultra</p>
   </div>
 
   <!-- 4 · marca -->
   <div class="s4" id="s4">
     <svg class="logo" id="logo" viewBox="0 0 182 46" aria-label="ULTRA PLAY" role="img"><use href="#logo-h"/></svg>
-    <p id="tag">Placar por voz · estatística · replay</p>
+    <p id="tag">Estatísticas · vídeo · ranking</p>
     <div class="sports" id="sports"></div>
     <span class="soon" id="soon">Em breve</span>
   </div>
@@ -172,7 +172,7 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
   line(330, 1180, -120, 2100); line(750, 1180, 1200, 2100); line(330, 1180, 750, 1180); line(150, 1540, 930, 1540); line(540, 1180, 540, 2100); line(-30, 1900, 1110, 1900);
   const bars = $('bars'); for (let i = 0; i < 15; i++) bars.append(document.createElement('i'));
   ['s-beach', 's-padel', 's-tenis', 's-peteca', 's-volei', 's-futevolei'].forEach(id => { const i = document.createElement('i'); i.innerHTML = '<svg class="ic"><use href="#' + id + '"/></svg>'; $('sports').append(i); });
-  const LABELS = [['Marca ', 'por voz'], ['Cada ponto ', 'em número'], ['Sua ', 'timeline'], ['Ranking da ', 'turma']];
+  const LABELS = [['Marca do ', 'seu jeito'], ['Números de ', 'atleta'], ['Sua ', 'timeline'], ['Ranking da ', 'turma']];
   const T = [1.95, 3.35, 4.55, 5.75];
   let lastLabel = -1;
 

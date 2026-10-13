@@ -8,7 +8,7 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
 const base = fs.readFileSync(root + 'site/placar-peteca.html', 'utf8');
 const defs = base.slice(base.indexOf('<svg width="0"'), base.indexOf('</defs></svg>') + 13);
 const ICON = { 'i-mic': 'i-mic', 'i-bolt': 'i-zap', 'i-watch': 'i-watch', 'i-window': 'i-tv', 'i-users': 'i-users', 'i-download': 'i-download', 'i-phone': 'i-check', 'i-camera': 'i-camera', 'i-share': 'i-share' };
-const title = 'Ajuda do ULTRA PLAY: tutorial, dicas e perguntas', desc = 'Como marcar o placar por voz, filmar a partida, usar outro celular como câmera, grupos, backup e as respostas para as dúvidas mais comuns do ULTRA PLAY.';
+const title = 'Ajuda do ULTRA PLAY: tutorial, dicas e perguntas', desc = 'Como registrar suas partidas, ver suas estatísticas, filmar o jogo, usar outro celular como câmera, grupos, backup e as respostas para as dúvidas mais comuns do ULTRA PLAY.';
 const ld = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: H.faq.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };
 const app = '../?utm_source=site&amp;utm_medium=ajuda';
 const html = `<!doctype html>
@@ -44,7 +44,7 @@ ${defs}
   <div>
     <div class="chips"><span class="chip"><svg class="ic"><use href="#i-play"/></svg>Tutorial</span><span class="chip"><svg class="ic"><use href="#i-zap"/></svg>Dicas</span><span class="chip"><svg class="ic"><use href="#i-check"/></svg>Perguntas frequentes</span></div>
     <h1>Central de <em>ajuda.</em></h1>
-    <p class="lead">Tudo para marcar o seu jogo sem tirar a cabeça da quadra. No app, o mesmo conteúdo fica em Ajustes → Ajuda, junto com o tour guiado.</p>
+    <p class="lead">Tudo para registrar o seu jogo e evoluir com os seus números. No app, o mesmo conteúdo fica em Ajustes → Ajuda, junto com o tour guiado.</p>
     <div class="cta"><a class="btn brand" href="${app}"><svg class="ic"><use href="#i-play"/></svg>Abrir e fazer o tour</a><a class="btn" href="#perguntas">Ver as perguntas</a></div>
   </div>
 </div></section>

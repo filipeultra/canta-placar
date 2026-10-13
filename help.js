@@ -6,8 +6,8 @@
   root.CantaHelp = {
     steps: [
       { icon: 'i-plus', title: 'Comece uma partida', text: 'Toque em Nova partida → Marcar ao vivo, escolha o esporte, o formato e os times. Dá para jogar só com as cores (Azul x Laranja) ou pôr o nome de cada um.' },
-      { icon: 'i-mic', title: 'Marque o ponto falando', text: 'Ligue o microfone e diga “ponto azul”, “ponto Bia” ou “ace laranja” depois de cada lance. Um bipe agudo confirma. Se preferir, toque no lado do time.' },
-      { icon: 'i-undo', title: 'Corrija sem parar o jogo', text: 'Errou? Diga “desfazer” ou “corrige, ponto laranja”, ou use o botão de voltar embaixo do placar.' },
+      { icon: 'i-hand', title: 'Marque com um toque', text: 'Toque no lado do time que fez o ponto. Para estatística de atleta, use Lançar (no centro): um botão para cada lance, como ace, winner e erro. Se quiser, ligue a voz (à direita) e diga “ponto azul”.' },
+      { icon: 'i-undo', title: 'Corrija sem parar o jogo', text: 'Errou? Toque em Desfazer, embaixo do placar. Com a voz ligada, diga “desfazer” ou “corrige, ponto laranja”.' },
       { icon: 'i-camera', title: 'Filme, se quiser', text: 'Grave com este celular ou com outro aparelho pelo QR Code. Cada ponto marcado vira um lance em vídeo para rever e mandar.' },
       { icon: 'i-share', title: 'Salve e compartilhe', text: 'No fim, a partida fica no seu histórico com estatísticas, replay animado e a análise do jogo. Mande a imagem ou o vídeo para o grupo.' },
     ],
@@ -22,7 +22,7 @@
       { icon: 'i-phone', title: 'Instale na tela inicial', text: 'Instalado, o ULTRA PLAY abre em tela cheia, mais rápido e funciona sem internet na quadra.' },
     ],
     faq: [
-      { q: 'O ULTRA PLAY é grátis?', a: 'Sim. Marcar o placar por voz ou toque, estatísticas, histórico, imagens para compartilhar, grupos e o replay são grátis. O Pro libera recursos a mais, como gravar a partida em vídeo, momento ponto a ponto, vídeo animado em MP4 e GIF, exportar planilha e a análise do jogo por IA.' },
+      { q: 'O ULTRA PLAY é grátis?', a: 'Sim. Marcar o placar (por toque, painel, relógio ou voz), estatísticas, histórico, imagens para compartilhar, grupos e o replay são grátis. O Pro libera recursos a mais, como gravar a partida em vídeo, momento ponto a ponto, vídeo animado em MP4 e GIF, exportar planilha e a análise do jogo por IA.' },
       { q: 'Quais esportes ele marca?', a: 'Beach tennis, padel, tênis, peteca, vôlei de praia e futevôlei, cada um com as suas regras: games, sets, tie-break, vantagem ou ponto de ouro, troca de lado e saque.' },
       { q: 'Precisa de internet na quadra?', a: 'Não para marcar o placar: depois de aberto uma vez, o app funciona sem internet. A internet só é usada para conectar o segundo celular como câmera e, quando houver conta na nuvem, para sincronizar.' },
       { q: 'O microfone fica gravando a conversa?', a: 'Não. O reconhecimento de voz só procura os comandos do placar, enquanto o microfone está ligado no placar. Nada do que é falado é guardado ou enviado para a equipe do ULTRA PLAY.' },

@@ -656,7 +656,7 @@
     const st = isSpeaking && voice.wanted ? 'speaking' : voice.state;
     $('#voice').dataset.state = st;
     $('#voiceState').textContent = {
-      off: 'Microfone desligado', starting: 'Ligando o microfone…', listening: 'Ouvindo', hearing: 'Ouvindo…',
+      off: 'Toque no time que fez o ponto', starting: 'Ligando o microfone…', listening: 'Ouvindo', hearing: 'Ouvindo…',
       speaking: 'Anunciando o placar', error: 'Microfone parado', unsupported: 'Sem reconhecimento de voz',
       'needs-download': 'Voz offline não baixada', loading: 'Preparando a voz offline',
     }[st] || 'Microfone';
@@ -667,7 +667,7 @@
     else if (st === 'unsupported') h.textContent = 'Este navegador não reconhece voz. Use o Chrome ou o Edge, ou toque em Digitar.';
     else if (Date.now() - lastHeardAt > 8000) {
       const ex = example();
-      h.textContent = st === 'off' ? 'Toque no microfone e diga “' + ex + '”' : prefs.wake ? 'Diga “placar, ' + ex + '”' : 'Diga “' + ex + '” ou “desfazer”';
+      h.textContent = st === 'off' ? 'Ou ligue a voz (à direita) e diga “' + ex + '”' : prefs.wake ? 'Diga “placar, ' + ex + '”' : 'Diga “' + ex + '” ou “desfazer”';
     }
   }
 
@@ -3464,7 +3464,8 @@
     const s = recState.r ? recState.r.state : null;
     const on = !!(s && s.recording), paused = !!(s && s.interrupted && !s.recording);
     $('#recDock').hidden = !on && !paused;
-    $('#recDock').classList.toggle('mini-off', !recState.mini || paused);
+    if (!on && !$('#recTune').hidden) { $('#recTune').hidden = true; $('#recGear').setAttribute('aria-expanded', 'false'); }
+    $('#recDock').classList.toggle('mini-off', (!recState.mini && $('#recTune').hidden) || paused);
     $('#recDock').classList.toggle('paused', paused);
     $('#recDock').classList.toggle('o-h', vidOrient() === 'h'); // a miniatura tem o formato do vídeo que está saindo
     $('#btnCam').classList.toggle('on', on);
@@ -3558,6 +3559,11 @@
       if (s && s.interrupted && !s.recording) { recState.r.start().then(() => { requestWakeLock(); toast('Gravando de novo'); }).catch(() => {}); return; }
       clearTimeout(recState.miniT); recState.mini = !recState.mini; renderRecDock();
     });
+    $('#recGear').addEventListener('click', e => { e.stopPropagation(); toggleRecTune(); });
+    $('#recTune').addEventListener('change', e => onVidTune(e));
+    $('#recTune').addEventListener('click', e => { e.stopPropagation(); if (e.target.closest('[data-rectune="close"]')) { toggleRecTune(false); $('#recGear').focus(); return; } if (e.target.closest('[data-videxp]')) onVidTune(e); });
+    $('#recTune').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); toggleRecTune(false); $('#recGear').focus(); } });
+    document.addEventListener('click', e => { if (!$('#recTune').hidden && !e.target.closest('#recDock')) toggleRecTune(false); });
     $('#camBody').addEventListener('change', e => { if (!onVidTune(e)) onVidOpt(e.target); });
     $('#view-camera').addEventListener('change', e => { if (!onVidTune(e)) onVidOpt(e.target); });
     $('#camBody').addEventListener('click', e => { if (e.target.closest('[data-videxp]')) onVidTune(e); });
@@ -4289,7 +4295,9 @@
   // lente (0.5×, 1×, 2×) e brilho (2 passos para cada lado)
   function tuneHTML(info) {
     const t = vidTune(), noWide = info && !info.wideOK;
-    const lens = [['w', '0.5×'], ['1', '1×'], ['2', '2×']].map(([v, l]) => '<label' + (v === 'w' && noWide ? ' class="na" title="Este celular não libera a lente 0.5× para o navegador"' : '') + '><input type="radio" name="vidLens" value="' + v + '"' + (t.lens === v ? ' checked' : '') + '><span>' + l + '</span></label>').join('');
+    // 0.5×, 1×, 2× sempre; 3×, 5× e 10× quando o zoom do celular chega lá
+    const zmax = (info && info.zoomMax) || 2;
+    const lens = [['w', '0.5×'], ['1', '1×'], ['2', '2×'], ['3', '3×'], ['5', '5×'], ['10', '10×']].filter(([v]) => !(Number(v) > 2) || zmax >= Number(v) || t.lens === v).map(([v, l]) => '<label' + (v === 'w' && noWide ? ' class="na" title="Este celular não libera a lente 0.5× para o navegador"' : '') + '><input type="radio" name="vidLens" value="' + v + '"' + (t.lens === v ? ' checked' : '') + '><span>' + l + '</span></label>').join('');
     const ex = t.exp, dots = [-2, -1, 0, 1, 2].map(k => '<i class="' + (k === ex ? 'on' : k === 0 ? 'mid' : '') + '"></i>').join('');
     return '<div class="vid-tune"><div class="seg seg-sm lens-seg" role="radiogroup" aria-label="Lente">' + lens + '</div>' +
       '<div class="exp-step" role="group" aria-label="Brilho"><button class="icon-btn" type="button" data-videxp="-1" aria-label="Menos brilho"' + (ex <= -2 ? ' disabled' : '') + '>' + ic('i-sun') + '<b>−</b></button>' +
@@ -4305,13 +4313,24 @@
       info = cam.tinfo || info;
     }
     if (lensChanged && t.lens === 'w' && info && !info.wideUsed) toast('Este celular não libera a lente 0.5× para o navegador. Afaste um pouco o celular para pegar a quadra toda.');
-    renderCamTune(); if (!$('#sheetCam').hidden) $$('#camBody .vid-tune').forEach(x => { x.outerHTML = tuneHTML(info); });
+    renderCamTune(); renderRecTune(); if (!$('#sheetCam').hidden) $$('#camBody .vid-tune').forEach(x => { x.outerHTML = tuneHTML(info); });
   }
   function onVidTune(e) {
     const b = e.target.closest && e.target.closest('[data-videxp]');
     if (b) { prefs.vidExp = Math.max(-2, Math.min(2, (Number(prefs.vidExp) || 0) + Number(b.dataset.videxp))); savePrefs(); applyTune(false); return true; }
     if (e.target.name === 'vidLens') { prefs.vidLens = e.target.value; savePrefs(); applyTune(true); return true; }
     return false;
+  }
+  // ajustes da câmera sem sair do placar: o botão na miniatura abre zoom e brilho (a imagem fica visível enquanto ajusta)
+  function renderRecTune() {
+    const box = $('#recTune'); if (!box || box.hidden) return;
+    box.innerHTML = '<div class="rt-head"><h3>Câmera</h3><button class="icon-btn" type="button" data-rectune="close" aria-label="Fechar ajustes da câmera">' + ic('i-x') + '</button></div>' + tuneHTML(recState.r && recState.r.state.lensInfo) + '<p class="hint">Vale na hora, sem parar a gravação.</p>';
+  }
+  function toggleRecTune(force) {
+    const box = $('#recTune'), show = force !== undefined ? force : box.hidden;
+    box.hidden = !show; $('#recGear').setAttribute('aria-expanded', String(show));
+    if (show) { recState.mini = true; clearTimeout(recState.miniT); renderRecDock(); renderRecTune(); const f = box.querySelector('input:checked'); if (f) f.focus(); }
+    else { clearTimeout(recState.miniT); recState.miniT = setTimeout(() => { recState.mini = false; renderRecDock(); }, 4000); }
   }
   function renderCamTune() {
     const box = $('#camTune'); if (!box) return;
@@ -4391,7 +4410,7 @@
     const me = f.mine != null ? f.mine : l != null ? l : 0, op = 1 - me, you = f.mine != null ? 'você' : names[me];
     let tip = '';
     const errShare = pctOf(f.err[me], T[op].pts);
-    if (f.err[me] >= 4 && errShare >= 40) tip = errShare + '% dos pontos do adversário vieram de erros ' + (f.mine != null ? 'seus' : 'de ' + names[me]) + '. ' + (T[me].rede > T[me].fora ? 'Mais altura na bola tira da rede.' : T[me].fora > T[me].rede ? 'Uma bola mais pra dentro da quadra já muda o jogo.' : 'Menos risco nos pontos neutros já muda o jogo.');
+    if (f.err[me] >= 4 && errShare >= 40) tip = errShare + '% dos pontos do adversário vieram ' + (f.mine != null ? 'de erros seus' : 'de erros de ' + names[me]) + '. ' + (T[me].rede > T[me].fora ? 'Mais altura na bola tira da rede.' : T[me].fora > T[me].rede ? 'Uma bola mais pra dentro da quadra já muda o jogo.' : 'Menos risco nos pontos neutros já muda o jogo.');
     else if (f.serve[me] != null && f.serve[me] < 50) tip = 'No saque, ' + you + ' ganhou só ' + f.serve[me] + '% dos pontos. Priorize colocar o saque em jogo e começar o ponto no controle.';
     else if (kv[me][1] >= 3 && pctOf(kv[me][0], kv[me][1]) < 40) tip = kv[me][0] + ' de ' + kv[me][1] + ' ' + (kp === 'break' ? 'break points' : 'set points') + ' convertidos. Nos pontos importantes, a bola mais segura costuma render mais.';
     else if (f.close[me] < f.close[op]) tip = 'O fim do jogo foi de ' + names[op] + '. Segurar o ritmo nos últimos pontos é onde ' + you + ' mais pode ganhar.';
@@ -4453,6 +4472,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13e', date: '13/10/2026', title: 'Lançar no centro, ajustes da câmera e inglês', items: [
+      'O botão principal do placar agora é Lançar, com um botão para cada lance: ace, winner, erro. A voz fica à direita, para quem quiser.',
+      'Gravando com este celular: o botão na miniatura abre zoom (de 0.5× até o máximo do celular) e brilho, sem parar a gravação.',
+      'O app agora também está em inglês: Ajustes → Idioma.',
+    ] },
     { id: '2026-10-13d', date: '13/10/2026', title: 'Lente 0.5× e brilho na gravação', items: [
       'Na gravação, escolha a lente 0.5× (grande-angular, nos celulares que liberam para o navegador), 1× ou 2×.',
       'Brilho um pouco para mais ou para menos, em 2 passos para cada lado: bom para sol forte ou quadra à noite.',
@@ -4598,14 +4622,14 @@
       { sel: '#view-inicio .bell', title: 'Notificações', text: 'Quando alguém te marca numa partida ou te dá um zap, aparece aqui.' },
       { sel: '#view-inicio [data-action="prefs"]', title: 'Ajustes e ajuda', text: 'Voz, microfone, tema, privacidade e a Ajuda: este tutorial, dicas e perguntas frequentes.' },
       { sel: '.tabbar [data-go="voce"]', title: 'Você', text: 'Seu perfil com evolução, recordes, conquistas e grupos.' },
-      { title: 'No placar, é assim', list: [['i-mic', 'Fale “ponto azul” ou “ace Bia” depois do lance'], ['i-hand', 'Ou toque no lado do time que fez o ponto'], ['i-undo', '“Desfazer” corrige o último lance'], ['i-camera', 'Filme e cada ponto vira um lance em vídeo']], done: 'Bora jogar' },
+      { title: 'No placar, é assim', list: [['i-hand', 'Toque no lado do time que fez o ponto'], ['i-grid', '“Lançar” abre um botão para cada lance: ace, winner, erro'], ['i-camera', 'Filme e cada ponto vira um lance em vídeo'], ['i-mic', 'E se quiser, marque por voz: “ponto azul”']], done: 'Bora jogar' },
     ],
     play: [
       { sel: '#board', title: 'Toque para marcar', text: 'Toque no lado do time que fez o ponto. Games, sets, saque e troca de lado seguem a regra do esporte sozinhos.', inset: true },
-      { sel: '#btnMic', title: 'Ou marque falando', text: 'Ligue o microfone e diga “ponto azul”, “ponto Bia” ou “ace laranja”. Um bipe agudo confirma.' },
-      { sel: '#btnUndo', title: 'Errou? Volta', text: 'Desfaz o último lance. Por voz: “desfazer” ou “corrige, ponto laranja”.' },
-      { sel: '#btnHelp', title: 'Todos os comandos', text: 'A lista de comandos de voz, já com o nome dos seus times.' },
-      { sel: '#btnCam', title: 'Filmar a partida', text: 'Grave com este celular ou use outro aparelho como câmera pelo QR Code.' },
+      { sel: '#btnType', title: 'Lançar com detalhe', text: 'O painel tem um botão para cada lance: ace, winner, erro, dupla falta e quem fez. É isso que vira estatística de atleta.' },
+      { sel: '#btnUndo', title: 'Errou? Volta', text: 'Desfaz o último lance na hora.' },
+      { sel: '#btnMic', title: 'Voz, se quiser', text: 'Ligue o microfone e diga “ponto azul” ou “ace laranja”. Bom para quem joga sem largar a raquete.' },
+      { sel: '#btnCam', title: 'Filmar a partida', text: 'Grave com este celular ou use outro aparelho como câmera pelo QR Code. Cada ponto vira um lance em vídeo.' },
       { sel: '#btnFinish', title: 'Encerrar e salvar', text: 'No fim: estatísticas, análise do jogo e imagem ou vídeo para mandar no grupo.', done: 'Bom jogo!' },
     ],
   };
@@ -5048,6 +5072,9 @@
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#modal').hidden) { e.stopPropagation(); closeModal(); } }, true);
     if (window.CantaTrack) { window.CantaTrack.init({ consent: () => prefs.analytics === true, deviceId: () => { if (!prefs.did) { prefs.did = window.CantaTrack.newDeviceId(); savePrefs(); } return prefs.did; }, version: APP_VERSION }); trk('app_open', { standalone: isStandalone() }); }
+    // idioma: troca e recarrega (o app inteiro passa pela camada de tradução)
+    $('#pLang').value = window.CantaI18n ? window.CantaI18n.lang : 'pt';
+    $('#pLang').addEventListener('change', e => { if (window.CantaI18n) { prefs.lang = e.target.value; savePrefs(); window.CantaI18n.setLang(e.target.value); } });
     $('#pAnalytics').checked = prefs.analytics === true;
     $('#analyticsRow').hidden = !(window.CantaTrack && window.CantaTrack.configured());
     $('#pAnalytics').addEventListener('change', e => { prefs.analytics = e.target.checked; savePrefs(); renderConsentCard(); toast(prefs.analytics ? 'Obrigado! Estatísticas de uso anônimas ligadas' : 'Estatísticas de uso desligadas'); });

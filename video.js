@@ -120,7 +120,7 @@
   // 0.5×: usa a lente grande-angular quando o navegador mostra ela (iPhone: "Ultra-angular"; Android: zoom abaixo de 1).
   // 2×: zoom da câmera quando existe; senão, recorte no próprio vídeo. Brilho: só 2 passos para cada lado, de propósito
   // (compensação de exposição da câmera quando existe; senão, um ajuste leve na imagem).
-  const LENS = ['w', '1', '2'], EXP_MAX = 2;
+  const LENS = ['w', '1', '2', '3', '5', '10'], EXP_MAX = 2;
   const cleanTune = t => ({ lens: LENS.includes(t && t.lens) ? t.lens : '1', exp: Math.max(-EXP_MAX, Math.min(EXP_MAX, Math.round(Number(t && t.exp) || 0))) });
   const WIDE_RE = /ultra|0[.,]5|grande.?angular|wide/i, NOT_BACK = /tele|front|frontal|user|selfie/i;
   async function wideDevice() {
@@ -153,12 +153,14 @@
     const info = { lens: t.lens, exp: t.exp, lensDev: !!lensDev, digitalZoom: 1, bright: 1, wideOK: lensDev || !!(caps.zoom && caps.zoom.min < 1), wideUsed: false, zoomHW: false, expHW: false };
     const adv = {};
     if (caps.zoom) {
-      const z = caps.zoom, want = t.lens === '2' ? 2 : t.lens === 'w' && !lensDev ? 0.5 : 1;
+      const z = caps.zoom, want = t.lens === 'w' ? (lensDev ? 1 : 0.5) : Number(t.lens);
       const v = Math.max(z.min, Math.min(z.max, want));
       if (Math.abs(v - want) < 0.21 || (t.lens === 'w' && z.min < 1)) { adv.zoom = v; info.zoomHW = true; }
     }
     if (t.lens === 'w') info.wideUsed = lensDev || (info.zoomHW && adv.zoom < 1);
-    if (t.lens === '2' && !info.zoomHW) info.digitalZoom = 2;
+    // sem zoom na câmera: recorte no vídeo até 2× (mais que isso a imagem fica ruim)
+    if (Number(t.lens) > 1 && !info.zoomHW) info.digitalZoom = 2;
+    info.zoomMax = caps.zoom && caps.zoom.max > 1 ? caps.zoom.max : 2;
     const ec = caps.exposureCompensation;
     if (ec && ec.max > ec.min) {
       const step = Math.max(ec.step || 0.33, 0.33);
@@ -168,7 +170,7 @@
     }
     if (Object.keys(adv).length && tr && tr.applyConstraints) {
       try { await tr.applyConstraints({ advanced: [adv] }); }
-      catch (e) { info.zoomHW = false; info.expHW = false; if (t.lens === '2') info.digitalZoom = 2; if (t.lens === 'w') info.wideUsed = lensDev; }
+      catch (e) { info.zoomHW = false; info.expHW = false; info.zoomMax = 2; if (Number(t.lens) > 1) info.digitalZoom = 2; if (t.lens === 'w') info.wideUsed = lensDev; }
     }
     if (!info.expHW) info.bright = 1 + 0.08 * t.exp;
     return info;
