@@ -667,7 +667,7 @@
     else if (st === 'unsupported') h.textContent = 'Este navegador não reconhece voz. Use o Chrome ou o Edge, ou toque em Digitar.';
     else if (Date.now() - lastHeardAt > 8000) {
       const ex = example();
-      h.textContent = st === 'off' ? 'Ou ligue a voz (à direita) e diga “' + ex + '”' : prefs.wake ? 'Diga “placar, ' + ex + '”' : 'Diga “' + ex + '” ou “desfazer”';
+      h.textContent = st === 'off' ? 'Ou ligue a voz e diga “' + ex + '”' : prefs.wake ? 'Diga “placar, ' + ex + '”' : 'Diga “' + ex + '” ou “desfazer”';
     }
   }
 
@@ -762,9 +762,10 @@
     if (sel === '#sheetFinish') finishStep = 0;
     // o Pro aberto de dentro de outra folha (ex.: Nova partida): ao fechar, volta para ela como estava
     if (sel === '#sheetPro' && proFrom) { const f = proFrom; proFrom = null; setTimeout(() => { if (!anySheetOpen()) openSheet('#' + f); }, 0); }
+    if (sel === '#sheetPhoto') { if (photoEd) { URL.revokeObjectURL(photoEd.url); photoEd = null; } if (photoFrom) { const f = photoFrom; photoFrom = null; setTimeout(() => { if (!anySheetOpen()) { openSheet('#' + f); if (f === 'sheetPrefs') renderPrefsPhoto(); } }, 0); } }
   }
   let proFrom = null;
-  function closeAllSheets() { proFrom = null; $$('.sheet').forEach(d => closeSheet('#' + d.id)); }
+  function closeAllSheets() { proFrom = null; photoFrom = null; $$('.sheet').forEach(d => closeSheet('#' + d.id)); }
   $('#scrim').addEventListener('click', closeAllSheets);
   $$('.sheet').forEach(d => $$('[data-close]', d).forEach(b => b.addEventListener('click', () => closeSheet('#' + d.id))));
 
@@ -999,7 +1000,7 @@
   function plSync() { [0, 1].forEach(t => { $('#t' + t + 'players').value = pl[t].map(p => p.name).join(', '); }); }
   function plChipHTML(t, p, i) {
     const col = p.userId === 'me' ? 'var(--brand)' : p.color || nameColor(p.name);
-    return '<span class="pl-chip" translate="no"><span class="mini-av" style="--av:' + col + '">' + esc(initials(p.name)) + '</span><span class="pl-txt"><b>' + esc(p.name) + (p.userId === 'me' ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (p.handle ? '<small>' + esc(p.handle) + '</small>' : p.userId ? '' : '<small>' + esc(L('convidado', 'guest')) + '</small>') + '</span>' +
+    return '<span class="pl-chip" translate="no"><span class="mini-av' + avCls(p.userId === 'me') + '" style="--av:' + col + '">' + avIn(p.userId === 'me', p.name) + '</span><span class="pl-txt"><b>' + esc(p.name) + (p.userId === 'me' ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (p.handle ? '<small>' + esc(p.handle) + '</small>' : p.userId ? '' : '<small>' + esc(L('convidado', 'guest')) + '</small>') + '</span>' +
       '<button class="icon-btn sm" type="button" data-plrm="' + t + '|' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + p.name) + '">' + ic('i-x') + '</button></span>';
   }
   function renderPlSlots(t) {
@@ -1015,7 +1016,7 @@
     const list = peopleForPicker().filter(p => !taken.has(p.userId) || !p.userId).filter(p => !f || S.fold(p.name).includes(f) || S.fold(p.handle || '').includes(f)).slice(0, 6);
     const guest = q.trim() && !list.some(p => S.fold(p.name) === f) ? '<button class="pl-opt guest" type="button" role="option" data-plguest="' + t + '">' + ic('i-plus') + '<span><b>' + esc(L('Adicionar “' + q.trim() + '”', 'Add “' + q.trim() + '”')) + '</b><small>' + esc(L('como convidado (sem perfil)', 'as a guest (no profile)')) + '</small></span></button>' : '';
     if (!list.length && !guest) { sug.hidden = true; return; }
-    sug.innerHTML = list.map((p, i) => '<button class="pl-opt" type="button" role="option" data-plpick="' + t + '|' + i + '"><span class="mini-av" style="--av:' + (p.me ? 'var(--brand)' : p.color || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + (p.me ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b><small>' + esc(p.handle || (p.guest ? L('já jogou com você', 'played with you before') : '')) + (p.follow ? ' · ' + esc(L('você segue', 'you follow')) : '') + '</small></span></button>').join('') + guest;
+    sug.innerHTML = list.map((p, i) => '<button class="pl-opt" type="button" role="option" data-plpick="' + t + '|' + i + '"><span class="mini-av' + avCls(p.me) + '" style="--av:' + (p.me ? 'var(--brand)' : p.color || nameColor(p.name)) + '">' + avIn(p.me, p.name) + '</span><span><b>' + esc(p.name) + (p.me ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b><small>' + esc(p.handle || (p.guest ? L('já jogou com você', 'played with you before') : '')) + (p.follow ? ' · ' + esc(L('você segue', 'you follow')) : '') + '</small></span></button>').join('') + guest;
     sug.dataset.list = JSON.stringify(list.map(p => ({ name: p.name, userId: p.userId || null, handle: p.handle || '', color: p.color || '' })));
     sug.hidden = false;
   }
@@ -1071,7 +1072,7 @@
   function renderDupBox(groups) {
     const box = $('#dupBox');
     box.innerHTML = '<div class="dup-head">' + ic('i-users') + '<div><b>' + esc(L('Dois jogadores com o mesmo nome', 'Two players with the same name')) + '</b><span>' + esc(L('Dê um apelido para um deles nesta partida. É ele que aparece no placar e vale para a voz; o perfil continua o mesmo.', 'Give one of them a nickname for this match. It shows on the scoreboard and works with voice; the profile stays the same.')) + '</span></div></div>' +
-      groups.map(g => g.map((x, j) => '<div class="dup-row"><span class="mini-av" style="--av:' + (x.p.userId === 'me' ? 'var(--brand)' : x.p.color || nameColor(x.p.name)) + '">' + esc(initials(x.p.name)) + '</span><span class="dup-who"><b>' + esc(x.p.name) + '</b><small>' + esc((x.p.handle || L('convidado', 'guest')) + ' · ' + L('time ', 'team ') + match_teamName(x.t)) + '</small></span><input type="text" maxlength="24" data-dup="' + x.t + '|' + x.i + '" placeholder="' + esc(j === 0 ? L('Manter o nome', 'Keep the name') : L('Apelido, ex.: ' + x.p.name.split(' ')[0] + ' Baixinho', 'Nickname, e.g. ' + x.p.name.split(' ')[0] + ' Jr')) + '" aria-label="' + esc(L('Apelido de ', 'Nickname for ') + x.p.name) + '"></div>').join('')).join('') +
+      groups.map(g => g.map((x, j) => '<div class="dup-row"><span class="mini-av' + avCls(x.p.userId === 'me') + '" style="--av:' + (x.p.userId === 'me' ? 'var(--brand)' : x.p.color || nameColor(x.p.name)) + '">' + avIn(x.p.userId === 'me', x.p.name) + '</span><span class="dup-who"><b>' + esc(x.p.name) + '</b><small>' + esc((x.p.handle || L('convidado', 'guest')) + ' · ' + L('time ', 'team ') + match_teamName(x.t)) + '</small></span><input type="text" maxlength="24" data-dup="' + x.t + '|' + x.i + '" placeholder="' + esc(j === 0 ? L('Manter o nome', 'Keep the name') : L('Apelido, ex.: ' + x.p.name.split(' ')[0] + ' Baixinho', 'Nickname, e.g. ' + x.p.name.split(' ')[0] + ' Jr')) + '" aria-label="' + esc(L('Apelido de ', 'Nickname for ') + x.p.name) + '"></div>').join('')).join('') +
       '<button class="btn btn-brand" type="button" data-dupok>' + ic('i-check') + esc(L('Usar apelido e começar', 'Use nickname and start')) + '</button>';
     box.hidden = false;
     const inp = box.querySelector('[data-dup]:not([placeholder^="' + L('Manter', 'Keep') + '"])') || box.querySelector('[data-dup]'); if (inp) inp.focus();
@@ -1746,7 +1747,149 @@
     const name = u ? u.name : '?';
     const lv = size !== 'xs' ? liveOf(id) : null;
     const link = !plain; // jogando agora: anel verde + selo do esporte; o toque abre o placar ao vivo
-    return '<span class="av' + (size ? ' av-' + size : '') + (lv ? ' is-live' : '') + '" style="--av:' + userColor(id) + '"' + (lv && link ? ' data-live="' + esc(id) + '" role="button" tabindex="0" title="' + esc(L('Jogando ' + sportLabel(lv.sport) + ' agora', 'Playing ' + sportEN(lv.sport) + ' now')) + '"' : id && id !== 'me' && size !== 'xs' && link ? ' data-user="' + esc(id) + '"' : '') + (extra || '') + '>' + esc(initials(name)) + (lv ? liveBadgeHTML(lv) : '') + '</span>';
+    return '<span class="av' + (size ? ' av-' + size : '') + (lv ? ' is-live' : '') + avCls(id === 'me') + '" style="--av:' + userColor(id) + '"' + (lv && link ? ' data-live="' + esc(id) + '" role="button" tabindex="0" title="' + esc(L('Jogando ' + sportLabel(lv.sport) + ' agora', 'Playing ' + sportEN(lv.sport) + ' now')) + '"' : id && id !== 'me' && size !== 'xs' && link ? ' data-user="' + esc(id) + '"' : '') + (extra || '') + '>' + avIn(id === 'me', name) + (lv ? liveBadgeHTML(lv) : '') + '</span>';
+  }
+  // ---------- Foto do perfil: escolher, enquadrar (arrastar e zoom), salvar ou remover ----------
+  // Fica em prefs.photo (JPEG 320×320, ~20 KB) e entra no "Exportar meus dados". Com a conta na nuvem, vai para o bucket avatars (supabase/storage.sql).
+  const PHOTO_RX = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+  const PHOTO_MAX = 250000;
+  const myPhoto = () => (typeof prefs.photo === 'string' && prefs.photo.length < PHOTO_MAX && PHOTO_RX.test(prefs.photo) ? prefs.photo : '');
+  const photoImg = () => '<img class="av-img" src="' + esc(myPhoto()) + '" alt="" draggable="false">';
+  // conteúdo de um avatar pequeno (mini-av): a foto se for você e tiver, se não as iniciais
+  const avIn = (isMe, name) => (isMe && myPhoto() ? photoImg() : esc(initials(name)));
+  const avCls = isMe => (isMe && myPhoto() ? ' has-photo' : '');
+  let photoFrom = null, photoEd = null; // photoEd: { img, url, zoom, ox, oy }
+  const PH_S = 240; // lado da área de corte, em px de tela
+  function openPhoto() {
+    const from = $$('.sheet').find(d => !d.hidden && d.id !== 'sheetPhoto');
+    photoFrom = from ? from.id : null;
+    photoEd = null;
+    renderPhoto();
+    openSheet('#sheetPhoto');
+  }
+  function renderPhoto() {
+    const body = $('#photoBody'); if (!body) return;
+    const has = !!myPhoto();
+    if (!photoEd) {
+      body.innerHTML = '<div class="ph-now"><span class="ph-big' + (has ? ' has-photo' : '') + '">' + (has ? photoImg() : esc(initials(myName()))) + '</span>' +
+        '<p>' + esc(has ? L('Esta é a foto que aparece no seu perfil, nas suas partidas e na timeline.', 'This photo shows on your profile, your matches and the feed.') : L('Sem foto, o app mostra as suas iniciais. Uma foto ajuda os amigos a te acharem.', 'With no photo, the app shows your initials. A photo helps friends find you.')) + '</p></div>' +
+        '<div class="ph-actions"><button class="btn btn-brand" type="button" data-phpick>' + ic('i-image') + esc(has ? L('Trocar foto', 'Change photo') : L('Escolher foto', 'Choose photo')) + '</button>' +
+        (has ? '<button class="btn btn-danger-soft" type="button" data-phdel>' + ic('i-trash') + esc(L('Remover foto', 'Remove photo')) + '</button>' : '') + '</div>' +
+        '<p class="ph-note">' + ic('i-lock') + '<span>' + esc(L('Por enquanto a foto fica só neste aparelho. Quando a conta estiver na nuvem, ela vai junto e segue a privacidade do seu perfil.', 'For now the photo stays on this device. When your account is in the cloud, it goes along and follows your profile privacy.')) + '</span></p>';
+      return;
+    }
+    body.innerHTML = '<div class="ph-stage" id="phStage" tabindex="0" role="group" style="width:' + PH_S + 'px;height:' + PH_S + 'px" aria-label="' + esc(L('Arraste para enquadrar', 'Drag to frame')) + '"><canvas id="phCanvas"></canvas><span class="ph-ring" aria-hidden="true"></span></div>' +
+      '<p class="ph-hint">' + ic('i-move') + esc(L('Arraste para enquadrar', 'Drag to frame')) + '</p>' +
+      '<label class="ph-zoom">' + ic('i-minus') + '<input type="range" id="phZoom" min="1" max="4" step="0.01" value="' + photoEd.zoom + '" aria-label="Zoom">' + ic('i-plus') + '</label>' +
+      '<div class="ph-actions"><button class="btn btn-brand" type="button" data-phsave>' + ic('i-check') + esc(L('Salvar foto', 'Save photo')) + '</button><button class="btn" type="button" data-phpick>' + esc(L('Escolher outra', 'Choose another')) + '</button></div>';
+    drawPhoto();
+  }
+  const phBase = () => PH_S / Math.min(photoEd.img.naturalWidth, photoEd.img.naturalHeight);
+  function phClamp() {
+    const e = photoEd, s = phBase() * e.zoom, w = e.img.naturalWidth * s, h = e.img.naturalHeight * s;
+    e.ox = Math.min(0, Math.max(PH_S - w, e.ox));
+    e.oy = Math.min(0, Math.max(PH_S - h, e.oy));
+  }
+  function phZoomTo(z, cx, cy) {
+    const e = photoEd, s0 = phBase() * e.zoom;
+    z = Math.max(1, Math.min(4, z));
+    const s1 = phBase() * z;
+    cx = cx == null ? PH_S / 2 : cx; cy = cy == null ? PH_S / 2 : cy;
+    e.ox = cx - (cx - e.ox) * s1 / s0; e.oy = cy - (cy - e.oy) * s1 / s0; e.zoom = z;
+    phClamp(); drawPhoto();
+    const r = $('#phZoom'); if (r && Math.abs(+r.value - z) > 0.005) r.value = z;
+  }
+  function drawPhoto() {
+    const cv = $('#phCanvas'); if (!cv || !photoEd) return;
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    if (cv.width !== PH_S * dpr) { cv.width = cv.height = PH_S * dpr; cv.style.width = cv.style.height = PH_S + 'px'; }
+    const g = cv.getContext('2d'), e = photoEd, s = phBase() * e.zoom;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, PH_S, PH_S);
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(e.img, e.ox, e.oy, e.img.naturalWidth * s, e.img.naturalHeight * s);
+  }
+  function loadPhotoFile(f) {
+    if (!f) return;
+    if (!/^image\//.test(f.type || '') && !/\.(jpe?g|png|webp|heic|heif|gif)$/i.test(f.name || '')) { toast(L('Escolha uma imagem (JPG ou PNG)', 'Choose an image (JPG or PNG)')); return; }
+    if (f.size > 25e6) { toast(L('Imagem grande demais (máx. 25 MB)', 'Image too large (max 25 MB)')); return; }
+    const url = URL.createObjectURL(f), img = new Image();
+    img.onload = () => {
+      if (photoEd && photoEd.url) URL.revokeObjectURL(photoEd.url);
+      photoEd = { img, url, zoom: 1, ox: 0, oy: 0 };
+      const s = phBase();
+      photoEd.ox = (PH_S - img.naturalWidth * s) / 2; photoEd.oy = (PH_S - img.naturalHeight * s) / 2;
+      renderPhoto();
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); toast(L('Não consegui abrir essa imagem. Tente uma foto em JPG ou PNG.', 'Couldn\'t open that image. Try a JPG or PNG photo.')); };
+    img.src = url;
+  }
+  function savePhoto() {
+    const e = photoEd; if (!e) return;
+    const OUT = 320, s = phBase() * e.zoom;
+    const cv = document.createElement('canvas'); cv.width = cv.height = OUT;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#111'; g.fillRect(0, 0, OUT, OUT);
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(e.img, -e.ox / s, -e.oy / s, PH_S / s, PH_S / s, 0, 0, OUT, OUT);
+    let url = cv.toDataURL('image/jpeg', 0.86);
+    if (url.length > 120000) url = cv.toDataURL('image/jpeg', 0.7);
+    if (!PHOTO_RX.test(url) || url.length >= PHOTO_MAX) { toast(L('Não consegui salvar a foto', 'Couldn\'t save the photo')); return; }
+    prefs.photo = url; prefs.photoAt = Date.now(); savePrefs();
+    URL.revokeObjectURL(e.url); photoEd = null;
+    trk('photo_set');
+    toast(L('Foto salva', 'Photo saved'));
+    afterPhoto();
+  }
+  function removePhoto() {
+    openModal({ icon: 'i-trash', tone: 'danger', title: L('Remover a foto?', 'Remove the photo?'), text: L('O seu perfil volta a mostrar as iniciais. Dá para pôr outra quando quiser.', 'Your profile goes back to showing your initials. You can add another any time.'),
+      actions: [{ label: L('Remover', 'Remove'), kind: 'brand', act: () => { delete prefs.photo; delete prefs.photoAt; savePrefs(); closeModal(); toast(L('Foto removida', 'Photo removed')); afterPhoto(); } }, { label: L('Cancelar', 'Cancel'), kind: 'link', act: closeModal }] });
+  }
+  function afterPhoto() {
+    renderPhoto(); renderPrefsPhoto();
+    actCache.clear();
+    if (currentView !== 'jogar') go(currentView, currentMatchId, true); // redesenha a tela de trás com a foto nova
+  }
+  function renderPrefsPhoto() {
+    const av = $('#pPhotoAv'); if (!av) return;
+    av.className = 'ph-mini' + avCls(true); av.innerHTML = avIn(true, myName());
+    $('#btnPhoto').textContent = myPhoto() ? L('Trocar', 'Change') : L('Escolher', 'Choose');
+  }
+  function wirePhoto() {
+    const inp = $('#avatarInput');
+    inp.addEventListener('change', e => { const f = e.target.files && e.target.files[0]; loadPhotoFile(f); e.target.value = ''; });
+    document.addEventListener('click', e => {
+      if (e.target.closest('[data-photo]')) { e.preventDefault(); e.stopPropagation(); openPhoto(); return; }
+      if (e.target.closest('[data-phpick]')) { inp.click(); return; }
+      if (e.target.closest('[data-phsave]')) { savePhoto(); return; }
+      if (e.target.closest('[data-phdel]')) { removePhoto(); return; }
+    });
+    const body = $('#photoBody');
+    body.addEventListener('input', e => { if (e.target.id === 'phZoom' && photoEd) phZoomTo(+e.target.value); });
+    // arrastar com um dedo, pinça com dois
+    const pts = new Map(); let pinch = null;
+    body.addEventListener('pointerdown', e => {
+      const st = e.target.closest('#phStage'); if (!st || !photoEd) return;
+      st.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: photoEd.zoom }; }
+    });
+    body.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId) || !photoEd) return;
+      const p0 = pts.get(e.pointerId), p1 = { x: e.clientX, y: e.clientY };
+      pts.set(e.pointerId, p1);
+      if (pts.size === 2 && pinch) {
+        const [a, b] = [...pts.values()], r = $('#phStage').getBoundingClientRect();
+        phZoomTo(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / (pinch.d || 1), (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+      } else if (pts.size === 1) { photoEd.ox += p1.x - p0.x; photoEd.oy += p1.y - p0.y; phClamp(); drawPhoto(); }
+    });
+    const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+    body.addEventListener('pointerup', up); body.addEventListener('pointercancel', up);
+    body.addEventListener('wheel', e => { if (!e.target.closest('#phStage') || !photoEd) return; e.preventDefault(); const r = $('#phStage').getBoundingClientRect(); phZoomTo(photoEd.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    body.addEventListener('keydown', e => {
+      if (!e.target.closest('#phStage') || !photoEd) return;
+      const k = { ArrowLeft: [8, 0], ArrowRight: [-8, 0], ArrowUp: [0, 8], ArrowDown: [0, -8] }[e.key];
+      if (k) { e.preventDefault(); photoEd.ox += k[0]; photoEd.oy += k[1]; phClamp(); drawPhoto(); }
+    });
   }
   // nome de jogador na rede: "Você" para você, nome do usuário ou o texto livre
   const pName = (p, short) => (p.userId === 'me' ? 'Você' : short ? firstName(SO.nameOf(p)) : SO.nameOf(p));
@@ -1876,7 +2019,7 @@
     const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
     return '<article class="act" data-act="' + esc(a.id) + '">' +
       '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><span class="act-name"><b' + (a.ownerId !== 'me' ? ' data-user="' + esc(a.ownerId) + '"' : '') + '>' + esc(owner ? owner.name : '?') + '</b>' + fireHTML(winStreakOf(a.ownerId), true) + '</span>' +
-      '<span>' + ic('s-' + a.sport) + esc(fmtWhen(a.playedAt)) + (a.place ? ' · ' + esc(a.place) : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + (a.groupId && SO.group(a.groupId) ? '<button class="mtag gtag" type="button" data-group="' + esc(a.groupId) + '">' + ic('i-users') + esc(SO.group(a.groupId).name) + '</button>' : typeBadge(a)) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
+      '<span>' + '<span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(fmtWhen(a.playedAt)) + '</span></span>' + (a.place ? '<span class="act-place">' + esc(a.place) + '</span>' : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + (a.groupId && SO.group(a.groupId) ? '<button class="mtag gtag" type="button" data-group="' + esc(a.groupId) + '" title="' + esc(SO.group(a.groupId).name) + '">' + ic('i-users') + '<span class="gtag-t">' + esc(SO.group(a.groupId).name) + '</span></button>' : typeBadge(a)) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h3 class="act-title">' + esc(actTitle(a)) + '</h3>' +
       (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       actResultHTML(a) +
@@ -2739,6 +2882,9 @@
           });
           prefs.presets = out; savePrefs();
         }
+        // foto do perfil do backup: só se ainda não tem uma aqui e se for uma imagem válida e pequena
+        const bp = d.ajustes && d.ajustes.photo;
+        if (!myPhoto() && typeof bp === 'string' && bp.length < PHOTO_MAX && PHOTO_RX.test(bp)) { prefs.photo = bp; savePrefs(); }
         toast(add.length ? add.length + (add.length === 1 ? ' partida restaurada' : ' partidas restauradas') : 'As partidas do arquivo já estavam aqui');
         if (!$('#welcome').hidden) hideWelcome();
         closeAllSheets(); refreshSocial(); go('voce');
@@ -3018,8 +3164,8 @@
     if (useDemo) h += '<p class="demo-note">' + ic('i-info') + '<span>Atleta e partidas fictícias, para mostrar como fica um perfil com 4 meses de jogo.' + (known.length ? '' : ' O seu aparece aqui depois da primeira partida com o seu nome.') + '</span></p>';
 
     // cabeçalho
-    h += '<div class="panel me-card"><div class="me-head"><span class="me-avatar' + (!useDemo && liveOf('me') ? ' is-live" data-live="me" role="button" tabindex="0" title="' + esc(L('Você está jogando agora', 'You are playing now')) : '') + '">' + esc(initials(p.name)) + (!useDemo && liveOf('me') ? liveBadgeHTML(liveOf('me')) : '') + '</span><div class="me-id">' +
-      '<div class="me-name"><h2>' + esc(p.name) + '</h2>' + (cur.kind === 'V' ? fireHTML(cur.len) : '') + (useDemo || isPro() ? '<span class="pro-badge">PRO</span>' : '') + '</div>' +
+    h += '<div class="panel me-card"><div class="me-head"><span class="me-av-wrap"><span class="me-avatar' + avCls(!useDemo) + (!useDemo && liveOf('me') ? ' is-live" data-live="me" role="button" tabindex="0" title="' + esc(L('Você está jogando agora', 'You are playing now')) : '') + '">' + avIn(!useDemo, p.name) + (!useDemo && liveOf('me') ? liveBadgeHTML(liveOf('me')) : '') + '</span>' + (!useDemo ? '<button class="me-photo-btn" type="button" data-photo aria-label="' + esc(myPhoto() ? L('Trocar a foto do perfil', 'Change profile photo') : L('Pôr foto no perfil', 'Add a profile photo')) + '">' + ic('i-camera') + '</button>' : '') + '</span><div class="me-id">' +
+      '<div class="me-name"><h2>' + esc(p.name) + '</h2>' + (cur.kind === 'V' ? fireHTML(cur.len) : '') + (useDemo ? '<span class="pro-badge">PRO</span>' : '') + '</div>' +
       (!useDemo ? '<div class="me-privrow"><button class="planchip' + (isPro() ? ' pro' : '') + '" type="button" data-sub="' + (subActive(sub()) ? 'manage' : 'plans') + '">' + ic(isPro() ? 'i-bolt' : 'i-sparkles') + esc(subActive(sub()) ? planLabel(sub()) : isPro() ? 'Pro' : L('Plano Grátis', 'Free plan')) + '</button><button class="privchip p-' + myPrivacy().level + '" type="button" data-action="prefs">' + ic(myPrivacy().level === 'privado' ? 'i-lock' : myPrivacy().level === 'personalizado' ? 'i-sliders' : 'i-globe') + esc(PRIV_LBL[myPrivacy().level]) + '</button><button class="linkish small" type="button" data-go-perfil-me>Ver como os outros veem</button></div>' : '') +
       '<div class="me-meta">' + (!useDemo ? '<button class="idchip" type="button" data-copy="' + esc(myUid()) + '" title="Seu ID: passe para alguém te achar">' + esc(myUid()) + ic('i-copy') + '</button>' : '') + (extra ? '<span>' + ic('i-pin') + esc(extra.city) + '</span><span>' + ic('i-calendar') + esc(extra.since.replace('jogando desde', 'Desde')) + '</span>' : (sportsTxt ? '<span>' + ic('i-grid') + esc(sportsTxt) + '</span>' : '')) + '</div>' +
       '</div></div>' +
@@ -3127,6 +3273,7 @@
   const shotName = k => (EN ? SHOT_EN[k] || k : G.SHOT_LABEL[k] || k);
   const stF = Object.assign({ period: '180', types: [], sport: '', detail: 0, tab: 'me', with: '', side: '' }, prefs.statsF || {});
   const ST_PERIODS = [['30', '30d'], ['90', '3m'], ['180', '6m'], ['365', '12m'], ['all', 'Sempre']];
+  const ST_PERIOD_SUM = { '30': ['30 dias', '30 days'], '90': ['3 meses', '3 months'], '180': ['6 meses', '6 months'], '365': ['12 meses', '12 months'], all: ['desde sempre', 'all time'] };
   const ST_PERIOD_LONG = { 30: 'últimos 30 dias', 90: 'últimos 3 meses', 180: 'últimos 6 meses', 365: 'últimos 12 meses', all: 'desde o começo' };
   const FUN_TYPES = ['resenha', 'treino', 'aula'];
   const ST_PERIOD_EN = { 30: 'last 30 days', 90: 'last 3 months', 180: 'last 6 months', 365: 'last 12 months', all: 'since the start' };
@@ -3182,7 +3329,7 @@
     return h;
   }
   const xcData = new Map(); // gráficos interativos desenhados agora (id → pontos)
-  let stEvo = 'winRate', stDetail = null;
+  let stEvo = 'winRate', stDetail = null, stOpen = false, stLowOpen = false;
   const fmtMt = (mt, v) => (v === null || v === undefined || !Number.isFinite(v) ? '–'
     : mt.unit === 'pct' ? Math.round(v * 100) + '%' : mt.unit === 'ms' ? fmtDur(v) : mt.unit === 'signed' ? (v >= 0 ? '+' : '−') + one(Math.abs(v)) : mt.unit === 'int' ? String(Math.round(v)) : one(v));
   const mtLabel = mt => (mt.shot ? (G.SHOT_LABEL[mt.shot] || mt.shot).replace(/^./, c => c.toUpperCase()) : mt.label);
@@ -3361,21 +3508,30 @@
     h += '<div class="st-filters">';
     if (sports.length > 1) h += '<div class="sport-filter" role="radiogroup" aria-label="Esporte"><button class="sf' + (stF.sport ? '' : ' on') + '" type="button" role="radio" aria-checked="' + !stF.sport + '" data-stsport="">' + ic('i-grid') + '<span>Visão geral</span></button>' +
       sports.map(sp => '<button class="sf' + (stF.sport === sp ? ' on' : '') + '" type="button" role="radio" aria-checked="' + (stF.sport === sp) + '" data-stsport="' + sp + '">' + ic('s-' + sp) + '<span>' + esc(SPORT_SHORT[sp] || sportLabel(sp)) + '</span></button>').join('') + '</div>';
-    h += '<div class="st-row"><div class="seg seg-sm st-period" role="radiogroup" aria-label="Período">' + ST_PERIODS.map(([val, l]) => '<label><input type="radio" name="stPeriod" value="' + val + '"' + (stF.period === val ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div></div>';
+    let fp = '';
+    fp += '<div class="st-row"><div class="seg seg-sm st-period" role="radiogroup" aria-label="Período">' + ST_PERIODS.map(([val, l]) => '<label><input type="radio" name="stPeriod" value="' + val + '"' + (stF.period === val ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div></div>';
+    const fun = types.filter(t => FUN_TYPES.includes(t));
+    const seriousOn = types.length > 1 && fun.length && stF.types.length && fun.every(t => !stF.types.includes(t)) && types.filter(t => !FUN_TYPES.includes(t)).every(t => stF.types.includes(t));
     if (types.length > 1) {
-      const fun = types.filter(t => FUN_TYPES.includes(t));
-      const seriousOn = fun.length && stF.types.length && fun.every(t => !stF.types.includes(t)) && types.filter(t => !FUN_TYPES.includes(t)).every(t => stF.types.includes(t));
-      h += '<div class="st-types" role="group" aria-label="Tipo de partida"><button class="fchip' + (!stF.types.length ? ' on' : '') + '" type="button" data-sttype="" aria-pressed="' + !stF.types.length + '">Todas</button>' +
+      fp += '<div class="st-types" role="group" aria-label="Tipo de partida"><button class="fchip' + (!stF.types.length ? ' on' : '') + '" type="button" data-sttype="" aria-pressed="' + !stF.types.length + '">Todas</button>' +
         (fun.length && types.length > fun.length ? '<button class="fchip fchip-ic' + (seriousOn ? ' on' : '') + '" type="button" data-sttype="@serio" aria-pressed="' + !!seriousOn + '">' + ic('i-trophy') + 'Só pra valer</button>' : '') +
         types.map(t => '<button class="fchip' + (stF.types.includes(t) ? ' on' : '') + '" type="button" data-sttype="' + t + '" aria-pressed="' + stF.types.includes(t) + '">' + esc(TYPE_LABEL[t]) + '<small>' + typesCount[t] + '</small></button>').join('') + qhelp('serio') + '</div>';
     }
     // pontos detalhados: só as partidas em que boa parte dos pontos foi lançada com o tipo do lance (Pro)
     const dc = F.detailCounts(R, Object.assign({}, fx, stF.tab === 'with' && stF.with ? { with: stF.with, side: stF.side } : {}));
-    h += '<div class="st-detail"><span class="st-dl">' + ic('i-target') + 'Pontos detalhados' + qhelp('detalhe') + '</span><div class="seg seg-sm" role="radiogroup" aria-label="Pontos detalhados">' +
+    fp += '<div class="st-detail"><span class="st-dl">' + ic('i-target') + 'Pontos detalhados' + qhelp('detalhe') + '</span><div class="seg seg-sm" role="radiogroup" aria-label="Pontos detalhados">' +
       F.DETAIL.map(([d, l], i) => '<label' + (!pro && d ? ' class="locked"' : '') + '><input type="radio" name="stDetail" value="' + d + '"' + ((pro ? stF.detail : 0) === d ? ' checked' : '') + (!pro && d ? ' data-locked="1"' : '') + '><span>' + (!pro && d ? ic('i-lock') : '') + l + '<small>' + dc[i] + '</small></span></label>').join('') + '</div></div>';
     const low = cur.filter(r => r.detail < 0.5).length;
-    if (stF.tab !== 'with') h += '<p class="st-sum" translate="no">' + ic('i-filter') + '<span>' + a.matches + L(a.matches === 1 ? ' partida' : ' partidas', a.matches === 1 ? ' match' : ' matches') + ' · ' + esc(EN ? ST_PERIOD_EN[stF.period] : ST_PERIOD_LONG[stF.period]) + (stF.types.length ? ' · ' + esc(stF.types.map(t => TYPE_LABEL[t]).join(', ')) : '') + (fx.detail ? ' · ' + L(Math.round(fx.detail * 100) + '%+ detalhados', Math.round(fx.detail * 100) + '%+ detailed') : '') + '</span></p>' +
-      (!fx.detail && low && stF.tab !== 'with' ? '<p class="st-warn" translate="no">' + ic('i-info') + '<span>' + esc(L(low === 1 ? '1 partida tem menos da metade dos pontos detalhados: aces, winners e erros dela ficam abaixo do real.' : low + ' partidas têm menos da metade dos pontos detalhados: aces, winners e erros delas ficam abaixo do real.', low === 1 ? '1 match has fewer than half of its points detailed, so its aces, winners and errors read low.' : low + ' matches have fewer than half of their points detailed, so their aces, winners and errors read low.')) + '</span>' + (pro ? '<button class="linkish small" type="button" data-stdetail="0.5">' + esc(L('Usar só 50%+', 'Use 50%+ only')) + '</button>' : '') + '</p>' : '');
+    // barra única: botão Filtros (abre período, tipo e pontos detalhados), resumo em uma linha e o aviso em chip
+    const nOn = (stF.period !== '180' ? 1 : 0) + (stF.types.length ? 1 : 0) + (fx.detail ? 1 : 0);
+    const sumTxt = (stF.tab !== 'with' ? a.matches + L(a.matches === 1 ? ' partida' : ' partidas', a.matches === 1 ? ' match' : ' matches') + ' · ' : '') + L.apply(null, ST_PERIOD_SUM[stF.period] || ['', '']) +
+      (stF.types.length ? ' · ' + (seriousOn ? L('Só pra valer', 'Competitive only') : stF.types.length > 2 ? L(stF.types.length + ' tipos', stF.types.length + ' types') : stF.types.map(t => TYPE_LABEL[t]).join(', ')) : '') + (fx.detail ? ' · ' + Math.round(fx.detail * 100) + '%+' : '');
+    const showLow = !fx.detail && low && stF.tab !== 'with';
+    h += '<div class="st-fbar"><button class="st-fbtn' + (nOn ? ' act' : '') + '" type="button" data-stfilters aria-expanded="' + stOpen + '" aria-controls="stFpanel">' + ic('i-sliders') + '<span>' + esc(L('Filtros', 'Filters')) + '</span>' + (nOn ? '<b>' + nOn + '</b>' : '') + '</button>' +
+      '<span class="st-fsum" translate="no">' + esc(sumTxt) + '</span>' +
+      (showLow ? '<button class="st-lowchip" type="button" data-stlow aria-expanded="' + stLowOpen + '" title="' + esc(L('Partidas com poucos pontos detalhados', 'Matches with few detailed points')) + '">' + ic('i-info') + '<span translate="no">' + low + '</span></button>' : '') + '</div>';
+    if (showLow) h += '<p class="st-warn" id="stLow" translate="no"' + (stLowOpen ? '' : ' hidden') + '><span>' + esc(L(low === 1 ? '1 partida tem menos da metade dos pontos detalhados: os aces, winners e erros dela ficam abaixo do real.' : low + ' partidas têm menos da metade dos pontos detalhados: os aces, winners e erros delas ficam abaixo do real.', low === 1 ? '1 match has fewer than half of its points detailed, so its aces, winners and errors read low.' : low + ' matches have fewer than half of their points detailed, so their aces, winners and errors read low.')) + '</span>' + (pro ? '<button class="linkish small" type="button" data-stdetail="0.5">' + esc(L('Usar só 50%+', 'Use 50%+ only')) + '</button>' : '') + '</p>';
+    h += '<div class="st-fpanel" id="stFpanel"' + (stOpen ? '' : ' hidden') + '>' + fp + '</div>';
     h += '</div>';
     if (stF.tab === 'with') { body.innerHTML = h + withHTML(R, fx); return; }
 
@@ -3522,6 +3678,10 @@
         else { stF.types = stF.types.includes(t) ? stF.types.filter(x => x !== t) : stF.types.concat(t); if (stF.types.length === present.length) stF.types = []; }
         saveStF(); renderFull(); return;
       }
+      const fb = e.target.closest('[data-stfilters]');
+      if (fb) { stOpen = !stOpen; fb.setAttribute('aria-expanded', String(stOpen)); const pnl = $('#stFpanel', body); if (pnl) pnl.hidden = !stOpen; return; }
+      const lw = e.target.closest('[data-stlow]');
+      if (lw) { stLowOpen = !stLowOpen; lw.setAttribute('aria-expanded', String(stLowOpen)); const w = $('#stLow', body); if (w) w.hidden = !stLowOpen; return; }
       const wi = e.target.closest('[data-stwith]');
       if (wi) { stF.with = stF.with === wi.dataset.stwith ? '' : wi.dataset.stwith; stF.side = ''; saveStF(); renderFull(); return; }
       if (e.target.closest('[data-stmore]')) { $$('#stPeople .pchip', body).forEach(b => { b.hidden = false; }); const box = $('#stPeople', body); if (box) delete box.dataset.sel; e.target.closest('[data-stmore]').hidden = true; return; }
@@ -3793,7 +3953,7 @@
   function amigosHTML(s) {
     const ms = s.members || [], free = AMIGOS_MAX - ms.length;
     return '<div class="amg"><div class="amg-head"><b>' + esc(L('Pessoas no seu plano', 'People on your plan')) + '</b><span>' + ms.length + '/' + AMIGOS_MAX + '</span></div>' +
-      '<div class="amg-row me"><span class="mini-av" style="--av:var(--brand)">' + esc(initials(myName())) + '</span><span class="amg-txt"><b>' + esc(myName()) + '</b><small>' + esc(L('Você · quem paga', 'You · the payer')) + '</small></span></div>' +
+      '<div class="amg-row me"><span class="mini-av' + avCls(true) + '" style="--av:var(--brand)">' + avIn(true, myName()) + '</span><span class="amg-txt"><b>' + esc(myName()) + '</b><small>' + esc(L('Você · quem paga', 'You · the payer')) + '</small></span></div>' +
       ms.map((m, i) => '<div class="amg-row"><span class="mini-av" style="--av:' + (m.color || nameColor(m.name)) + '">' + esc(initials(m.name)) + '</span><span class="amg-txt"><b>' + esc(m.name) + '</b><small>' + esc((m.handle ? m.handle + ' · ' : '') + (m.status === 'ativo' ? L('com Pro', 'has Pro') : L('convite enviado', 'invite sent'))) + '</small></span><span class="st-chip ' + (m.status === 'ativo' ? 'ok' : 'trial') + '">' + esc(m.status === 'ativo' ? L('Ativo', 'Active') : L('Pendente', 'Pending')) + '</span><button class="icon-btn sm" type="button" data-amgrm="' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + m.name) + '">' + ic('i-x') + '</button></div>').join('') +
       (free > 0 ? '<div class="amg-add"><div class="pl-add"><span class="pl-add-ic">' + ic('i-user-plus') + '</span><input type="text" id="amgIn" maxlength="40" autocomplete="off" placeholder="' + esc(L('Convidar: nome ou @ (' + free + (free === 1 ? ' vaga' : ' vagas') + ')', 'Invite: name or @ (' + free + (free === 1 ? ' spot' : ' spots') + ' left)')) + '" aria-label="' + esc(L('Convidar para o plano', 'Invite to the plan')) + '"><div class="pl-sug" id="amgSug" role="listbox" aria-label="' + esc(L('Sugestões', 'Suggestions')) + '" hidden></div></div>' +
         '<button class="btn btn-sm" type="button" data-sub="link">' + ic('i-share') + esc(L('Mandar link de convite', 'Send invite link')) + '</button></div>' : '<p class="hint">' + esc(L('Plano completo. Tire alguém para abrir uma vaga.', 'The plan is full. Remove someone to open a spot.')) + '</p>') +
@@ -5487,46 +5647,51 @@
   }
   function analysisFor(m) {
     const f = matchFacts(m); if (!f) return null;
-    const { T, names, w, l, n } = f;
+    const { T, w, l, n } = f;
+    // frases montadas já no idioma (o bloco sai com translate="no"); nomes de cor dos times também
+    const tr = s => (EN && window.CantaI18n ? window.CantaI18n.t(s) : s);
+    const names = f.names.map(tr);
+    const pl = (k, um, varios, one, many) => k + ' ' + (k === 1 ? L(um, one) : L(varios, many));
     const out = [];
     let head;
-    if (w == null) head = 'Partida encerrada sem vencedor';
+    if (w == null) head = L('Partida encerrada sem vencedor', 'Match ended with no winner');
     else {
       const ptsW = T[w].pts, ptsL = T[l].pts;
-      const how = f.comeback ? 'de virada' : Math.abs(ptsW - ptsL) <= 3 ? 'no detalhe' : pctOf(ptsW, n) >= 60 && f.maxLead[l] <= 2 ? 'sem dar chance' : '';
+      const how = f.comeback ? L('de virada', 'from behind') : Math.abs(ptsW - ptsL) <= 3 ? L('no detalhe', 'by a hair') : pctOf(ptsW, n) >= 60 && f.maxLead[l] <= 2 ? L('sem dar chance', 'with no way back') : '';
       const sc = w === 0 ? placarText(f.st) : placarText(f.st).replace(/(\d+)-(\d+)/g, '$2-$1'); // placar do lado de quem venceu
-      head = names[w] + ' venceu ' + names[l] + (how ? ' ' + how : '') + ', ' + sc;
-      if (ptsW < ptsL) out.push('Mesmo com menos pontos (' + ptsW + ' a ' + ptsL + '), ' + names[w] + ' ganhou nos momentos certos.');
-      else out.push(names[w] + ' fez ' + ptsW + ' dos ' + n + ' pontos (' + pctOf(ptsW, n) + '%).');
-      if (f.comeback) out.push(names[w] + ' chegou a estar ' + plural(f.comeback, 'ponto', 'pontos') + ' atrás e virou.');
+      head = names[w] + L(' venceu ', ' beat ') + names[l] + (how ? ' ' + how : '') + ', ' + sc;
+      if (ptsW < ptsL) out.push(L('Mesmo com menos pontos (' + ptsW + ' a ' + ptsL + '), ' + names[w] + ' ganhou nos momentos certos.', 'Even with fewer points (' + ptsW + ' to ' + ptsL + '), ' + names[w] + ' won the moments that mattered.'));
+      else out.push(L(names[w] + ' fez ' + ptsW + ' dos ' + n + ' pontos (' + pctOf(ptsW, n) + '%).', names[w] + ' won ' + ptsW + ' of the ' + n + ' points (' + pctOf(ptsW, n) + '%).'));
+      if (f.comeback) out.push(L(names[w] + ' chegou a estar ' + plural(f.comeback, 'ponto', 'pontos') + ' atrás e virou.', names[w] + ' was down ' + f.comeback + (f.comeback === 1 ? ' point' : ' points') + ' and came back.'));
     }
     // pontos importantes
     const kp = f.kind === 'games' ? 'break' : 'set';
     const kv = f.key[kp];
-    if (kv[0][1] + kv[1][1] >= 2) out.push('Nos ' + (kp === 'break' ? 'break points' : 'set points') + ', ' + [0, 1].filter(t => kv[t][1]).map(t => names[t] + ' converteu ' + kv[t][0] + ' de ' + kv[t][1]).join('; ') + '.');
+    const kpTxt = kp === 'break' ? 'break points' : 'set points';
+    if (kv[0][1] + kv[1][1] >= 2) out.push(L('Nos ', 'On ') + kpTxt + ', ' + [0, 1].filter(t => kv[t][1]).map(t => names[t] + L(' converteu ', ' converted ') + kv[t][0] + L(' de ', ' of ') + kv[t][1]).join('; ') + '.');
     // erros e winners
     const eT = f.err[0] >= f.err[1] ? 0 : 1;
     if (f.err[eT] >= 3) {
-      const parts = [T[eT].rede && T[eT].rede + ' na rede', T[eT].fora && T[eT].fora + ' pra fora', T[eT].df && plural(T[eT].df, 'dupla falta', 'duplas faltas')].filter(Boolean);
-      out.push(names[eT] + ' entregou ' + plural(f.err[eT], 'ponto', 'pontos') + ' em erros' + (parts.length ? ' (' + parts.join(', ') + ')' : '') + '.');
+      const parts = [T[eT].rede && T[eT].rede + L(' na rede', ' into the net'), T[eT].fora && T[eT].fora + L(' pra fora', ' out'), T[eT].df && pl(T[eT].df, 'dupla falta', 'duplas faltas', 'double fault', 'double faults')].filter(Boolean);
+      out.push(names[eT] + L(' entregou ', ' gave away ') + pl(f.err[eT], 'ponto', 'pontos', 'point', 'points') + L(' em erros', ' on errors') + (parts.length ? ' (' + parts.join(', ') + ')' : '') + '.');
     }
     const winT = T[0].winners + T[0].aces >= T[1].winners + T[1].aces ? 0 : 1;
-    if (T[winT].winners + T[winT].aces >= 3) out.push(names[winT] + ' decidiu ' + plural(T[winT].winners, 'ponto', 'pontos') + ' com winners' + (T[winT].aces ? ' e ' + plural(T[winT].aces, 'ace', 'aces') : '') + '.');
-    if (f.serve[0] != null && f.serve[1] != null) out.push('No saque: ' + names[0] + ' ganhou ' + f.serve[0] + '% dos pontos; ' + names[1] + ', ' + f.serve[1] + '%.');
+    if (T[winT].winners + T[winT].aces >= 3) out.push(names[winT] + L(' decidiu ', ' won ') + pl(T[winT].winners, 'ponto', 'pontos', 'point', 'points') + L(' com winners', ' with winners') + (T[winT].aces ? L(' e ', ' and ') + pl(T[winT].aces, 'ace', 'aces', 'ace', 'aces') : '') + '.');
+    if (f.serve[0] != null && f.serve[1] != null) out.push(L('No saque: ' + names[0] + ' ganhou ' + f.serve[0] + '% dos pontos; ' + names[1] + ', ' + f.serve[1] + '%.', 'On serve: ' + names[0] + ' won ' + f.serve[0] + '% of points; ' + names[1] + ', ' + f.serve[1] + '%.'));
     // ritmo do jogo
     const sT = T[0].maxStreak >= T[1].maxStreak ? 0 : 1;
-    if (T[sT].maxStreak >= 4) out.push('Maior sequência: ' + T[sT].maxStreak + ' pontos seguidos de ' + names[sT] + (f.changes ? ', num jogo com ' + plural(f.changes, 'troca', 'trocas') + ' de liderança' : '') + '.');
-    if (f.close[0] !== f.close[1]) { const c = f.close[0] > f.close[1] ? 0 : 1; out.push('Na reta final (últimos ' + f.k + ' pontos), ' + names[c] + ' fez ' + f.close[c] + ' a ' + f.close[1 - c] + '.'); }
-    if (f.mvp) out.push('Destaque: ' + f.mvp.name + ' (' + plural(f.mvp.pts, 'ponto', 'pontos') + (f.mvp.aces ? ', ' + plural(f.mvp.aces, 'ace', 'aces') : '') + ').');
+    if (T[sT].maxStreak >= 4) out.push(L('Maior sequência: ' + T[sT].maxStreak + ' pontos seguidos de ' + names[sT] + (f.changes ? ', num jogo com ' + plural(f.changes, 'troca', 'trocas') + ' de liderança' : '') + '.', 'Longest run: ' + T[sT].maxStreak + ' points in a row by ' + names[sT] + (f.changes ? ', in a match with ' + f.changes + (f.changes === 1 ? ' lead change' : ' lead changes') : '') + '.'));
+    if (f.close[0] !== f.close[1]) { const c = f.close[0] > f.close[1] ? 0 : 1; out.push(L('Na reta final (últimos ' + f.k + ' pontos), ' + names[c] + ' fez ' + f.close[c] + ' a ' + f.close[1 - c] + '.', 'In the home stretch (last ' + f.k + ' points), ' + names[c] + ' won ' + f.close[c] + ' to ' + f.close[1 - c] + '.')); }
+    if (f.mvp) out.push(L('Destaque: ', 'Standout: ') + f.mvp.name + ' (' + pl(f.mvp.pts, 'ponto', 'pontos', 'point', 'points') + (f.mvp.aces ? ', ' + pl(f.mvp.aces, 'ace', 'aces', 'ace', 'aces') : '') + ').');
     // dica para o seu time (ou para quem perdeu)
-    const me = f.mine != null ? f.mine : l != null ? l : 0, op = 1 - me, you = f.mine != null ? 'você' : names[me];
+    const me = f.mine != null ? f.mine : l != null ? l : 0, op = 1 - me, you = f.mine != null ? L('você', 'you') : names[me];
     let tip = '';
     const errShare = pctOf(f.err[me], T[op].pts);
-    if (f.err[me] >= 4 && errShare >= 40) tip = errShare + '% dos pontos do adversário vieram ' + (f.mine != null ? 'de erros seus' : 'de erros de ' + names[me]) + '. ' + (T[me].rede > T[me].fora ? 'Mais altura na bola tira da rede.' : T[me].fora > T[me].rede ? 'Uma bola mais pra dentro da quadra já muda o jogo.' : 'Menos risco nos pontos neutros já muda o jogo.');
-    else if (f.serve[me] != null && f.serve[me] < 50) tip = 'No saque, ' + you + ' ganhou só ' + f.serve[me] + '% dos pontos. Priorize colocar o saque em jogo e começar o ponto no controle.';
-    else if (kv[me][1] >= 3 && pctOf(kv[me][0], kv[me][1]) < 40) tip = kv[me][0] + ' de ' + kv[me][1] + ' ' + (kp === 'break' ? 'break points' : 'set points') + ' convertidos. Nos pontos importantes, a bola mais segura costuma render mais.';
-    else if (f.close[me] < f.close[op]) tip = 'O fim do jogo foi de ' + names[op] + '. Segurar o ritmo nos últimos pontos é onde ' + you + ' mais pode ganhar.';
-    else if (f.topShot[me]) tip = 'Repita a receita: o ' + (G.SHOT_LABEL[f.topShot[me].shot] || f.topShot[me].shot).toLowerCase() + ' rendeu ' + plural(f.topShot[me].n, 'ponto', 'pontos') + ' para ' + (f.mine != null ? 'você' : names[me]) + '.';
+    if (f.err[me] >= 4 && errShare >= 40) tip = L(errShare + '% dos pontos do adversário vieram ' + (f.mine != null ? 'de erros seus' : 'de erros de ' + names[me]) + '. ', errShare + '% of the opponent\'s points came from ' + (f.mine != null ? 'your errors' : names[me] + '\'s errors') + '. ') + (T[me].rede > T[me].fora ? L('Mais altura na bola tira da rede.', 'More height on the ball keeps it off the net.') : T[me].fora > T[me].rede ? L('Uma bola mais pra dentro da quadra já muda o jogo.', 'Aiming a bit more inside the court changes the game.') : L('Menos risco nos pontos neutros já muda o jogo.', 'Less risk on neutral points changes the game.'));
+    else if (f.serve[me] != null && f.serve[me] < 50) tip = L('No saque, ' + you + ' ganhou só ' + f.serve[me] + '% dos pontos. Priorize colocar o saque em jogo e começar o ponto no controle.', 'On serve, ' + you + ' won only ' + f.serve[me] + '% of points. Focus on getting the serve in and starting the point in control.');
+    else if (kv[me][1] >= 3 && pctOf(kv[me][0], kv[me][1]) < 40) tip = L(kv[me][0] + ' de ' + kv[me][1] + ' ' + kpTxt + ' convertidos. Nos pontos importantes, a bola mais segura costuma render mais.', kv[me][0] + ' of ' + kv[me][1] + ' ' + kpTxt + ' converted. On big points, the safer ball usually pays off.');
+    else if (f.close[me] < f.close[op]) tip = L('O fim do jogo foi de ' + names[op] + '. Segurar o ritmo nos últimos pontos é onde ' + you + ' mais pode ganhar.', 'The end of the match belonged to ' + names[op] + '. Holding the pace in the last points is where ' + you + ' can gain the most.');
+    else if (f.topShot[me]) { const shot = tr(G.SHOT_LABEL[f.topShot[me].shot] || f.topShot[me].shot).toLowerCase(); tip = L('Repita a receita: o ' + shot + ' rendeu ' + plural(f.topShot[me].n, 'ponto', 'pontos') + ' para ' + (f.mine != null ? 'você' : names[me]) + '.', 'Repeat the recipe: the ' + shot + ' won ' + f.topShot[me].n + (f.topShot[me].n === 1 ? ' point' : ' points') + ' for ' + (f.mine != null ? 'you' : names[me]) + '.'); }
     const detail = T[0].errors + T[1].errors + T[0].winners + T[1].winners + T[0].aces + T[1].aces;
     return { head, items: out.slice(0, 6), tip, thin: detail < 4 };
   }
@@ -5535,8 +5700,8 @@
     try { a = analysisFor(m); } catch (e) { console.info('[análise] sem dados suficientes', e); }
     if (!a) return '';
     return '<div class="panel coach">' + ph('i-sparkles', 'Análise do jogo', '<span class="sec-meta">automática</span>') +
-      '<p class="coach-head">' + esc(a.head) + '</p><ul class="coach-list">' + a.items.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
-      (a.tip ? '<div class="coach-tip">' + ic('i-target') + '<span><b>Dica</b>' + esc(a.tip) + '</span></div>' : '') +
+      '<p class="coach-head" translate="no">' + esc(a.head) + '</p><ul class="coach-list" translate="no">' + a.items.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+      (a.tip ? '<div class="coach-tip">' + ic('i-target') + '<span><b>Dica</b><span translate="no">' + esc(a.tip) + '</span></span></div>' : '') +
       (a.thin ? '<p class="hint small">Para uma análise mais completa, fale o tipo do lance: “ace verde”, “erro na rede laranja”, “ponto smash verde”.</p>' : '') +
       (AI_URL && !embed ? '<button class="btn btn-sm" type="button" data-aicoach="' + esc(m.id) + '">' + ic('i-sparkles') + 'Análise com IA' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button><div class="coach-ai" id="coachAi-' + esc(m.id) + '" hidden></div>' : '') +
       '</div>';
@@ -5584,6 +5749,11 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-13j', date: '13/10/2026', title: 'Foto do perfil e estatísticas mais limpas', items: [
+      'Foto do perfil: em Você, toque na câmera ao lado do avatar, escolha a foto e arraste ou use o zoom para enquadrar. Ela aparece no perfil, nas partidas e na timeline.',
+      'Estatísticas mais limpas: período, tipo de partida e pontos detalhados ficam no botão Filtros; o aviso de partidas pouco detalhadas virou um chip que abre quando você toca.',
+      'Tela de abertura com o raio, e acabamento geral: textos sem palavra sozinha na última linha, nomes que não cortam no meio e tabelas que mostram que rolam para o lado.',
+    ] },
     { id: '2026-10-13i', date: '13/10/2026', title: 'Planos e o Pro Amigos', items: [
       'Planos: Pro mensal, semestral ou anual, e o novo Pro Amigos, para você e mais 5 pessoas (semestral ou anual).',
       'Ajustes → Assinatura: veja o seu plano, a próxima cobrança, os pagamentos, cancele ou religue a renovação e convide os amigos do plano.',
@@ -5774,7 +5944,7 @@
     stats: [
       { sel: '#view-stats .st-tabs', title: 'Seus números ou com alguém', text: 'Em Com um jogador você vê o retrospecto contra ou junto de cada pessoa.' },
       { sel: '#view-stats .sport-filter', title: 'Geral ou um esporte', text: 'Escolha um esporte para ver o que é só dele: aces e break points no beach, padel e tênis; ataques e assistências na peteca e no vôlei.' },
-      { sel: '#view-stats .st-detail', title: 'Pontos detalhados', text: 'Use 50%+ ou 80%+ para contar só as partidas em que os pontos foram lançados com o tipo do lance. O ? explica cada filtro.' },
+      { sel: '#view-stats .st-fbtn', title: 'Filtros', text: 'Período, tipo de partida (dá para tirar resenha e treino) e pontos detalhados, para contar só as partidas bem lançadas. O ? explica cada filtro.' },
       { sel: '#view-stats .st-kpis', title: 'Toque num número', text: 'Cada número abre o gráfico de evolução, partida a partida. Arraste o dedo no gráfico para ver cada ponto.', done: 'Bons números!' },
     ],
   };
@@ -6107,6 +6277,7 @@
     });
     $('#infoBody').addEventListener('click', e => { if (e.target.closest('#proOff')) { closeSheet('#sheetInfo'); setPro(false); } });
     wireSub();
+    wirePhoto();
     $('#momentBody').addEventListener('click', e => {
       const f = e.target.closest('[data-momf]'); if (f) { setMomentFilter(f.dataset.momf); return; }
       const n = e.target.closest('[data-ptnav]'); if (n) { stepPoint(Number(n.dataset.ptnav)); return; }
@@ -6381,6 +6552,7 @@
     renderVidStore();
     $('#pName').value = prefs.myName || (myName() === 'Você' ? '' : myName());
     $('#pFull').value = prefs.fullName || '';
+    renderPrefsPhoto();
     renderPrivacy(); $('#pUid').innerHTML = esc(myUid()) + ic('i-copy'); $('#pUid').dataset.copy = myUid();
     $('#pCity').value = prefs.city || '';
     $('#pTts').checked = prefs.tts;
@@ -6448,6 +6620,12 @@
       navigator.serviceWorker.register('sw.js').catch(e => console.warn('[offline] service worker nao registrou:', e.message));
     }
   }
+  // tela de abertura: fica pelo menos meio segundo (não pisca) e some quando o app terminou de abrir
+  (function hideSplash() {
+    const sp = document.getElementById('splash'); if (!sp) return;
+    const wait = Math.max(0, 500 - performance.now());
+    setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 320); }, wait);
+  })();
   // Para testes manuais no console: Canta.hear('ponto azul')
   window.Canta = { pro: on => setPro(on), hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match, go, history, players: (t, names) => { pl[t] = splitPlayers(names).slice(0, MAX_PER_TEAM).map(n => ({ name: n, userId: null })); plSync(); renderPlSlots(t); updateTeamForm(); } };
 })();

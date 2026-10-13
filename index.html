@@ -28,9 +28,23 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
+<style>
+/* tela de abertura: raio verde pulsando no fundo preto até o app terminar de abrir (some sozinha em 6 s se algo travar) */
+#splash { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: #000; pointer-events: none; animation: spEnd 0.3s ease 6s forwards; }
+#splash.out { opacity: 0; transition: opacity 0.28s ease; }
+#splash .sp-in { position: relative; width: 76px; height: 76px; display: grid; place-items: center; opacity: 0; animation: spIn 0.25s ease 0.08s forwards; }
+#splash svg { position: relative; width: 76px; height: 74px; color: #AFFB48; animation: spBeat 1.1s ease-in-out 0.1s infinite; filter: drop-shadow(0 0 14px rgba(175, 251, 72, 0.45)); }
+#splash .sp-ring { position: absolute; inset: -14px; border-radius: 50%; border: 2px solid rgba(175, 251, 72, 0.55); opacity: 0; animation: spRing 1.1s ease-out 0.1s infinite; }
+@keyframes spIn { to { opacity: 1; } }
+@keyframes spBeat { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(175, 251, 72, 0.35)); } 45% { transform: scale(1.1); filter: drop-shadow(0 0 22px rgba(175, 251, 72, 0.75)); } }
+@keyframes spRing { 0% { transform: scale(0.7); opacity: 0.7; } 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes spEnd { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { #splash svg, #splash .sp-ring { animation: none; } #splash .sp-ring { display: none; } }
+</style>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<div id="splash" aria-hidden="true"><div class="sp-in"><span class="sp-ring"></span><svg viewBox="-2 -2 97 94" aria-hidden="true"><path fill="currentColor" d="M1.18933 44.2966L26.7433 0H52.2503L21.1534 53.8324H8.37638C1.37723 53.8324 -1.91097 49.5108 1.14235 44.2497L1.18933 44.2966Z"/><path fill="currentColor" d="M91.4739 44.8604L65.9199 89.157H40.413L71.5099 35.3246H84.2869C91.286 35.3246 94.5742 39.6462 91.5209 44.9073L91.4739 44.8604Z"/><path fill="currentColor" d="M52.2973 25.7418V0H91.8496L71.4628 35.3246H65.0273C58.0282 35.3246 52.2504 31.0029 52.2504 25.7418H52.2973Z"/><path fill="currentColor" d="M40.366 63.4151V89.157H0.813721L21.2005 53.8324H27.636C34.6351 53.8324 40.4129 58.154 40.4129 63.4151H40.366Z"/></svg></div></div>
 
 <!-- Ícones outline (traço 1.75, cantos arredondados) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -45,6 +59,8 @@
     <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.3a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.3h.01"/></symbol>
     <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 13h.01M17 13h.01M9 14.5h6"/></symbol>
@@ -381,7 +397,7 @@
 <section class="welcome" id="welcome" role="dialog" aria-modal="true" aria-label="Boas-vindas ao ULTRA PLAY" hidden>
   <div class="wl-inner">
     <svg class="wl-logo" viewBox="0 0 182 46" aria-hidden="true"><use href="#logo-h"/></svg>
-    <h1 class="wl-title">Jogue no modo Ultra.<br>Seus números de atleta.</h1>
+    <h1 class="wl-title"><span>Jogue no modo Ultra.</span> <span>Seus números de atleta.</span></h1>
     <p class="wl-sub">Estatísticas de profissional para quem joga por amor: cada partida registrada, seus lances em vídeo e o ranking da sua turma.</p>
     <div class="wl-live" id="wlLive" aria-live="off">
       <span class="wl-badge"><i></i>Ao vivo no Brasil</span>
@@ -553,6 +569,7 @@
       <section class="group">
         <h3>Seu perfil</h3>
         <div class="list">
+          <div class="row ph-row"><span class="ph-mini" id="pPhotoAv" aria-hidden="true"></span><span>Foto do perfil<small>Aparece no seu perfil, nas suas partidas e na timeline</small></span><button class="btn" type="button" id="btnPhoto" data-photo translate="no">Escolher</button></div>
           <div class="row stack"><span>Nome completo</span><input class="text-in" type="text" id="pFull" maxlength="60" autocomplete="name" placeholder="João Pedro Amaral"></div>
           <div class="row stack"><span>Nome nos pontos<small>Nome e sobrenome curtos (ex.: João Amaral). É como você aparece no placar, nas estatísticas e na voz.</small></span><input class="text-in" type="text" id="pName" maxlength="24" autocomplete="off" placeholder="João Amaral"></div>
           <div class="row stack"><span>Cidade<small>Define o que aparece no Geral (pessoas que jogam perto)</small></span><input class="text-in" type="text" id="pCity" maxlength="60" placeholder="Montes Claros, MG"></div>
@@ -945,6 +962,16 @@
       <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
     </header>
     <div class="sheet-body" id="infoBody"></div>
+  </div>
+</section>
+<section class="sheet sheet-small" id="sheetPhoto" role="dialog" aria-modal="true" aria-labelledby="photoTitle" hidden>
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="photoTitle" tabindex="-1">Foto do perfil</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="photoBody" translate="no"></div>
+    <input type="file" id="avatarInput" accept="image/*" hidden>
   </div>
 </section>
 <section class="sheet sheet-small" id="sheetPeople" role="dialog" aria-modal="true" aria-labelledby="peopleTitle" hidden>

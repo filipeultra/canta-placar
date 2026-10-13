@@ -1,0 +1,1332 @@
+{
+  "exportadoEm": "2026-10-13T20:22:05.009Z",
+  "perfil": {
+    "nome": "Filipe Oliveira",
+    "id": "UP-TKRA3P",
+    "cidade": "",
+    "privacidade": {
+      "level": "aberto",
+      "show": {
+        "partidas": true,
+        "estatisticas": true,
+        "conquistas": true,
+        "recordes": true,
+        "confrontos": true,
+        "atividade": true,
+        "geral": true
+      }
+    }
+  },
+  "partidas": [
+    {
+      "id": "b-demo-41",
+      "createdAt": 1791051480000,
+      "endedAt": 1791053219743,
+      "cfgInput": {
+        "sport": "beach",
+        "setsToWin": 1,
+        "gamesPerSet": 6,
+        "deuce": "golden",
+        "decider": "supertb",
+        "firstServer": 1
+      },
+      "teams": [
+        {
+          "name": "Verde",
+          "color": "verde",
+          "players": [
+            "Rafa Duarte",
+            "Mari Teles"
+          ]
+        },
+        {
+          "name": "Laranja",
+          "color": "laranja",
+          "players": [
+            "Brenda Souza",
+            "Téo Martins"
+          ]
+        }
+      ],
+      "events": [
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791051533238,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791051573761,
+          "src": "voz",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791051614418,
+          "src": "toque",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791051644432,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Mari Teles",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791051686450,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791051729840,
+          "src": "voz",
+          "tag": "df",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791051779988,
+          "src": "voz",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791051816297,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791051864437,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791051917493,
+          "src": "toque",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791051960733,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791051996211,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052023738,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "drop",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052078037,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791052125352,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052162747,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052202291,
+          "src": "toque",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052242186,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "lob",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791052267751,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "smash",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791052297039,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Mari Teles",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791052335043,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052389879,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052440631,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052479966,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791052512234,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Mari Teles",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052555748,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0,
+          "shot": "backhand"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052610571,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052641657,
+          "src": "voz",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Mari Teles",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791052687048,
+          "src": "voz",
+          "player": "Brenda Souza",
+          "playerTeam": 1,
+          "shot": "backhand"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052725166,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052769815,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052805629,
+          "src": "toque",
+          "player": "Mari Teles",
+          "playerTeam": 0,
+          "shot": "forehand"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052852629,
+          "src": "toque",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052892903,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052932805,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791052978768,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791053025175,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791053055101,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Mari Teles",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791053088357,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "lob",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791053116444,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791053159743,
+          "src": "voz"
+        }
+      ],
+      "redo": [],
+      "finished": true,
+      "demo": false,
+      "demoType": "amistoso",
+      "post": {
+        "status": "publicada"
+      }
+    },
+    {
+      "id": "b-demo-42",
+      "createdAt": 1791397140000,
+      "endedAt": 1791399019233,
+      "cfgInput": {
+        "sport": "beach",
+        "setsToWin": 1,
+        "gamesPerSet": 6,
+        "deuce": "golden",
+        "decider": "supertb",
+        "firstServer": 0
+      },
+      "teams": [
+        {
+          "name": "Verde",
+          "color": "verde",
+          "players": [
+            "Rafa Duarte",
+            "Lu Andrade"
+          ]
+        },
+        {
+          "name": "Laranja",
+          "color": "laranja",
+          "players": [
+            "Léo Barros",
+            "Ju Campos"
+          ]
+        }
+      ],
+      "events": [
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397180574,
+          "src": "toque",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397214918,
+          "src": "toque",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397250160,
+          "src": "voz",
+          "player": "Ju Campos",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397291310,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397321120,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397352729,
+          "src": "toque",
+          "player": "Ju Campos",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397393477,
+          "src": "voz",
+          "player": "Lu Andrade",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397421567,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397455543,
+          "src": "toque",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Lu Andrade",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397500802,
+          "src": "voz",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397531465,
+          "src": "voz",
+          "player": "Ju Campos",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397569406,
+          "src": "voz",
+          "player": "Ju Campos",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791397599827,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397626941,
+          "src": "toque",
+          "player": "Lu Andrade",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397677322,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397728557,
+          "src": "voz",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397758782,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0,
+          "shot": "backhand"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397790112,
+          "src": "voz",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397824653,
+          "src": "toque",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397853108,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397898955,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397925397,
+          "src": "voz",
+          "player": "Lu Andrade",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791397961571,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398001500,
+          "src": "voz",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398027369,
+          "src": "toque",
+          "player": "Léo Barros",
+          "playerTeam": 1,
+          "shot": "drop"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398072528,
+          "src": "voz",
+          "player": "Ju Campos",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398110358,
+          "src": "voz",
+          "player": "Lu Andrade",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398137517,
+          "src": "voz",
+          "player": "Ju Campos",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398189557,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398237323,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398273110,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398307538,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398356785,
+          "src": "voz",
+          "player": "Ju Campos",
+          "playerTeam": 1,
+          "shot": "smash"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398401619,
+          "src": "voz",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398439064,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398488526,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398533797,
+          "src": "toque",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398560328,
+          "src": "voz",
+          "player": "Ju Campos",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398605821,
+          "src": "voz",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398650819,
+          "src": "toque",
+          "player": "Lu Andrade",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791398696388,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398724055,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398772232,
+          "src": "voz",
+          "player": "Léo Barros",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398823075,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398877449,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398911534,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791398959233,
+          "src": "voz",
+          "player": "Lu Andrade",
+          "playerTeam": 0
+        }
+      ],
+      "redo": [],
+      "finished": true,
+      "demo": false,
+      "demoType": "desafio",
+      "post": {
+        "status": "publicada"
+      }
+    },
+    {
+      "id": "b-demo-43",
+      "createdAt": 1791743160000,
+      "endedAt": 1791745224773,
+      "cfgInput": {
+        "sport": "beach",
+        "setsToWin": 1,
+        "gamesPerSet": 6,
+        "deuce": "golden",
+        "decider": "supertb",
+        "firstServer": 1
+      },
+      "teams": [
+        {
+          "name": "Verde",
+          "color": "verde",
+          "players": [
+            "Rafa Duarte",
+            "Biel Costa"
+          ]
+        },
+        {
+          "name": "Laranja",
+          "color": "laranja",
+          "players": [
+            "Brenda Souza",
+            "Téo Martins"
+          ]
+        }
+      ],
+      "events": [
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791743196203,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743238129,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743278698,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743331630,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0,
+          "shot": "backhand"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743358107,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "drop",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743408582,
+          "src": "voz",
+          "tag": "df",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791743463474,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Biel Costa",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743503555,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743549899,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743595747,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743638872,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743687227,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791743735362,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743772939,
+          "src": "voz",
+          "tag": "df",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743798753,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "drop",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743834915,
+          "src": "toque",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743883371,
+          "src": "toque",
+          "player": "Rafa Duarte",
+          "playerTeam": 0,
+          "shot": "smash"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791743921231,
+          "src": "voz",
+          "player": "Brenda Souza",
+          "playerTeam": 1,
+          "shot": "smash"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791743951037,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791743998193,
+          "src": "voz",
+          "tag": "df",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744027495,
+          "src": "voz",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744078438,
+          "src": "voz",
+          "player": "Brenda Souza",
+          "playerTeam": 1,
+          "shot": "lob"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744104015,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0,
+          "shot": "forehand"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744129732,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "smash",
+          "player": "Biel Costa",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744155525,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744189757,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744243631,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744285664,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744333497,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0,
+          "shot": "lob"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744378032,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744407947,
+          "src": "voz",
+          "player": "Rafa Duarte",
+          "playerTeam": 0,
+          "shot": "smash"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744457851,
+          "src": "voz",
+          "tag": "error",
+          "errType": "rede",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744487955,
+          "src": "voz",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744525315,
+          "src": "toque",
+          "tag": "winner",
+          "shot": "lob",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744552820,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744589333,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744635950,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744667546,
+          "src": "voz",
+          "player": "Téo Martins",
+          "playerTeam": 1,
+          "shot": "drop"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744721166,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744763767,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744790476,
+          "src": "toque",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Biel Costa",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744843564,
+          "src": "voz",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744875060,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744909821,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Rafa Duarte",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791744964076,
+          "src": "voz",
+          "tag": "winner",
+          "shot": "backhand",
+          "player": "Biel Costa",
+          "playerTeam": 0
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791744991675,
+          "src": "toque"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791745032790,
+          "src": "voz"
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791745081475,
+          "src": "voz",
+          "tag": "error",
+          "errType": "fora",
+          "player": "Téo Martins",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 1,
+          "t": 1791745130823,
+          "src": "voz",
+          "tag": "ace",
+          "shot": "saque",
+          "player": "Brenda Souza",
+          "playerTeam": 1
+        },
+        {
+          "type": "point",
+          "team": 0,
+          "t": 1791745164773,
+          "src": "voz",
+          "player": "Biel Costa",
+          "playerTeam": 0,
+          "shot": "lob"
+        }
+      ],
+      "redo": [],
+      "finished": true,
+      "demo": false,
+      "demoType": "amistoso",
+      "post": {
+        "status": "publicada"
+      }
+    }
+  ],
+  "partidaAoVivo": {
+    "id": "7569773a-aece-4bbe-b917-35e13031a420",
+    "createdAt": 1791922923876,
+    "cfgInput": {
+      "sport": "beach",
+      "firstServer": 0,
+      "setsToWin": 1,
+      "gamesPerSet": 6,
+      "deuce": "golden",
+      "decider": "supertb",
+      "tbSwitch": "oneFour"
+    },
+    "teams": [
+      {
+        "name": "Verde",
+        "color": "verde",
+        "players": []
+      },
+      {
+        "name": "Laranja",
+        "color": "laranja",
+        "players": []
+      }
+    ],
+    "events": [],
+    "redo": []
+  },
+  "rede": {},
+  "ajustes": {
+    "tts": false,
+    "beep": true,
+    "wake": false,
+    "cooldown": 2,
+    "theme": "system",
+    "local": false,
+    "awake": true,
+    "engine": "auto",
+    "mic": "",
+    "detail": true,
+    "myName": "Filipe Oliveira",
+    "city": "",
+    "feedKind": "seguindo",
+    "lastSport": "",
+    "privacy": null,
+    "onboarded": true,
+    "origin": {
+      "at": 1791922923879
+    },
+    "seenNews": "2026-10-13j",
+    "uid": "UP-TKRA3P"
+  }
+}

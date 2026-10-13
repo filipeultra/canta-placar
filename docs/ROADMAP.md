@@ -134,6 +134,7 @@ O reel atual (`marketing/reels/vem-ai.html`) ficou com "cara de IA". A versão 2
 ### 6.10 Guardado para depois (13/10/2026)
 - **Exportar planilha (CSV) e dados (JSON):** saiu da tela da partida (pouco útil por partida). O código continua em `app.js` (`exportMatch`); a ideia é voltar nas estatísticas completas, exportando o período filtrado inteiro.
 - **Mais de 2 jogadores por time:** hoje cada time aceita até 2 (`MAX_PER_TEAM` em `app.js`). Para vôlei de quadra, futevôlei 4x4 e futebol, subir o limite por esporte e mostrar a escolha de "quem fez o ponto" em grade.
+- **Foto do perfil na nuvem:** hoje a foto fica no aparelho (`prefs.photo`, JPEG 320×320). Com a conta ligada, subir para o bucket `avatars` (`supabase/storage.sql`, pasta do próprio id, até 512 KB, só JPEG/PNG/WebP), gravar o link em `profiles.avatar_url` e mostrar a foto dos outros na timeline, no ranking e nas imagens de compartilhar.
 - **Lances editáveis:** na lista de Lances, tocar num ponto antigo para corrigir o tipo ou o jogador (hoje só dá para desfazer os últimos).
 
 ### Fila dos ajustes finais (tudo o que ficou "para depois")

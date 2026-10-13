@@ -2609,7 +2609,7 @@ button.mtag.gtag { background: none; cursor: pointer; border-style: solid; max-w
 .consent-a { display: flex; flex-direction: column; gap: 6px; flex: none; }
 
 /* ===== v23 · aviso no centro (modal) ===== */
-.modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px 20px; background: rgba(0, 0, 0, 0); -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); transition: background 0.2s ease, backdrop-filter 0.2s ease, -webkit-backdrop-filter 0.2s ease; }
+.modal { position: fixed; inset: 0; z-index: 65; display: grid; place-items: center; padding: 24px 20px; background: rgba(0, 0, 0, 0); -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); transition: background 0.2s ease, backdrop-filter 0.2s ease, -webkit-backdrop-filter 0.2s ease; }
 .modal.show { background: rgba(0, 0, 0, 0.5); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); }
 .modal-card { position: relative; width: min(360px, 100%); display: grid; justify-items: center; gap: 10px; padding: 34px 24px 22px; border-radius: 28px; background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 9%, var(--surface)), var(--surface) 46%); box-shadow: 0 0 0 1px var(--hair-strong), 0 30px 80px -20px rgba(0, 0, 0, 0.6); text-align: center; opacity: 0; transform: translateY(10px) scale(0.96); transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
 .modal.show .modal-card { opacity: 1; transform: none; }
@@ -3282,3 +3282,87 @@ button.st-kpi:active, .st-tile:active { transform: scale(0.98); }
 .amg-add input:focus { outline: none; box-shadow: 0 0 0 2px var(--brand); }
 .amg-add .btn { justify-self: start; }
 .pay-m input:checked + span small { color: var(--fg); }
+
+/* ===== v34 · filtros das estatísticas recolhidos ===== */
+.st-fbar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.st-fbtn { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); font: 700 13px/1 var(--font-display); box-shadow: var(--shadow); }
+.st-fbtn .ic { font-size: 15px; }
+.st-fbtn b { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--brand); color: var(--on-brand); font: 800 11px/1 var(--font); }
+.st-fbtn[aria-expanded="true"] { background: var(--ink); color: var(--ink-fg); border-color: var(--ink); }
+.st-fsum { flex: 1; min-width: 0; color: var(--fg-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-lowchip { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 9px; border: 0; border-radius: 999px; background: var(--fill); color: var(--fg-2); font: 700 12px/1 var(--font); }
+.st-lowchip .ic { font-size: 13px; }
+.st-lowchip[aria-expanded="true"] { background: var(--fill-strong); color: var(--fg); }
+.st-fpanel { display: grid; gap: 10px; padding: 12px; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 1px var(--hair), var(--shadow); animation: stIn 0.25s ease both; }
+.st-fpanel[hidden], #stLow[hidden] { display: none; }
+.st-fpanel .st-types { margin: 0; padding: 0; flex-wrap: wrap; overflow: visible; }
+.st-warn > span { min-width: 0; }
+
+/* ===== v35 · foto do perfil ===== */
+.av.has-photo, .mini-av.has-photo, .me-avatar.has-photo, .ph-mini.has-photo, .ph-big.has-photo { background: var(--surface-2); overflow: hidden; padding: 0; }
+.av.has-photo.is-live, .me-avatar.has-photo.is-live { overflow: visible; }
+.av-img { width: 100%; height: 100%; display: block; object-fit: cover; border-radius: 50%; pointer-events: none; -webkit-user-drag: none; user-select: none; }
+.me-av-wrap { position: relative; flex: none; display: inline-grid; }
+.me-photo-btn { position: absolute; right: -4px; bottom: -4px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; padding: 0; border: 2px solid var(--surface); background: var(--ink); color: var(--ink-fg); cursor: pointer; transition: transform 0.12s; }
+.me-photo-btn:active { transform: scale(0.92); }
+.me-photo-btn .ic, .me-photo-btn svg { width: 14px; height: 14px; }
+.me-photo-btn::before { content: ""; position: absolute; inset: -8px; } /* área de toque de 44px */
+.ph-mini { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: var(--on-brand); font: 800 14px/1 var(--font-display); }
+.ph-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.ph-now { display: grid; justify-items: center; gap: 14px; padding: 8px 4px 4px; text-align: center; }
+.ph-now p { margin: 0; max-width: 32ch; color: var(--fg-2); font-size: 14px; line-height: 1.45; text-wrap: pretty; }
+.ph-big { width: 132px; height: 132px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: var(--on-brand); font: 800 44px/1 var(--font-display); box-shadow: 0 0 0 4px var(--surface), 0 0 0 6px var(--brand); }
+.ph-actions { display: grid; gap: 10px; margin-top: 18px; }
+.ph-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+.btn-danger-soft { color: #B83300; }
+:root[data-theme="dark"] .btn-danger-soft { color: #FF8A5B; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn-danger-soft { color: #FF8A5B; } }
+.ph-note { display: flex; gap: 8px; align-items: flex-start; margin: 16px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--fill); color: var(--fg-2); font-size: 12.5px; line-height: 1.45; }
+.ph-note .ic { flex: none; width: 14px; height: 14px; margin-top: 2px; }
+.ph-stage { position: relative; margin: 6px auto 0; border-radius: 50%; overflow: hidden; background: #111; touch-action: none; cursor: grab; outline: none; }
+.ph-stage:active { cursor: grabbing; }
+.ph-stage:focus-visible { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--brand); }
+.ph-stage canvas { display: block; }
+.ph-ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85); pointer-events: none; }
+.ph-hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0 0; color: var(--fg-2); font-size: 13px; }
+.ph-hint .ic { width: 14px; height: 14px; }
+.ph-zoom { display: flex; align-items: center; gap: 10px; max-width: 260px; margin: 10px auto 0; color: var(--fg-2); }
+.ph-zoom .ic { flex: none; width: 16px; height: 16px; }
+.ph-zoom input { flex: 1; accent-color: var(--brand); }
+
+/* ===== v36 · auditoria de acabamento: quebra de linha, respiro e vazamentos ===== */
+/* sem palavra sozinha na última linha; títulos equilibrados */
+body { text-wrap: pretty; }
+h1, h2, h3, .wl-title, .sheet-head h2, .modal h2, .card-title, summary { text-wrap: balance; }
+/* segmentos: cada opção com no mínimo a largura do texto (ex.: "Personalizado" não empurra "Privado" para fora) */
+.seg-wide { grid-auto-columns: minmax(max-content, 1fr); }
+.seg span { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 380px) { .seg span { padding-left: 8px; padding-right: 8px; } .seg span .ic { margin-right: 3px; } }
+/* recordes e partidas: data e adversários em até 2 linhas, sem cortar no meio do nome */
+.rec-txt small { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.35; }
+/* tabela por jogador: nome fixo à esquerda e sombra indicando que rola para o lado */
+.table-wrap { position: relative; overscroll-behavior-x: contain;
+  background: linear-gradient(to left, var(--surface) 40%, transparent) right center / 28px 100% no-repeat local,
+              radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.14), transparent) right center / 12px 100% no-repeat scroll; }
+.players-table th:first-child, .players-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); padding-right: 10px; }
+.players-table td:first-child { white-space: nowrap; }
+.wl-title > span { display: block; text-wrap: balance; }
+/* placar: nomes da dupla e dica da voz em até 2 linhas, em vez de cortar com reticências */
+.team-players { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.3; }
+.team-players:empty { display: none; }
+.voice-text span { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.3; }
+.team-players, .row > span:not([class]), .grow-txt small { text-wrap: balance; }
+.ach-latest-txt small, .card-who span { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.35; }
+/* cabeçalho do card da timeline: data/local e nome do grupo com reticências de verdade (não corte seco) */
+button.mtag.gtag { max-width: 128px; }
+.gtag-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow-txt b, .help-tip b, .ach-item b { text-wrap: balance; }
+.act-place { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* a data fica inteira; o local encolhe com reticências */
+.act-badges { flex: 0 1 auto; min-width: 0; max-width: 36%; }
+.act-badges button.mtag.gtag { max-width: 100%; }
+/* data e local: o local vai para a linha de baixo (inteiro ou com reticências), a data nunca corta */
+.act-who > span:not(.act-name) { flex-wrap: wrap; row-gap: 1px; }
+.act-place { flex: 1 1 100%; min-width: 0; white-space: nowrap; }
+.act-when { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
+.act-when > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-when .ic { flex: none; font-size: 13px; }

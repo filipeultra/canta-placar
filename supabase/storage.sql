@@ -4,6 +4,8 @@ insert into storage.buckets (id, name, public, file_size_limit) values
   ('avatars', 'avatars', true, 2097152),
   ('videos', 'videos', false, 209715200)
 on conflict (id) do nothing;
+-- a foto sai do app em JPEG 320×320 (~20 KB); o limite de 512 KB e os tipos barram arquivo que não é imagem
+update storage.buckets set file_size_limit = 524288, allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'] where id = 'avatars';
 
 create policy "avatar: cada um na sua pasta" on storage.objects for insert to authenticated
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
