@@ -20,6 +20,8 @@ Mapa e área das arenas, clubes e organizadores. Pode ter plano grátis e plano 
 
 ## 2. Assistente de IA
 
+**Já existe:** análise do jogo no fim de cada partida (automática, no aparelho), e a versão por IA pronta no servidor, desligada até ter conta. Custo estimado: R$ 0,015 por análise (ver `docs/IA.md`).
+
 Um assistente que lê as estatísticas da pessoa e ajuda a jogar melhor.
 
 - Palpites e análises: pontos fortes e fracos, golpe que mais rende, erros que mais custam, desempenho por parceiro e por adversário.
