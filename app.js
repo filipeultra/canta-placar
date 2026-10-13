@@ -1368,6 +1368,8 @@
         '<button class="btn-light" type="button" data-go="jogar"><svg><use href="#i-play"/></svg>Continuar</button></div>';
     } else $('#liveCard').innerHTML = '';
     renderDrafts();
+    renderNewsCard();
+    $('#streakCard').innerHTML = streakHTML();
     renderGroupStripNow();
     renderFeed();
   }
@@ -1839,6 +1841,7 @@
     if (src && !String(src).includes(location.origin) && !/app\.js|motion\.js|share\.js|stats\.js|engine\.js|social\.js/.test(src)) return; // extensões do navegador etc.
     if (ev && ev.message && /ResizeObserver loop/.test(ev.message)) return;
     console.error('[erro]', ev && (ev.error || ev.reason || ev.message));
+    try { lastErr = String((ev && (ev.message || (ev.reason && ev.reason.message))) || ''); } catch (e) { /* sem texto */ }
     if (Date.now() - lastCrashToast < 15000) return;
     lastCrashToast = Date.now();
     try { toast('Algo não saiu como devia. Suas partidas estão salvas; se a tela travar, recarregue.'); } catch (e) { /* sem toast */ }
@@ -1977,6 +1980,7 @@
     if (!writeHist(hist)) return;
     closeSheet('#sheetSave');
     toast(saveCtx.draft ? 'Partida publicada' : 'Alterações salvas');
+    if (saveCtx.draft) maybeAskLove();
     const after = saveCtx.afterFinish;
     go('partida', m.id);
     if (after) setTimeout(() => openShare(m.id), 450);
@@ -4381,6 +4385,110 @@
     if (btn) btn.disabled = false;
   }
 
+  // ---------- Novidades, sugestões, convite e "curtiu?" (o que um app precisa ter no lançamento) ----------
+  // Contato da equipe: preencha um dos dois para as sugestões chegarem direto (sem isso, o app abre o compartilhar/copia o texto).
+  const FEEDBACK_WHATSAPP = ''; // só números, com DDI e DDD: '5538999999999'
+  const FEEDBACK_EMAIL = '';
+  const APP_VERSION = '2026.10.13';
+  // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
+  const WHATS_NEW = [
+    { id: '2026-10-13b', date: '13/10/2026', title: 'Vídeo com placar, análise do jogo e aviso de troca de lado', items: [
+      'O vídeo gravado sai com a marca ULTRA PLAY e, se quiser, o placar e os lances na tela.',
+      'O vídeo sai na horizontal mesmo com o celular em pé. Para vertical, toque no botão de formato.',
+      'No fim de cada partida: análise do jogo, com onde ele foi decidido e uma dica para o próximo.',
+      'Aviso de game, set e troca de lado menor, com OK e barra de tempo. Tocar fora só fecha o aviso, não marca ponto.',
+    ] },
+    { id: '2026-10-13a', date: '13/10/2026', title: 'Grupos e câmera conectada', items: [
+      'Grupos para a sua turma: ranking, partidas, resenha e convite pelo WhatsApp.',
+      'Nova partida do grupo com os membros sugeridos, e autorização para o organizador lançar por você.',
+      'O placar mostra se o outro celular está gravando e manda gravar ou parar lá.',
+      'Trechos de vídeo de ~5 minutos cortados no tempo morto, sem perder lance.',
+    ] },
+    { id: '2026-10-12', date: '12/10/2026', title: 'Relógio, link das estatísticas e gravação', items: [
+      'Os botões de música do relógio ou do fone marcam o ponto.',
+      'Link das estatísticas: quem jogou vê tudo, mesmo sem o app.',
+      'Grave a partida e veja o vídeo de cada ponto.',
+    ] },
+  ];
+  let lastErr = '';
+  function newsHTML() {
+    return WHATS_NEW.map((n, i) => '<section class="news' + (i ? '' : ' first') + '"><div class="news-h"><b>' + esc(n.title) + '</b><small>' + esc(n.date) + '</small></div><ul>' + n.items.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></section>').join('') +
+      '<p class="hint center">Versão ' + APP_VERSION + ' · ideias e problemas: Ajustes → Enviar sugestão</p>';
+  }
+  function openInfo(title, html) { $('#infoTitle').textContent = title; $('#infoBody').innerHTML = html; openSheet('#sheetInfo'); }
+  function openNews() { prefs.seenNews = WHATS_NEW[0].id; savePrefs(); renderNewsCard(); openInfo('Novidades', newsHTML()); }
+  // aviso discreto no Início quando há novidade que a pessoa ainda não viu (quem acabou de chegar não recebe)
+  function renderNewsCard() {
+    const el = $('#newsCard'); if (!el) return;
+    if (!prefs.seenNews) { prefs.seenNews = WHATS_NEW[0].id; savePrefs(); }
+    const unseen = prefs.seenNews !== WHATS_NEW[0].id;
+    el.innerHTML = unseen ? '<div class="news-card">' + ic('i-sparkles') + '<span><b>Novidade</b>' + esc(WHATS_NEW[0].title) + '</span><button class="btn btn-sm" type="button" data-action="news">Ver</button><button class="icon-btn sm" type="button" data-action="news-close" aria-label="Fechar aviso">' + ic('i-x') + '</button></div>' : '';
+  }
+  // sugestão / problema / elogio, com o diagnóstico do aparelho junto (sem dados das partidas)
+  function diagText() {
+    const ua = navigator.userAgent || '';
+    return ['Versão ' + APP_VERSION, (window.matchMedia('(display-mode: standalone)').matches ? 'app instalado' : 'navegador'), 'voz: ' + (voice && voice.kind || '?'), 'tela ' + window.innerWidth + '×' + window.innerHeight, ua.slice(0, 140), lastErr ? 'último erro: ' + lastErr.slice(0, 160) : ''].filter(Boolean).join(' · ');
+  }
+  function openFeedback(kind) {
+    const k = kind || 'sugestao';
+    openInfo('Fale com a gente', '<form id="fbForm" class="fb-form"><div class="seg seg-wide" role="radiogroup" aria-label="Tipo">' +
+      [['sugestao', 'Sugestão'], ['problema', 'Problema'], ['elogio', 'Elogio']].map(([v, l]) => '<label><input type="radio" name="fbKind" value="' + v + '"' + (v === k ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div>' +
+      '<label class="field"><span>Mensagem</span><textarea id="fbText" rows="5" maxlength="1500" placeholder="' + (k === 'problema' ? 'O que aconteceu? Em que tela? Dá para repetir?' : k === 'elogio' ? 'O que você mais curtiu? Podemos usar como depoimento?' : 'O que faria o ULTRA PLAY ficar melhor para você?') + '"></textarea></label>' +
+      '<label class="row-check"><input type="checkbox" id="fbDiag" checked><span>Mandar junto as informações do aparelho (versão, navegador, voz). Nada das suas partidas.</span></label>' +
+      '<button class="btn-primary" type="submit">' + ic('i-share') + (FEEDBACK_WHATSAPP ? 'Enviar pelo WhatsApp' : FEEDBACK_EMAIL ? 'Enviar por e-mail' : 'Enviar') + '</button></form>');
+  }
+  function sendFeedback() {
+    const kind = getRadio('fbKind') || 'sugestao', txt = $('#fbText').value.trim();
+    if (!txt) { toast('Escreva a mensagem'); return; }
+    const body = '[ULTRA PLAY · ' + { sugestao: 'Sugestão', problema: 'Problema', elogio: 'Elogio' }[kind] + ']\n' + txt + ($('#fbDiag').checked ? '\n\n— ' + diagText() : '') + (prefs.myName ? '\n— ' + prefs.myName + ' (' + myUid() + ')' : '');
+    closeSheet('#sheetInfo');
+    if (FEEDBACK_WHATSAPP) { window.open('https://wa.me/' + FEEDBACK_WHATSAPP + '?text=' + encodeURIComponent(body), '_blank', 'noopener'); return; }
+    if (FEEDBACK_EMAIL) { location.href = 'mailto:' + FEEDBACK_EMAIL + '?subject=' + encodeURIComponent('ULTRA PLAY · ' + kind) + '&body=' + encodeURIComponent(body); return; }
+    if (navigator.share) navigator.share({ text: body }).catch(() => {}); else copyText(body);
+    toast('Obrigado! Mensagem pronta para enviar');
+  }
+  // convite com código de quem convidou (para saber de onde vêm as pessoas; com o servidor, vira recompensa)
+  const inviteURL = () => location.origin + location.pathname + '?ref=' + encodeURIComponent(myUid()) + '&utm_source=convite&utm_medium=app';
+  function shareInvite() {
+    const url = inviteURL(), text = 'Marca o placar falando "ponto verde" e vê as estatísticas do jogo. Bora usar no próximo?';
+    if (navigator.share) navigator.share({ title: 'ULTRA PLAY', text, url }).catch(() => {}); else copyText(url);
+  }
+  // de onde a pessoa veio (primeira visita): ?ref=UP-XXXXXX e utm_*; fica só no aparelho até existir conta
+  function noteOrigin() {
+    if (prefs.origin) return;
+    const q = new URLSearchParams(location.search), o = {};
+    const ref = q.get('ref'); if (ref && /^UP-[A-Z0-9]{6}$/i.test(ref)) o.ref = ref.toUpperCase();
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach(k => { const v = q.get(k); if (v && /^[\w.-]{1,40}$/.test(v)) o[k.slice(4)] = v; });
+    o.at = Date.now();
+    prefs.origin = o; savePrefs();
+  }
+  // "Curtiu?" no momento bom: depois da 3ª, 10ª e 25ª partida salva, no máximo 3 vezes por ano
+  function maybeAskLove() {
+    const n = history().filter(m => !isDraft(m) && !m.demo).length;
+    if (![3, 10, 25].includes(n)) return;
+    const asks = (prefs.loveAsks || []).filter(t => Date.now() - t < 365 * 864e5);
+    if (asks.length >= 3 || (asks.length && Date.now() - asks[asks.length - 1] < 30 * 864e5)) return;
+    prefs.loveAsks = asks.concat(Date.now()); savePrefs();
+    setTimeout(() => openInfo('Curtindo o ULTRA PLAY?', '<p class="love-q">Já são ' + n + ' partidas marcadas. Está ajudando no seu jogo?</p><div class="love-a"><button class="btn btn-brand" type="button" data-love="sim">' + ic('i-check') + 'Sim, curti</button><button class="btn" type="button" data-love="nao">Ainda não</button></div>'), 1200);
+  }
+  function onLove(v) {
+    if (v === 'sim') openInfo('Que bom!', '<p class="love-q">Duas coisas que ajudam muito:</p><div class="love-a col"><button class="btn btn-brand" type="button" data-action="invite">' + ic('i-user-plus') + 'Chamar um parceiro de quadra</button><button class="btn" type="button" data-fb="elogio">' + ic('i-sparkles') + 'Deixar um depoimento</button></div>');
+    else openFeedback('sugestao');
+  }
+  // sequência de semanas: lembrete no Início quando a semana ainda não teve partida
+  function streakHTML() {
+    try {
+      const own = history().filter(m => !m.demo); if (own.length < 2) return '';
+      const pr = profileOf(own, myName());
+      const ws = pr.weekStreak || 0; if (ws < 2) return '';
+      const wk = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.getTime(); };
+      const thisWeek = own.some(m => wk(m.endedAt || m.createdAt) === wk(Date.now()));
+      if (thisWeek) return ''; // semana garantida: não ocupa o Início
+      const left = Math.max(1, Math.ceil((wk(Date.now()) + 7 * 864e5 - Date.now()) / 864e5));
+      return '<div class="streak-card">' + ic('i-flame') + '<span><b>' + ws + ' semanas seguidas</b>Jogue ' + (left === 1 ? 'até hoje' : 'nos próximos ' + left + ' dias') + ' para não perder a sequência.</span><button class="btn btn-sm btn-brand" type="button" data-action="choose">Jogar</button></div>';
+    } catch (e) { return ''; }
+  }
+
   function deleteMatch(id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
@@ -4583,6 +4691,10 @@
       if (rs) { closeSheet('#sheetReplay'); openShare(rs.dataset.replayShare, 'video'); return; }
       const sh = e.target.closest('[data-share]');
       if (sh) { e.stopPropagation(); openShare(sh.dataset.share); return; }
+      const lv = e.target.closest('[data-love]');
+      if (lv) { onLove(lv.dataset.love); return; }
+      const fbk = e.target.closest('[data-fb]');
+      if (fbk) { openFeedback(fbk.dataset.fb); return; }
       const aic = e.target.closest('[data-aicoach]');
       if (aic) { aiCoach(aic.dataset.aicoach, aic); return; }
       const ac = e.target.closest('[data-ach]');
@@ -4599,6 +4711,10 @@
       if (act) {
         const a = act.dataset.action;
         if (a === 'prefs') openPrefs();
+        if (a === 'news') { closeAllSheets(); openNews(); }
+        if (a === 'news-close') { prefs.seenNews = WHATS_NEW[0].id; savePrefs(); renderNewsCard(); }
+        if (a === 'feedback') { closeAllSheets(); openFeedback(); }
+        if (a === 'invite') { closeSheet('#sheetInfo'); shareInvite(); }
         if (a === 'new') openNew();
         if (a === 'choose') openChoose();
         if (a === 'launch') openLaunch();
@@ -4628,6 +4744,9 @@
     // aviso de game/set/troca de lado: qualquer toque só fecha o aviso
     ['pointerdown', 'click'].forEach(ev => $('#banner').addEventListener(ev, e => { if (!$('#banner').classList.contains('show')) return; e.preventDefault(); e.stopPropagation(); if (ev === 'click') hideBanner(); }));
     wireCam();
+    noteOrigin();
+    $('#infoBody').addEventListener('submit', e => { if (e.target.id === 'fbForm') { e.preventDefault(); sendFeedback(); } });
+    $('#infoBody').addEventListener('change', e => { if (e.target.name === 'fbKind') { const k = e.target.value; $('#fbText').placeholder = k === 'problema' ? 'O que aconteceu? Em que tela? Dá para repetir?' : k === 'elogio' ? 'O que você mais curtiu? Podemos usar como depoimento?' : 'O que faria o ULTRA PLAY ficar melhor para você?'; } });
     wireGroups();
     if (match && match.camTopic && match.events.length) linkOpenPlacar(); // partida em andamento com câmera conectada: volta a ouvir
     wireClips();

@@ -131,7 +131,9 @@
     </header>
     <div class="scroll">
       <div class="page">
+        <div id="newsCard"></div>
         <div id="liveCard"></div>
+        <div id="streakCard"></div>
         <div id="draftCard"></div>
         <div id="groupStrip"></div>
         <div class="feed-bar">
@@ -595,6 +597,14 @@
         </div>
       </section>
       <section class="group">
+        <h3>Ajuda e novidades</h3>
+        <div class="list">
+          <div class="row"><span class="row-ic"><svg><use href="#i-sparkles"/></svg></span><span>Novidades<small>O que mudou nas últimas versões</small></span><button class="btn" type="button" data-action="news">Ver</button></div>
+          <div class="row"><span class="row-ic"><svg><use href="#i-help"/></svg></span><span>Enviar sugestão ou problema<small>Fale direto com a equipe do ULTRA PLAY</small></span><button class="btn" type="button" data-action="feedback">Escrever</button></div>
+          <div class="row"><span class="row-ic"><svg><use href="#i-user-plus"/></svg></span><span>Convidar parceiros<small>Link do app com o seu código</small></span><button class="btn" type="button" data-action="invite">Convidar</button></div>
+        </div>
+      </section>
+      <section class="group">
         <h3>Conta</h3>
         <div class="list">
           <label class="row"><span class="row-ic"><svg><use href="#i-users"/></svg></span><span>Rede de exemplo<small>Pessoas, partidas, zaps e grupos fictícios para mostrar como o app funciona. Desligue para ver só o que é seu.</small></span><input class="switch" type="checkbox" id="pDemoNet"></label>
@@ -866,6 +876,15 @@
 </section>
 
 <!-- Lista de pessoas (zaps, seguidores, seguindo) -->
+<section class="sheet sheet-small" id="sheetInfo" role="dialog" aria-modal="true" aria-labelledby="infoTitle" hidden>
+  <div class="sheet-form">
+    <header class="sheet-head">
+      <h2 id="infoTitle" tabindex="-1">Novidades</h2>
+      <button class="icon-btn" type="button" data-close title="Fechar"><svg><use href="#i-x"/></svg></button>
+    </header>
+    <div class="sheet-body" id="infoBody"></div>
+  </div>
+</section>
 <section class="sheet sheet-small" id="sheetPeople" role="dialog" aria-modal="true" aria-labelledby="peopleTitle" hidden>
   <div class="sheet-form">
     <header class="sheet-head">
