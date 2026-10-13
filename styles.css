@@ -2364,7 +2364,7 @@ body[data-view="camera"] .tabbar, body[data-view="camera"] .tab-scrim { display:
 .view-camera.recording .cam-status .rec-dot { background: #FFFFFF; animation: recBlink 1.4s ease-in-out infinite; }
 .cam-status span { font: 800 14px/1 var(--font-cond); font-variant-numeric: tabular-nums; }
 .view-camera.recording { box-shadow: inset 0 0 0 3px rgba(255, 59, 48, 0.85); }
-.cam-info { position: absolute; left: 12px; right: 12px; top: calc(64px + env(safe-area-inset-top, 0px)); display: flex; justify-content: center; }
+.cam-info { position: absolute; left: 12px; right: 12px; top: calc(64px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .cam-card { display: grid; justify-items: center; gap: 3px; padding: 8px 14px; border-radius: 14px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); text-align: center; }
 .cam-card b { font: 700 14px/1.2 var(--font-display); }
 .cam-card small { display: inline-flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, 0.75); font-size: 12px; }
@@ -2405,3 +2405,30 @@ body[data-view="camera"] .tabbar, body[data-view="camera"] .tab-scrim { display:
 #lanceRemote.on b em { background: var(--brand); color: var(--on-brand); }
 #btnType { position: relative; }
 #btnType.remote-on::after { content: ''; position: absolute; top: 6px; right: calc(50% - 16px); width: 9px; height: 9px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 2px var(--surface), 0 0 10px var(--brand); }
+/* gravação interrompida (o app saiu da tela): selo âmbar com "continuar" */
+.rec-dock.paused .rec-mini { background: #3A2A00; box-shadow: 0 0 0 1.5px #FFB020, 0 12px 30px -8px rgba(0, 0, 0, 0.6); }
+.rec-dock.paused .rec-dot { background: #FFB020; animation: none; box-shadow: none; }
+.cam-btn.warn { color: #FFB020; }
+.view-camera.interrupted .cam-status { background: rgba(255, 176, 32, 0.9); color: #1A1200; }
+.view-camera.interrupted .cam-status .rec-dot { background: #1A1200; animation: none; }
+
+/* ===== v17 · placar ↔ câmera conectados ===== */
+.cam-link { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); margin: 4px 0 12px; }
+.cam-link > span { flex: 1; min-width: 0; }
+.cam-link b { display: block; font: 700 14.5px/1.25 var(--font-display); }
+.cam-link small { color: var(--fg-2); font-size: 12.5px; }
+.cam-link .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--fg-3, #8A8F98); }
+.cam-link.ready .dot, .cam-link.stop .dot { background: #34C759; }
+.cam-link.rec { background: color-mix(in srgb, #FF3B30 10%, var(--surface-2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, #FF3B30 30%, transparent); }
+.cam-link.rec .dot { background: #FF3B30; animation: recBlink 1.4s ease-in-out infinite; }
+.cam-link.cut, .cam-link.lost { background: color-mix(in srgb, #FFB020 12%, var(--surface-2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, #FFB020 35%, transparent); }
+.cam-link.cut .dot, .cam-link.lost .dot { background: #FFB020; }
+.cam-link.wait .dot { animation: recBlink 1.8s ease-in-out infinite; }
+.cam-link .btn { flex: none; }
+.cam-btn.cam2 { color: #FF3B30; }
+.cam-btn.cam2 .cam-live { opacity: 1; background: #FF3B30; animation: recBlink 1.4s ease-in-out infinite; }
+.cam-placar { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: rgba(255, 255, 255, 0.8); font: 600 12px/1 var(--font-display); width: max-content; }
+.cam-placar[hidden] { display: none; }
+.cam-placar::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); }
+.cam-placar.on { color: #FFFFFF; }
+.cam-placar.on::before { background: #34C759; }

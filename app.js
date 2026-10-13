@@ -358,6 +358,7 @@
   }
 
   function afterChange(ev) {
+    if (ev && ev.type === 'point') videoAfterPoint();
     const L = state.last;
     if (!L) return;
     if (ev.type === 'point') flashTeam(ev.team);
@@ -2984,6 +2985,7 @@
     const hist = readHist().filter(m => m.id !== saved.id);
     hist.unshift(saved);
     if (!writeHist(hist)) return false; // cota cheia: a partida continua ao vivo, nada se perde
+    if (linkP.ch) linkClosePlacar(true); // avisa a câmera conectada que acabou
     if (voice.wanted) voice.stop();
     match = newMatch(Object.assign({}, match.cfgInput), match.teams.map(t => Object.assign({}, t)));
     endShownFor = null; lastVoicePointAt = 0;
@@ -3411,15 +3413,33 @@
   const fmtClock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(x).padStart(2, '0'); };
   const videoKey = m => (m && (m.vid || m.oid || m.id)) || '';
   function renderRecDock() {
-    const on = !!(recState.r && recState.r.state.recording);
-    $('#recDock').hidden = !on;
-    $('#recDock').classList.toggle('mini-off', !recState.mini);
+    const s = recState.r ? recState.r.state : null;
+    const on = !!(s && s.recording), paused = !!(s && s.interrupted && !s.recording);
+    $('#recDock').hidden = !on && !paused;
+    $('#recDock').classList.toggle('mini-off', !recState.mini || paused);
+    $('#recDock').classList.toggle('paused', paused);
     $('#btnCam').classList.toggle('on', on);
+    $('#btnCam').classList.toggle('warn', paused);
     if (on) $('#recTime').textContent = fmtClock(Date.now() - recState.startedAt);
+    if (paused) $('#recTime').textContent = 'Parou · continuar';
+  }
+  // espaço no aparelho antes de gravar: avisa com pouco, bloqueia sem nada
+  async function roomForVideo() {
+    const fs = await CVd.freeSpace();
+    if (!fs) return true;
+    if (fs.minutes < 3) { toast('Sem espaço para gravar neste aparelho. Apague vídeos antigos em Ajustes.'); return false; }
+    if (fs.minutes < 30) toast('Pouco espaço: cabem uns ' + fs.minutes + ' minutos de vídeo neste aparelho.');
+    return true;
+  }
+  // depois de cada ponto marcado: bom momento para virar o trecho do vídeo (e avisa a câmera conectada)
+  function videoAfterPoint() {
+    if (recState.r && recState.r.state.recording) recState.r.safeCut();
+    if (typeof linkSend === 'function') linkSend({ t: 'pt' });
   }
   async function startRecHere() {
     if (!isPro()) { openPro('gravar', () => openCam()); return; }
     if (!CVd.supported()) { toast('Este navegador não grava vídeo. No iPhone, use o Safari ou o app instalado.'); return; }
+    if (!(await roomForVideo())) return;
     closeSheet('#sheetCam');
     recState.matchId = match.id;
     recState.r = CVd.createRecorder({ matchId: match.id, label: match.teams[0].name + ' × ' + match.teams[1].name, device: 'placar', preview: $('#recPreview'),
@@ -3443,7 +3463,8 @@
   }
   // link do modo câmera: só o essencial para mostrar de que partida é (o vídeo fica no aparelho que grava)
   function cameraLink() {
-    const d = { v: 1, id: match.id, n: match.teams.map(t => t.name), c: match.teams.map(t => t.color), sp: E.makeConfig(match.cfgInput).sport, by: prefs.myName || '' };
+    linkOpenPlacar();
+    const d = { v: 1, id: match.id, k: match.camTopic || '', n: match.teams.map(t => t.name), c: match.teams.map(t => t.color), sp: E.makeConfig(match.cfgInput).sport, by: prefs.myName || '' };
     return location.origin + location.pathname + '#camera-' + b64url(new TextEncoder().encode(JSON.stringify(d)));
   }
   let qrLoad = null;
@@ -3461,7 +3482,7 @@
       const url = cameraLink();
       h = '<div class="cam-qr" id="camQr"><span class="hint">Gerando QR Code…</span></div>' +
         '<ol class="cam-steps"><li>No outro celular (ou notebook), aponte a câmera para o QR Code ou abra o link.</li><li>Ele vira câmera: apoie mostrando a quadra e toque em gravar.</li><li>Marque os pontos aqui normalmente. No fim, mande o <b>link das estatísticas</b> para o aparelho que gravou: lá, cada ponto vira um lance em vídeo.</li></ol>' +
-        '<div class="actions"><button class="btn" type="button" data-copy="' + esc(url) + '">' + ic('i-copy') + 'Copiar link</button>' + (navigator.share ? '<button class="btn btn-brand" type="button" id="camShareLink">' + ic('i-share') + 'Enviar link</button>' : '') + '</div>' +
+        '<div id="camLinkBox">' + camLinkHTML() + '</div>' + '<div class="actions"><button class="btn" type="button" data-copy="' + esc(url) + '">' + ic('i-copy') + 'Copiar link</button>' + (navigator.share ? '<button class="btn btn-brand" type="button" id="camShareLink">' + ic('i-share') + 'Enviar link</button>' : '') + '</div>' +
         '<button class="linkish center" type="button" data-camstep="">Voltar</button>';
       $('#camBody').innerHTML = h;
       openSheet('#sheetCam');
@@ -3469,7 +3490,7 @@
       const sl = $('#camShareLink'); if (sl) sl.onclick = () => navigator.share({ title: 'Câmera da partida', text: 'Abra para gravar a partida ' + match.teams[0].name + ' × ' + match.teams[1].name + ' no ULTRA PLAY', url }).catch(() => {});
       return;
     }
-    h = (on ? '<div class="cam-now"><i class="rec-dot"></i><span><b>Gravando neste celular</b><small>' + fmtClock(Date.now() - recState.startedAt) + ' · a imagem fica guardada só aqui</small></span></div>' +
+    h = (match.camTopic ? '<div id="camLinkBox">' + camLinkHTML() + '</div>' : '') + (on ? '<div class="cam-now"><i class="rec-dot"></i><span><b>Gravando neste celular</b><small>' + fmtClock(Date.now() - recState.startedAt) + ' · a imagem fica guardada só aqui</small></span></div>' +
         '<div class="actions"><button class="btn" type="button" id="camMiniToggle">' + ic('i-camera') + (recState.mini ? 'Esconder a imagem' : 'Mostrar a imagem') + '</button><button class="btn" type="button" id="camFlipHere">' + ic('i-flip') + 'Trocar câmera</button></div>' +
         '<button class="btn-primary danger-fill" type="button" id="camStop">Parar gravação</button>'
       : '<p class="hint">Grave a partida e veja depois o vídeo de cada ponto: o horário de cada lance marcado acha o momento certo no vídeo.' + (isPro() ? '' : ' <span class="pro-badge">PRO</span>') + '</p>' +
@@ -3481,8 +3502,13 @@
   }
   function wireCam() {
     $('#btnCam').addEventListener('click', () => openCam());
-    $('#recMini').addEventListener('click', () => { clearTimeout(recState.miniT); recState.mini = !recState.mini; renderRecDock(); });
+    $('#recMini').addEventListener('click', () => {
+      const s = recState.r && recState.r.state;
+      if (s && s.interrupted && !s.recording) { recState.r.start().then(() => { requestWakeLock(); toast('Gravando de novo'); }).catch(() => {}); return; }
+      clearTimeout(recState.miniT); recState.mini = !recState.mini; renderRecDock();
+    });
     $('#camBody').addEventListener('click', e => {
+      const cmd = e.target.closest('[data-camcmd]'); if (cmd) { if (linkP.ch) { linkP.ch.send({ t: 'cmd', do: cmd.dataset.camcmd }); toast(cmd.dataset.camcmd === 'start' ? 'Pedido enviado: a câmera começa a gravar' : 'Pedido enviado: a câmera para de gravar'); } return; }
       if (e.target.closest('#camHere')) { startRecHere(); return; }
       const st = e.target.closest('[data-camstep]'); if (st) { if (!isPro() && st.dataset.camstep) { openPro('gravar', () => openCam('outro')); return; } openCam(st.dataset.camstep || ''); return; }
       if (e.target.closest('#camStop')) { closeSheet('#sheetCam'); stopRecHere(); return; }
@@ -3490,10 +3516,19 @@
       if (e.target.closest('#camFlipHere') && recState.r) recState.r.flip();
     });
     // modo câmera
-    $('#camRec').addEventListener('click', () => (cam.r && cam.r.state.recording ? camStop() : camStart()));
+    $('#camRec').addEventListener('click', () => {
+      if (cam.r && cam.r.state.recording) { camStop(); return; }
+      if (cam.r && cam.r.state.interrupted) { cam.r.start().then(() => { requestWakeLock(); clearInterval(cam.timer); cam.timer = setInterval(renderCamState, 1000); renderCamState(); }).catch(() => renderCamState()); return; }
+      camStart();
+    });
     $('#camFlip').addEventListener('click', () => { if (cam.r) cam.r.flip(); else { cam.facing = cam.facing === 'environment' ? 'user' : 'environment'; camPreview(); } });
-    $('#camBack').addEventListener('click', async () => { if (cam.r && cam.r.state.recording && !confirm('Parar a gravação e sair do modo câmera?')) return; await camStop(true); camRelease(); go('inicio'); });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (cam.r && cam.r.state.recording || recState.r)) requestWakeLock(); });
+    $('#camBack').addEventListener('click', async () => { if (cam.r && cam.r.state.recording && !confirm('Parar a gravação e sair do modo câmera?')) return; await camStop(true); camRelease(); linkCloseCamera(); go('inicio'); });
+    // voltou para o app: tenta continuar a gravação sozinho (se o aparelho pedir um toque, o botão fica à mostra)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (recState.r) { requestWakeLock(); const s = recState.r.state; if (s.interrupted && !s.recording) recState.r.start().then(() => toast('Gravação retomada')).catch(() => renderRecDock()); }
+      if (cam.r) { requestWakeLock(); const s = cam.r.state; if (s.interrupted && !s.recording) cam.r.start().then(() => { toast('Gravação retomada'); renderCamState(); }).catch(() => renderCamState()); }
+    });
     $('#btnVidClear').addEventListener('click', async e => {
       const b = e.currentTarget;
       if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Toque de novo'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Apagar'; }, 4000); return; }
@@ -3514,7 +3549,7 @@
       const id = typeof d.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d.id) ? d.id : null;
       if (!id) return null;
       const n = Array.isArray(d.n) ? d.n : [], c = Array.isArray(d.c) ? d.c : [];
-      return { id, names: [cTxt(n[0], 30) || 'Verde', cTxt(n[1], 30) || 'Laranja'], colors: [pickIn(c[0], PALETTE.map(p => p.id)) || 'verde', pickIn(c[1], PALETTE.map(p => p.id)) || 'laranja'], sport: pickIn(d.sp, Object.keys(E.SPORTS)) || 'beach', by: cTxt(d.by, 40) };
+      return { id, names: [cTxt(n[0], 30) || 'Verde', cTxt(n[1], 30) || 'Laranja'], colors: [pickIn(c[0], PALETTE.map(p => p.id)) || 'verde', pickIn(c[1], PALETTE.map(p => p.id)) || 'laranja'], sport: pickIn(d.sp, Object.keys(E.SPORTS)) || 'beach', by: cTxt(d.by, 40), k: RL && RL.validTopic(d.k) ? d.k : '' };
     } catch (e) { return null; }
   }
   async function camPreview() {
@@ -3531,6 +3566,8 @@
     $('#camRec').disabled = !CVd.supported();
     $('#camInfo').innerHTML = '<div class="cam-card"><span class="cam-match"><i class="tdot" style="--tc:' + colorVar(info.colors[0]) + '"></i>' + esc(info.names[0]) + ' <em>×</em> ' + esc(info.names[1]) + '<i class="tdot" style="--tc:' + colorVar(info.colors[1]) + '"></i></span><small>' + ic('s-' + info.sport) + esc(sportLabel(info.sport)) + (info.by ? ' · placar com ' + esc(firstName(info.by)) : '') + '</small></div>';
     if (!CVd.supported()) $('#camHint').textContent = 'Este navegador não grava vídeo. No iPhone, abra no Safari.';
+    if (info.k) linkOpenCamera(info.k); else linkCloseCamera();
+    renderCamPlacar();
     renderCamState();
     if (!cam.r) camPreview();
   }
@@ -3538,15 +3575,20 @@
     const on = !!(cam.r && cam.r.state.recording);
     const s = cam.r ? cam.r.state : null;
     $('#view-camera').classList.toggle('recording', on);
-    $('#camState').textContent = on ? 'Gravando' : s && s.segs ? 'Gravação parada' : 'Pronta para gravar';
+    const cut = !!(s && s.interrupted && !on);
+    $('#view-camera').classList.toggle('interrupted', cut);
+    $('#camState').textContent = on ? 'Gravando' : cut ? 'Parou · toque em gravar' : s && s.segs ? 'Gravação parada' : 'Pronta para gravar';
     $('#camTime').textContent = on || (s && s.segs) ? fmtClock((on ? Date.now() : cam.stoppedAt || Date.now()) - (s ? s.startedAt : Date.now())) : '';
     $('#camRec').setAttribute('aria-label', on ? 'Parar' : 'Gravar');
     $('#camMeta').textContent = s && s.segs ? CVd.fmtMB(s.bytes) + ' guardados neste aparelho' : '';
-    if (!on && s && s.segs) $('#camHint').innerHTML = 'Pronto, o vídeo está guardado <b>neste aparelho</b>. Quando a partida acabar, abra aqui o <b>link das estatísticas</b> que o placar enviar: cada ponto vira um lance em vídeo.';
+    if (cut) $('#camHint').textContent = 'A gravação parou porque o app saiu da tela. Toque no botão para continuar; o que já foi gravado está guardado.';
+    else if (!on && s && s.segs) $('#camHint').innerHTML = 'Pronto, o vídeo está guardado <b>neste aparelho</b>. Quando a partida acabar, abra aqui o <b>link das estatísticas</b> que o placar enviar: cada ponto vira um lance em vídeo.';
     else if (on) $('#camHint').textContent = 'Não feche esta tela nem bloqueie o celular: a gravação para se o app sair da tela.';
+    camStatus();
   }
   async function camStart() {
     if (!cam.info) return;
+    if (!(await roomForVideo())) return;
     camRelease();
     cam.r = CVd.createRecorder({ matchId: cam.info.id, label: cam.info.names.join(' × '), device: 'camera', facing: cam.facing, preview: $('#camVideo'), onState: st => { if (st.error) toast(st.error); renderCamState(); } });
     try { await cam.r.start(); } catch (e) { cam.r = null; renderCamState(); return; }
@@ -3724,6 +3766,95 @@
     }
     const pr = $('#pRemote'); if (pr) pr.addEventListener('change', e => { if (e.target.checked) remoteStart().then(ok => { if (ok) toast('Controle ligado: próxima = ponto ' + name(0) + ', anterior = ponto ' + name(1)); else e.target.checked = false; }); else { remoteStop(); toast('Controle do relógio desligado'); } });
     renderRemote();
+  }
+
+  // ----- conexão placar ↔ câmera (canal por partida; ver relay.js) -----
+  // Placar: sabe quando a câmera conectou, está gravando, parou ou sumiu; manda iniciar/parar; avisa o tempo morto.
+  const RL = window.CantaRelay;
+  const linkP = { ch: null, topic: '', cam: null, seen: 0, lost: false, dog: 0 };
+  const camOnline = () => !!(linkP.cam && Date.now() - linkP.seen < 150000);
+  const camLabel = c => (c && c.dev) || 'Outro aparelho';
+  function linkOpenPlacar() {
+    if (!match || !RL) return;
+    if (!match.camTopic) { match.camTopic = RL.newTopic(); save(); }
+    if (linkP.ch && linkP.topic === match.camTopic) return;
+    if (linkP.ch) linkP.ch.close();
+    linkP.topic = match.camTopic; linkP.cam = null; linkP.seen = 0; linkP.lost = false;
+    linkP.ch = RL.open(match.camTopic, 'placar', onCamMsg);
+    if (linkP.ch) linkP.ch.send({ t: 'hello' });
+    clearInterval(linkP.dog);
+    linkP.dog = setInterval(() => {
+      if (linkP.cam && linkP.cam.s === 'rec' && !camOnline() && !linkP.lost) { linkP.lost = true; toast('Sem notícias da câmera (' + camLabel(linkP.cam) + ') há 2 min. Ela pode ter perdido o sinal; o que já gravou fica lá.'); renderCamLink(); }
+      else if ($('#camLinkBox')) renderCamLink(); // folha aberta: cronômetro da câmera andando
+    }, 1000);
+  }
+  function linkClosePlacar(end) {
+    if (end && linkP.ch) { const ch = linkP.ch; ch.send({ t: 'end' }); linkP.ch = null; setTimeout(() => ch.close(), 4000); } if (linkP.ch) linkP.ch.close(); linkP.ch = null; linkP.topic = ''; linkP.cam = null; clearInterval(linkP.dog); renderCamLink(); }
+  function onCamMsg(m, at) {
+    if (m.from !== 'camera' || m.t !== 'cam') return;
+    const before = linkP.cam ? linkP.cam.s : null;
+    linkP.cam = { s: pickIn(m.s, ['ready', 'rec', 'stop', 'cut']) || 'ready', dev: cTxt(m.dev, 20), ms: Number(m.ms) || 0, mb: Number(m.mb) || 0, due: !!m.due, at: Date.now() };
+    linkP.seen = Date.now(); linkP.lost = false;
+    const s = linkP.cam.s, who = camLabel(linkP.cam);
+    if (s !== before) {
+      if (s === 'ready' && !before) toast(who + ' conectou como câmera');
+      if (s === 'rec') toast(who + ' está gravando a partida');
+      if (s === 'stop' && before === 'rec') toast(who + ' parou de gravar');
+      if (s === 'cut') toast('A gravação no ' + who + ' parou (o app saiu da tela lá). Peça para tocar em gravar.');
+    }
+    renderCamLink();
+  }
+  // pontos marcados aqui: a câmera conectada corta o trecho no tempo morto (só quando o trecho dela já está maduro)
+  function linkSend(m) { if (linkP.ch && m && m.t === 'pt' && linkP.cam && linkP.cam.s === 'rec' && linkP.cam.due) { linkP.cam.due = false; linkP.ch.send(m); } }
+  function camLinkHTML() {
+    if (!match || !match.camTopic) return '';
+    const c = linkP.cam, on = camOnline();
+    if (!c) return '<div class="cam-link wait"><i class="dot"></i><span><b>Esperando a câmera</b><small>Quando o outro aparelho abrir o link, aparece aqui.</small></span></div>';
+    const st = !on ? 'Sem notícias há ' + Math.round((Date.now() - linkP.seen) / 60000) + ' min' : c.s === 'rec' ? 'Gravando · ' + fmtClock(c.ms + Date.now() - c.at) + (c.mb ? ' · ' + c.mb + ' MB' : '') : c.s === 'cut' ? 'Parou (o app saiu da tela lá)' : c.s === 'stop' ? 'Gravação parada' : 'Conectada, pronta para gravar';
+    return '<div class="cam-link ' + (on ? c.s : 'lost') + '"><i class="dot"></i><span><b>' + esc(camLabel(c)) + ' · câmera</b><small>' + esc(st) + '</small></span>' +
+      (on ? (c.s === 'rec' ? '<button class="btn btn-sm" type="button" data-camcmd="stop">Parar lá</button>' : '<button class="btn btn-sm btn-brand" type="button" data-camcmd="start">Gravar lá</button>') : '') + '</div>';
+  }
+  function renderCamLink() {
+    const box = $('#camLinkBox'); if (box) box.innerHTML = camLinkHTML();
+    const c = linkP.cam, remoteRec = !!(c && c.s === 'rec' && camOnline());
+    $('#btnCam').classList.toggle('cam2', remoteRec);
+    $('#btnCam').title = remoteRec ? 'Outro aparelho está gravando' : 'Gravar a partida em vídeo';
+  }
+
+  // Câmera: manda o status ao placar a cada mudança e a cada minuto; obedece iniciar/parar; corta no tempo morto.
+  const linkC = { ch: null, hb: 0, last: '', placarAt: 0 };
+  function camStatus(force) {
+    if (!linkC.ch) return;
+    const s = cam.r ? cam.r.state : null;
+    const st = s && s.recording ? 'rec' : s && s.interrupted ? 'cut' : s && s.segs ? 'stop' : 'ready';
+    const key = st;
+    if (!force && key === linkC.last) return;
+    linkC.last = key;
+    linkC.ch.send({ t: 'cam', s: st, dev: RL.deviceLabel(), ms: s && s.startedAt ? Date.now() - s.startedAt : 0, mb: s ? Math.round(s.bytes / 1e6) : 0, due: !!(cam.r && cam.r.due) });
+  }
+  function linkOpenCamera(topic) {
+    if (!RL || !RL.validTopic(topic)) return;
+    if (linkC.ch) linkC.ch.close();
+    linkC.ch = RL.open(topic, 'camera', (m, meta) => {
+      if (m.from !== 'placar') return;
+      if (meta && meta.old && m.t !== 'hello') return; // pedido de gravar/parar de antes de abrir aqui: ignora
+      linkC.placarAt = Date.now(); renderCamPlacar();
+      if (m.t === 'hello') camStatus(true);
+      if (m.t === 'pt' && cam.r && cam.r.state.recording) { cam.r.safeCut(); setTimeout(() => camStatus(true), 500); }
+      if (m.t === 'cmd' && m.do === 'start' && !(cam.r && cam.r.state.recording)) { if (cam.r && cam.r.state.interrupted) cam.r.start().then(() => renderCamState()).catch(() => {}); else camStart(); }
+      if (m.t === 'cmd' && m.do === 'stop' && cam.r && cam.r.state.recording) camStop();
+      if (m.t === 'end') { if (cam.r && cam.r.state.recording) camStop(true).then(() => toast('A partida acabou no placar: gravação parada')); linkC.ended = true; renderCamPlacar(); }
+    });
+    camStatus(true);
+    clearInterval(linkC.hb); linkC.hb = setInterval(() => camStatus(true), 60000);
+  }
+  function linkCloseCamera() { if (linkC.ch) linkC.ch.close(); linkC.ch = null; clearInterval(linkC.hb); }
+  function renderCamPlacar() {
+    const el = $('#camPlacar'); if (!el) return;
+    const on = Date.now() - linkC.placarAt < 180000;
+    el.hidden = !linkC.ch;
+    el.classList.toggle('on', on);
+    el.textContent = linkC.ended ? 'Partida encerrada no placar' : on ? 'Conectada ao placar' : 'Esperando o placar';
   }
 
   function deleteMatch(id, btn) {
@@ -3969,6 +4100,7 @@
     wireSocial();
     wireLinks();
     wireCam();
+    if (match && match.camTopic && match.events.length) linkOpenPlacar(); // partida em andamento com câmera conectada: volta a ouvir
     wireClips();
     wireRemote();
     askPersist();

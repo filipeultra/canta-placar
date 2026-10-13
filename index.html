@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- segurança: só roda script do próprio app (e do motor de voz offline); bloqueia código injetado em textos -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net blob: 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' https://cdn.jsdelivr.net https://ccoreilly.github.io blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net blob: 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' https://ntfy.sh https://cdn.jsdelivr.net https://ccoreilly.github.io blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#F3F4F1" media="(prefers-color-scheme: light)">
 <link rel="preload" href="fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -311,7 +311,7 @@
       <div class="cam-status" id="camStatus"><i class="rec-dot"></i><b id="camState">Pronta para gravar</b><span id="camTime"></span></div>
       <button class="icon-btn" type="button" id="camFlip" title="Trocar de câmera"><svg><use href="#i-flip"/></svg></button>
     </header>
-    <div class="cam-info" id="camInfo"></div>
+    <div class="cam-info"><div id="camInfo"></div><span class="cam-placar" id="camPlacar" role="status" hidden></span></div>
     <footer class="cam-foot">
       <p class="cam-hint" id="camHint">Apoie o celular mostrando a quadra inteira. A tela fica ligada enquanto grava.</p>
       <button class="cam-rec" type="button" id="camRec" aria-label="Gravar"><span></span></button>
@@ -879,6 +879,7 @@
 <script src="share.js"></script>
 <script src="vendor/gifenc.js"></script>
 <script src="motion.js"></script>
+<script src="relay.js"></script>
 <script src="video.js"></script>
 <script src="social.js"></script>
 <script src="voice.js"></script>
