@@ -2316,3 +2316,86 @@ body[data-view="jogar"] .tab-scrim, body.tv .tab-scrim { display: none; }
 .wl-note { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; margin: 0 0 2px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); color: rgba(244, 245, 244, 0.8); font-size: 13px; line-height: 1.45; }
 .wl-note .ic { font-size: 18px; color: #AFFB48; margin-top: 1px; }
 .wl-note b { color: #FFFFFF; }
+
+/* ---------- v15 · gravação da partida em vídeo ---------- */
+.cam-btn { position: relative; }
+.cam-btn .cam-live { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #FF3B30; box-shadow: 0 0 0 2px var(--surface); opacity: 0; }
+.cam-btn.on { color: #FF3B30; }
+.cam-btn.on .cam-live { opacity: 1; animation: recBlink 1.4s ease-in-out infinite; }
+@keyframes recBlink { 50% { opacity: 0.25; } }
+.rec-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #FF3B30; box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.25); animation: recBlink 1.4s ease-in-out infinite; flex: none; }
+/* miniatura no placar: canto inferior direito, acima do dock; tocando, vira só o selo REC */
+.rec-dock { position: fixed; right: 12px; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); z-index: 30; }
+@media (max-width: 600px) { body.panel-on .rec-dock { display: none; } } /* com o painel aberto, o ícone vermelho da câmera no topo já mostra que está gravando */
+body.panel-on .rec-dock { bottom: auto; top: calc(64px + env(safe-area-inset-top, 0px)); }
+.rec-mini { position: relative; display: block; width: 96px; aspect-ratio: 9 / 16; padding: 0; border: 0; border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 0 0 1.5px rgba(255, 59, 48, 0.7), 0 12px 30px -8px rgba(0, 0, 0, 0.6); cursor: pointer; }
+.rec-mini video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rec-pill { position: absolute; left: 6px; right: 6px; bottom: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #FFFFFF; font: 800 11px/1 var(--font-cond); letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+.rec-pill .rec-dot { width: 7px; height: 7px; box-shadow: none; }
+.rec-dock.mini-off .rec-mini { width: auto; aspect-ratio: auto; background: rgba(0, 0, 0, 0.72); border-radius: 999px; }
+.rec-dock.mini-off .rec-mini video { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.rec-dock.mini-off .rec-pill { position: static; padding: 8px 12px; }
+@media (min-width: 900px) { .rec-mini { width: 132px; aspect-ratio: 16 / 10; } }
+/* folha Gravar a partida */
+.cam-opt { width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) 16px; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--hair); border-radius: 18px; background: var(--surface-2); color: inherit; text-align: left; font: inherit; }
+.cam-opt b { display: block; font: 700 15px/1.25 var(--font-display); }
+.cam-opt small { color: var(--fg-2); font-size: 12.5px; line-height: 1.35; }
+.cam-opt .choose-ic { width: 44px; height: 44px; }
+.cam-now { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, #FF3B30 10%, var(--surface-2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, #FF3B30 30%, transparent); }
+.cam-now b { display: block; font: 700 15px/1.2 var(--font-display); }
+.cam-now small { color: var(--fg-2); font-size: 12.5px; }
+.btn-primary.danger-fill { background: #FF3B30; color: #FFFFFF; box-shadow: 0 12px 26px -12px rgba(255, 59, 48, 0.7); }
+.cam-qr { display: grid; place-items: center; width: min(240px, 70vw); aspect-ratio: 1; margin: 0 auto; padding: 12px; border-radius: 18px; background: #FFFFFF; }
+.cam-qr svg { width: 100%; height: 100%; display: block; }
+.cam-qr .hint { color: #333; }
+.cam-steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--fg-2); font-size: 13.5px; line-height: 1.45; }
+.cam-steps b { color: var(--fg); }
+.hint.small { font-size: 12px; }
+/* modo câmera: tela cheia com a imagem, selo de gravação e um botão grande */
+body[data-view="camera"] .tabbar, body[data-view="camera"] .tab-scrim { display: none; }
+.view-camera { position: relative; background: #000; color: #FFFFFF; overflow: hidden; }
+.view-camera #camVideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 22%, rgba(0, 0, 0, 0) 64%, rgba(0, 0, 0, 0.7)); }
+.cam-top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
+.cam-top .icon-btn { background: rgba(0, 0, 0, 0.45); color: #FFFFFF; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.cam-status { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(0, 0, 0, 0.5); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font: 700 13px/1 var(--font-display); }
+.cam-status .rec-dot { background: rgba(255, 255, 255, 0.5); box-shadow: none; animation: none; }
+.view-camera.recording .cam-status { background: rgba(255, 59, 48, 0.88); }
+.view-camera.recording .cam-status .rec-dot { background: #FFFFFF; animation: recBlink 1.4s ease-in-out infinite; }
+.cam-status span { font: 800 14px/1 var(--font-cond); font-variant-numeric: tabular-nums; }
+.view-camera.recording { box-shadow: inset 0 0 0 3px rgba(255, 59, 48, 0.85); }
+.cam-info { position: absolute; left: 12px; right: 12px; top: calc(64px + env(safe-area-inset-top, 0px)); display: flex; justify-content: center; }
+.cam-card { display: grid; justify-items: center; gap: 3px; padding: 8px 14px; border-radius: 14px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); text-align: center; }
+.cam-card b { font: 700 14px/1.2 var(--font-display); }
+.cam-card small { display: inline-flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, 0.75); font-size: 12px; }
+.cam-card small .ic { font-size: 14px; }
+.cam-match { display: inline-flex; align-items: center; gap: 8px; font: 800 16px/1.2 var(--font-display); }
+.cam-match em { font-style: normal; color: rgba(255, 255, 255, 0.6); }
+.cam-match .tdot { width: 9px; height: 9px; border-radius: 50%; background: var(--tc); display: inline-block; }
+.cam-foot { position: absolute; left: 0; right: 0; bottom: 0; display: grid; justify-items: center; gap: 12px; padding: 0 20px calc(22px + env(safe-area-inset-bottom, 0px)); text-align: center; }
+.cam-hint { margin: 0; max-width: 360px; color: rgba(255, 255, 255, 0.85); font-size: 13.5px; line-height: 1.45; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); }
+.cam-rec { width: 76px; height: 76px; display: grid; place-items: center; padding: 0; border: 4px solid #FFFFFF; border-radius: 50%; background: transparent; cursor: pointer; }
+.cam-rec span { width: 58px; height: 58px; border-radius: 50%; background: #FF3B30; transition: all 0.2s; }
+.view-camera.recording .cam-rec span { width: 30px; height: 30px; border-radius: 8px; }
+.cam-rec:disabled { opacity: 0.4; }
+.cam-meta { min-height: 1em; color: rgba(255, 255, 255, 0.7); font: 600 12px/1 var(--font-display); }
+@media (orientation: landscape) and (max-height: 520px) { .cam-foot { left: auto; top: 0; width: 160px; align-content: center; padding: 0 16px; } .cam-hint { font-size: 12px; } .cam-info { top: auto; bottom: 12px; left: 12px; right: auto; } }
+/* lances em vídeo */
+.clips-body { gap: 12px; }
+.clip-stage { position: relative; border-radius: 16px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; }
+.clip-stage video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+.clip-empty { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, 0.7); font-size: 13px; }
+.clip-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.clip-cur { font: 700 13px/1 var(--font-display); color: var(--fg-2); }
+.clip-nav { display: inline-flex; gap: 6px; }
+.clip-sync { display: inline-flex; align-items: center; gap: 6px; }
+.clip-sync b { min-width: 34px; text-align: center; font: 800 14px/1 var(--font-cond); font-variant-numeric: tabular-nums; }
+.clip-list { display: grid; gap: 2px; max-height: 38vh; max-height: 38dvh; overflow-y: auto; overscroll-behavior: contain; }
+.clip-row { display: grid; grid-template-columns: 26px 8px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 8px; border: 0; border-radius: 12px; background: none; color: inherit; text-align: left; font: inherit; }
+.clip-row i { width: 8px; height: 8px; border-radius: 50%; background: var(--tc); }
+.clip-row.on { background: var(--brand-soft); }
+.clip-row.none { opacity: 0.45; }
+.clip-what b { display: block; font: 800 14px/1.15 var(--font-cond); letter-spacing: 0.01em; }
+.clip-what small { color: var(--fg-2); font-size: 12px; }
+.clip-play { font-size: 16px; color: var(--brand-ink); }
+.clip-no { color: var(--fg-3); font-size: 11px; }

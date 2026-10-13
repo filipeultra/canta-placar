@@ -36,6 +36,25 @@ Durante a partida, avisos curtos comparando com o histórico de cada jogador. Po
 
 Aparecem no placar, no modo TV e, opcionalmente, falados.
 
+## 4. Gravação da partida em vídeo (Pro)
+
+### Já existe (versão básica, sem servidor)
+- **Gravar com o próprio celular do placar:** botão de câmera no placar. A imagem aparece só nos primeiros 8 segundos, para posicionar o celular; depois fica um selo "● 00:11" no canto (tocando, a imagem volta). Só imagem, sem som, para o microfone continuar livre para a voz.
+- **Outro aparelho como câmera:** QR Code ou link. O outro celular ou notebook vira câmera em tela cheia, com selo de gravando, cronômetro e espaço usado. Pode usar os dois ao mesmo tempo.
+- **Cada ponto vira um lance em vídeo:** cada lance guarda o horário em que foi marcado, e o vídeo é gravado em trechos de 2 minutos com o horário de início. O app acha o momento pelo relógio e mostra uns 8 segundos antes do ponto. Há ajuste de sincronia (±1 s) caso os relógios dos aparelhos não batam.
+- **No aparelho que gravou:** no fim, o placar manda o link das estatísticas para o aparelho câmera; lá, cada ponto já aparece com o vídeo (sem mandar arquivo pesado). Salvar o vídeo (Fotos/Arquivos) e apagar.
+- **Armazenamento:** os vídeos ficam só no aparelho que gravou, com espaço usado em Ajustes e botão para apagar. Cerca de 9 MB por minuto (720p).
+
+### Para depois
+1. **Vídeo na nuvem (Pro):** subir os trechos para a conta, para ver em qualquer aparelho, inclusive no celular do placar quando a câmera foi outro aparelho.
+2. **Limite de armazenamento "vitalício":** X horas guardadas no total enquanto for Pro (não renova por mês, porque as partidas ficam até a pessoa apagar). Ao cancelar o Pro, os vídeos ficam disponíveis por X dias para renovar ou baixar tudo; depois são excluídos (com avisos antes).
+3. **Aparelhos conectados ao vivo:** o placar ver que a câmera está online e gravando, iniciar e parar a gravação dos dois de um lugar só (precisa de servidor de sinalização / WebRTC).
+4. **Marcar assistindo:** gravar sem marcar o placar e, depois, assistir e lançar os pontos em cada momento (Ponto Verde, Ponto Laranja, ou com detalhe: winner, erro, ace). Também acertar o momento de pontos marcados fora de hora.
+5. **Juntar os trechos num vídeo só** ao salvar, com opção de cortar só os lances.
+6. **Transmissão ao vivo:** usar o celular ou outras câmeras para transmitir no YouTube ou Instagram (chave de transmissão), com layout de placar e estatísticas na tela, já que tudo é registrado ao vivo.
+7. **Som opcional** na gravação (hoje é só imagem, para não disputar o microfone com a voz).
+8. **Câmeras das arenas parceiras** no mesmo esquema de horário e quadra (ver `MARKETING.md`).
+
 ## Antes de abrir para o público (checklist)
 
 Já feito na revisão de 12/10/2026:

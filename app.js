@@ -133,6 +133,8 @@
     const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
     const m = { id: typeof raw.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw.id) ? raw.id : uid(), createdAt: num(raw.createdAt) || Date.now(), endedAt: num(raw.endedAt), cfgInput: cfg, teams, events, redo: [], finished: true, post };
     if (manual) m.manual = manual;
+    const vk = raw.vid || raw.oid;
+    if (typeof vk === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(vk)) m.vid = vk; // vídeo gravado com o id original da partida
     return validMatch(m);
   }
   const lookOfSafe = v => { const o = {}; for (const k of ['bg', 'chart', 'score', 'plays', 'playsMode', 'names', 'stats', 'speed', 'out', 'opacity']) if (typeof v[k] === 'string' || typeof v[k] === 'boolean' || typeof v[k] === 'number') o[k] = v[k]; return o; };
@@ -975,6 +977,7 @@
 
   function renderStats() {
     $('#statsBody').innerHTML = sumHTML(match, S.matchStats(match), true);
+    fillVideoPanels($('#statsBody'));
   }
 
   // Fim de jogo
@@ -1152,7 +1155,7 @@
 
   let currentView = 'inicio', currentMatchId = null;
   const navStack = []; // telas anteriores, para o botão voltar (a rota usa replaceState, sem histórico do navegador)
-  const ID_VIEWS = ['partida', 'atividade', 'perfil'];
+  const ID_VIEWS = ['partida', 'atividade', 'perfil', 'camera'];
   const OPT_ID_VIEWS = ['entrar'];
   function go(view, id, back) {
     if (SCREEN) view = 'jogar';
@@ -1172,6 +1175,7 @@
     if (view === 'perfil') renderPerfil(id);
     if (view === 'notificacoes') renderNotifs();
     if (view === 'entrar') renderEntrar(id);
+    if (view === 'camera') renderCamera(id); else if (typeof camRelease === 'function' && !(cam.r && cam.r.state.recording)) camRelease();
     if (view === 'voce') renderMe();
     if (view === 'jogar') { render(); renderVoice(); }
     const hash = '#' + view + (id ? '-' + id : '');
@@ -1191,6 +1195,7 @@
     if (h.startsWith('perfil-')) return go('perfil', h.slice(7));
     if (h === 'entrar' || h.startsWith('entrar-')) return go('entrar', h.slice(7) || null);
     if (h.startsWith('ver-')) return openStatLink(h.slice(4));
+    if (h.startsWith('camera-')) return go('camera', h.slice(7));
     if (['inicio', 'jogar', 'voce', 'notificacoes'].includes(h)) return go(h);
     go('inicio');
   }
@@ -1305,6 +1310,7 @@
     const mid = live && !embed ? 'live' : esc(m.id);
     h += '<div class="panel">' + ph('i-activity', 'Momento', '<span class="ph-btns">' + (canReplay(m) ? '<button class="btn btn-sm" type="button" data-replay="' + mid + '"' + (embed || live ? '' : ' data-own="1"') + '>' + ic('i-replay') + 'Replay</button>' : '') +
       '<button class="btn btn-sm" type="button" data-action="moment" data-mid="' + mid + '">' + ic('i-expand') + 'Ponto a ponto' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button></span>') + momentumSvgFor(st, m.teams) + '</div>';
+    h += '<div class="panel vid-panel" data-vidfor="' + esc(videoKey(m)) + '" data-mid="' + mid + '" hidden></div>';
     const leg = '<div class="legend"><span><i style="--tc:' + colorVar(m.teams[0].color) + '"></i>' + esc(m.teams[0].name) + '</span><span>' + esc(m.teams[1].name) + '<i style="--tc:' + colorVar(m.teams[1].color) + '"></i></span></div>';
     let comp = bkRow('Pontos ganhos', T[0].pts, T[1].pts, m.teams);
     if (st.cfg.kind === 'games') comp += bkRow('Pontos no saque', T[0].serveWon, T[1].serveWon, m.teams);
@@ -2253,7 +2259,7 @@
     });
     const p = m.post || {};
     const data = { v: 1, c: m.cfgInput, tm: m.teams.map(t => ({ n: t.name, c: t.color, p: t.players })), e, t0, a: m.createdAt, z: m.endedAt, by: prefs.myName || '',
-      p: { type: p.type, title: p.title, caption: p.caption, place: p.place }, man: m.manual || null };
+      p: { type: p.type, title: p.title, caption: p.caption, place: p.place }, man: m.manual || null, oid: videoKey(m) };
     const raw = new TextEncoder().encode(JSON.stringify(data));
     if (window.CompressionStream) { try { return 'z' + b64url(await zip(raw, true)); } catch (err) { console.warn('[link] compressão falhou, vai sem', err); } }
     return 'j' + b64url(raw);
@@ -2268,7 +2274,7 @@
       id: 'link-' + h.toString(36), createdAt: d.a, endedAt: d.z, cfgInput: d.c,
       teams: Array.isArray(d.tm) ? d.tm.map(t => ({ name: t && t.n, color: t && t.c, players: t && t.p })) : null,
       events: Array.isArray(d.e) ? d.e.map(ev => Object.assign({}, ev, ev && typeof ev.t === 'number' ? { t: t0 + ev.t * 100 } : {})) : null,
-      post: Object.assign({}, d.p || {}, { status: 'publicada' }), manual: d.man || undefined,
+      post: Object.assign({}, d.p || {}, { status: 'publicada' }), manual: d.man || undefined, vid: d.oid,
     });
     if (!m) throw new Error('partida inválida no link');
     m.sharedBy = cTxt(d.by, 40); m.fromLink = true;
@@ -2338,7 +2344,7 @@
     // quem eu era vira eu: nos times e em cada lance, para os números contarem para mim (como na reivindicação)
     const ren = n => (who && n === who ? me : n);
     const copy = JSON.parse(JSON.stringify(m));
-    copy.id = uid(); delete copy.fromLink; delete copy.sharedBy;
+    copy.id = uid(); copy.vid = videoKey(m); delete copy.fromLink; delete copy.sharedBy;
     copy.teams.forEach(t => { t.players = (t.players || []).map(ren); });
     copy.events.forEach(ev => { if (ev.player) ev.player = ren(ev.player); if (ev.assist) ev.assist = ren(ev.assist); });
     copy.post = Object.assign({}, copy.post, { status: 'publicada', linkId: m.id, fromLinkBy: m.sharedBy || '', claimed: who || undefined, visibility: 'seguidores' });
@@ -2487,7 +2493,7 @@
       hideWelcome('Conta criada. Bem-vindo, ' + firstName(n) + '!');
     });
     const h = location.hash || '';
-    if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar') && !h.startsWith('#ver-') && !h.startsWith('#partida-link-')) showWelcome();
+    if (!prefs.onboarded && !SCREEN && !params.get('demo') && !h.startsWith('#entrar') && !h.startsWith('#ver-') && !h.startsWith('#partida-link-') && !h.startsWith('#camera-')) showWelcome();
   }
 
   // ---------- Partida salva ----------
@@ -2500,8 +2506,9 @@
   function renderMatchView(id) {
     const m = findMatch(id);
     if (!m) { $('#matchBody').innerHTML = '<div class="empty-state"><b>Partida não encontrada</b><span>Ela pode ter sido excluída neste aparelho.</span></div>'; return; }
-    if (m.fromLink) { $('#matchBody').innerHTML = linkHeaderHTML(m) + sumHTML(m, S.matchStats(m), false, true); return; }
+    if (m.fromLink) { $('#matchBody').innerHTML = linkHeaderHTML(m) + sumHTML(m, S.matchStats(m), false, true); fillVideoPanels($('#matchBody')); return; }
     $('#matchBody').innerHTML = myPostHeaderHTML(m) + sumHTML(m, S.matchStats(m), false);
+    fillVideoPanels($('#matchBody'));
   }
 
   // ---------- Você (perfil) ----------
@@ -2727,6 +2734,7 @@
     momento: 'Momento ponto a ponto',
     exportar: 'Exportar planilha (CSV) e dados (JSON)',
     video: 'Vídeo animado da partida (MP4 e GIF)',
+    gravar: 'Gravar a partida em vídeo',
   };
   let proBack = null; // depois de ativar, volta para onde estava (ex.: gerar o vídeo)
   function openPro(feature, back) {
@@ -2735,6 +2743,7 @@
       '<div class="pro-hero"><span class="pro-badge big">PRO</span><h3>ULTRA PLAY Pro</h3><p>' + (feature ? 'Para usar <b>' + esc(PRO_FEATURES[feature] || feature) + '</b>, ative o Pro.' : 'Mais análise para quem leva o jogo a sério.') + '</p></div>' +
       '<ul class="pro-list">' +
       '<li><svg><use href="#i-activity"/></svg><span><b>Momento ponto a ponto</b>Cada ponto no gráfico e na lista, game a game: quem fez, ace, winner, erro, golpe e o placar naquele instante. Filtre por jogador ou tipo de lance.</span></li>' +
+      '<li><svg><use href="#i-camera"/></svg><span><b>Gravar a partida em vídeo</b>Com este celular (miniatura no canto) ou com outro aparelho pelo QR Code. Cada ponto marcado vira um lance em vídeo para assistir e mandar.</span></li>' +
       '<li><svg><use href="#i-film"/></svg><span><b>Vídeo animado da partida</b>O replay ponto a ponto vira vídeo MP4 ou GIF para o story: gráfico, placar e lances evoluindo, com fundo de quadra, foto ou vídeo seu, ou transparente.</span></li>' +
       '<li><svg><use href="#i-target"/></svg><span><b>Pontos decisivos</b>Break points, set points e match points convertidos e salvos por cada time, viradas na liderança e maior vantagem.</span></li>' +
       '<li><svg><use href="#i-download"/></svg><span><b>Exportar planilha e dados</b>Todos os lances em CSV para Excel e Google Planilhas, e em JSON para análise.</span></li>' +
@@ -2967,6 +2976,7 @@
   function finalize(opts) {
     const o = opts || {};
     if (!match.events.length) return false;
+    if (recState.r) stopRecHere(true); // fim da partida: fecha o vídeo junto
     // fica como rascunho até o Concluir da tela Salvar partida (assim nada se perde se a pessoa fechar)
     const saved = Object.assign({}, match, { endedAt: Date.now(), finished: true, redo: [], post: { status: 'rascunho' } });
     const hist = readHist().filter(m => m.id !== saved.id);
@@ -3391,6 +3401,249 @@
     return '<button class="act-replay" type="button" data-replay="' + esc(id) + '"' + (own ? ' data-own="1"' : '') + ' title="Ver o replay ponto a ponto" aria-label="Ver o replay ponto a ponto">' + sparkSvg(tl) + '<span class="rp-chip" aria-hidden="true">' + ic('i-replay') + '</span></button>';
   }
 
+  // ---------- Gravação da partida em vídeo (Pro) ----------
+  // No próprio celular do placar (miniatura discreta, sem atrapalhar a marcação) ou num segundo aparelho que vira
+  // câmera pelo QR Code/link. Cada aparelho guarda o próprio vídeo; os pontos acham o momento pelo horário.
+  const CVd = window.CantaVideo;
+  const recState = { r: null, matchId: null, startedAt: 0, timer: 0, mini: true };
+  const fmtClock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(x).padStart(2, '0'); };
+  const videoKey = m => (m && (m.vid || m.oid || m.id)) || '';
+  function renderRecDock() {
+    const on = !!(recState.r && recState.r.state.recording);
+    $('#recDock').hidden = !on;
+    $('#recDock').classList.toggle('mini-off', !recState.mini);
+    $('#btnCam').classList.toggle('on', on);
+    if (on) $('#recTime').textContent = fmtClock(Date.now() - recState.startedAt);
+  }
+  async function startRecHere() {
+    if (!isPro()) { openPro('gravar', () => openCam()); return; }
+    if (!CVd.supported()) { toast('Este navegador não grava vídeo. No iPhone, use o Safari ou o app instalado.'); return; }
+    closeSheet('#sheetCam');
+    recState.matchId = match.id;
+    recState.r = CVd.createRecorder({ matchId: match.id, label: match.teams[0].name + ' × ' + match.teams[1].name, device: 'placar', preview: $('#recPreview'),
+      onState: s => { if (s.error) toast(s.error); renderRecDock(); } });
+    try { await recState.r.start(); } catch (e) { recState.r = null; renderRecDock(); return; }
+    recState.startedAt = Date.now();
+    // a imagem aparece só no começo, para posicionar o celular; depois fica só o selo de gravação
+    recState.mini = true; clearTimeout(recState.miniT); recState.miniT = setTimeout(() => { recState.mini = false; renderRecDock(); }, 8000);
+    clearInterval(recState.timer); recState.timer = setInterval(renderRecDock, 1000);
+    requestWakeLock();
+    renderRecDock();
+    toast('Gravando. Os pontos que você marcar viram lances em vídeo.');
+  }
+  async function stopRecHere(quiet) {
+    if (!recState.r) return;
+    const r = recState.r; recState.r = null; clearInterval(recState.timer);
+    await r.stop();
+    renderRecDock();
+    const s = r.state;
+    if (!quiet) toast(s.segs ? 'Vídeo guardado: ' + fmtClock(Date.now() - recState.startedAt) + ' · ' + CVd.fmtMB(s.bytes) : 'Gravação parada');
+  }
+  // link do modo câmera: só o essencial para mostrar de que partida é (o vídeo fica no aparelho que grava)
+  function cameraLink() {
+    const d = { v: 1, id: match.id, n: match.teams.map(t => t.name), c: match.teams.map(t => t.color), sp: E.makeConfig(match.cfgInput).sport, by: prefs.myName || '' };
+    return location.origin + location.pathname + '#camera-' + b64url(new TextEncoder().encode(JSON.stringify(d)));
+  }
+  let qrLoad = null;
+  const loadQR = () => qrLoad || (qrLoad = new Promise((resolve, reject) => { if (window.qrcode) { resolve(); return; } const el = document.createElement('script'); el.src = 'vendor/qrcode.js'; el.onload = () => resolve(); el.onerror = () => { qrLoad = null; reject(new Error('não carregou o gerador de QR Code')); }; document.head.appendChild(el); }));
+  async function qrSVG(text) {
+    await loadQR();
+    const q = window.qrcode(0, 'M'); q.addData(text); q.make();
+    return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+  }
+  async function openCam(step) {
+    const on = !!(recState.r && recState.r.state.recording);
+    const used = await CVd.summary().then(l => l.reduce((n, x) => n + x.bytes, 0)).catch(() => 0);
+    let h;
+    if (step === 'outro') {
+      const url = cameraLink();
+      h = '<div class="cam-qr" id="camQr"><span class="hint">Gerando QR Code…</span></div>' +
+        '<ol class="cam-steps"><li>No outro celular (ou notebook), aponte a câmera para o QR Code ou abra o link.</li><li>Ele vira câmera: apoie mostrando a quadra e toque em gravar.</li><li>Marque os pontos aqui normalmente. No fim, mande o <b>link das estatísticas</b> para o aparelho que gravou: lá, cada ponto vira um lance em vídeo.</li></ol>' +
+        '<div class="actions"><button class="btn" type="button" data-copy="' + esc(url) + '">' + ic('i-copy') + 'Copiar link</button>' + (navigator.share ? '<button class="btn btn-brand" type="button" id="camShareLink">' + ic('i-share') + 'Enviar link</button>' : '') + '</div>' +
+        '<button class="linkish center" type="button" data-camstep="">Voltar</button>';
+      $('#camBody').innerHTML = h;
+      openSheet('#sheetCam');
+      qrSVG(url).then(svg => { const box = $('#camQr'); if (box) box.innerHTML = svg; }).catch(e => { const box = $('#camQr'); if (box) box.innerHTML = '<span class="hint">' + esc(e.message) + '. Use o link.</span>'; });
+      const sl = $('#camShareLink'); if (sl) sl.onclick = () => navigator.share({ title: 'Câmera da partida', text: 'Abra para gravar a partida ' + match.teams[0].name + ' × ' + match.teams[1].name + ' no ULTRA PLAY', url }).catch(() => {});
+      return;
+    }
+    h = (on ? '<div class="cam-now"><i class="rec-dot"></i><span><b>Gravando neste celular</b><small>' + fmtClock(Date.now() - recState.startedAt) + ' · a imagem fica guardada só aqui</small></span></div>' +
+        '<div class="actions"><button class="btn" type="button" id="camMiniToggle">' + ic('i-camera') + (recState.mini ? 'Esconder a imagem' : 'Mostrar a imagem') + '</button><button class="btn" type="button" id="camFlipHere">' + ic('i-flip') + 'Trocar câmera</button></div>' +
+        '<button class="btn-primary danger-fill" type="button" id="camStop">Parar gravação</button>'
+      : '<p class="hint">Grave a partida e veja depois o vídeo de cada ponto: o horário de cada lance marcado acha o momento certo no vídeo.' + (isPro() ? '' : ' <span class="pro-badge">PRO</span>') + '</p>' +
+        '<button class="cam-opt" type="button" id="camHere"><span class="choose-ic">' + ic('i-camera') + '</span><span><b>Gravar com este celular</b><small>Fica uma miniatura no canto; você continua marcando os pontos. Apoie o celular mostrando a quadra.</small></span>' + ic('i-chev', 'ic chev') + '</button>' +
+        '<button class="cam-opt" type="button" data-camstep="outro"><span class="choose-ic alt">' + ic('i-qr') + '</span><span><b>Usar outro aparelho como câmera</b><small>Outro celular ou notebook grava em tela cheia pelo QR Code ou link. Este continua no placar.</small></span>' + ic('i-chev', 'ic chev') + '</button>') +
+      '<p class="hint small">Só imagem, sem som (o microfone fica livre para a voz). Cerca de 9 MB por minuto' + (used ? ' · ' + CVd.fmtMB(used) + ' em vídeos neste aparelho' : '') + '. Os vídeos ficam no aparelho que gravou; na conta Pro na nuvem, vão para a sua conta.</p>';
+    $('#camBody').innerHTML = h;
+    openSheet('#sheetCam');
+  }
+  function wireCam() {
+    $('#btnCam').addEventListener('click', () => openCam());
+    $('#recMini').addEventListener('click', () => { clearTimeout(recState.miniT); recState.mini = !recState.mini; renderRecDock(); });
+    $('#camBody').addEventListener('click', e => {
+      if (e.target.closest('#camHere')) { startRecHere(); return; }
+      const st = e.target.closest('[data-camstep]'); if (st) { if (!isPro() && st.dataset.camstep) { openPro('gravar', () => openCam('outro')); return; } openCam(st.dataset.camstep || ''); return; }
+      if (e.target.closest('#camStop')) { closeSheet('#sheetCam'); stopRecHere(); return; }
+      if (e.target.closest('#camMiniToggle')) { clearTimeout(recState.miniT); recState.mini = !recState.mini; renderRecDock(); openCam(); return; }
+      if (e.target.closest('#camFlipHere') && recState.r) recState.r.flip();
+    });
+    // modo câmera
+    $('#camRec').addEventListener('click', () => (cam.r && cam.r.state.recording ? camStop() : camStart()));
+    $('#camFlip').addEventListener('click', () => { if (cam.r) cam.r.flip(); else { cam.facing = cam.facing === 'environment' ? 'user' : 'environment'; camPreview(); } });
+    $('#camBack').addEventListener('click', async () => { if (cam.r && cam.r.state.recording && !confirm('Parar a gravação e sair do modo câmera?')) return; await camStop(true); camRelease(); go('inicio'); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (cam.r && cam.r.state.recording || recState.r)) requestWakeLock(); });
+    $('#btnVidClear').addEventListener('click', async e => {
+      const b = e.currentTarget;
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Toque de novo'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Apagar'; }, 4000); return; }
+      await CVd.removeAll(); b.dataset.armed = ''; b.textContent = 'Apagar'; renderVidStore(); toast('Vídeos apagados deste aparelho');
+    });
+  }
+  async function renderVidStore() {
+    const el = $('#vidStore'); if (!el) return;
+    try { const l = await CVd.summary(); const b = l.reduce((n, x) => n + x.bytes, 0); el.textContent = l.length ? l.length + (l.length === 1 ? ' partida' : ' partidas') + ' · ' + CVd.fmtMB(b) + ' neste aparelho' : 'Nenhum vídeo guardado neste aparelho'; $('#btnVidClear').disabled = !l.length; }
+    catch (e) { el.textContent = 'Guardados só neste aparelho'; }
+  }
+
+  // ----- modo câmera (segundo aparelho) -----
+  const cam = { r: null, info: null, facing: 'environment', timer: 0, stream: null };
+  function parseCamCode(code) {
+    try {
+      const d = JSON.parse(new TextDecoder().decode(unb64url(code)));
+      const id = typeof d.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d.id) ? d.id : null;
+      if (!id) return null;
+      const n = Array.isArray(d.n) ? d.n : [], c = Array.isArray(d.c) ? d.c : [];
+      return { id, names: [cTxt(n[0], 30) || 'Verde', cTxt(n[1], 30) || 'Laranja'], colors: [pickIn(c[0], PALETTE.map(p => p.id)) || 'verde', pickIn(c[1], PALETTE.map(p => p.id)) || 'laranja'], sport: pickIn(d.sp, Object.keys(E.SPORTS)) || 'beach', by: cTxt(d.by, 40) };
+    } catch (e) { return null; }
+  }
+  async function camPreview() {
+    camRelease();
+    try { cam.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: cam.facing }, width: { ideal: 1280 }, height: { ideal: 720 } } }); const v = $('#camVideo'); v.srcObject = cam.stream; v.play().catch(() => {}); }
+    catch (e) { $('#camHint').textContent = e && e.name === 'NotAllowedError' ? 'Permita o uso da câmera para gravar (no cadeado da barra de endereço).' : 'Não consegui abrir a câmera neste aparelho.'; }
+  }
+  function camRelease() { if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; } }
+  function renderCamera(code) {
+    const info = parseCamCode(code || '');
+    cam.info = info;
+    if (!$('#welcome').hidden) { $('#welcome').hidden = true; document.body.classList.remove('welcome-on'); clearInterval(wlTimer); }
+    if (!info) { $('#camInfo').innerHTML = '<div class="cam-card"><b>Link de câmera incompleto</b><small>Peça para gerar o QR Code de novo no celular do placar.</small></div>'; $('#camRec').disabled = true; return; }
+    $('#camRec').disabled = !CVd.supported();
+    $('#camInfo').innerHTML = '<div class="cam-card"><span class="cam-match"><i class="tdot" style="--tc:' + colorVar(info.colors[0]) + '"></i>' + esc(info.names[0]) + ' <em>×</em> ' + esc(info.names[1]) + '<i class="tdot" style="--tc:' + colorVar(info.colors[1]) + '"></i></span><small>' + ic('s-' + info.sport) + esc(sportLabel(info.sport)) + (info.by ? ' · placar com ' + esc(firstName(info.by)) : '') + '</small></div>';
+    if (!CVd.supported()) $('#camHint').textContent = 'Este navegador não grava vídeo. No iPhone, abra no Safari.';
+    renderCamState();
+    if (!cam.r) camPreview();
+  }
+  function renderCamState() {
+    const on = !!(cam.r && cam.r.state.recording);
+    const s = cam.r ? cam.r.state : null;
+    $('#view-camera').classList.toggle('recording', on);
+    $('#camState').textContent = on ? 'Gravando' : s && s.segs ? 'Gravação parada' : 'Pronta para gravar';
+    $('#camTime').textContent = on || (s && s.segs) ? fmtClock((on ? Date.now() : cam.stoppedAt || Date.now()) - (s ? s.startedAt : Date.now())) : '';
+    $('#camRec').setAttribute('aria-label', on ? 'Parar' : 'Gravar');
+    $('#camMeta').textContent = s && s.segs ? CVd.fmtMB(s.bytes) + ' guardados neste aparelho' : '';
+    if (!on && s && s.segs) $('#camHint').innerHTML = 'Pronto, o vídeo está guardado <b>neste aparelho</b>. Quando a partida acabar, abra aqui o <b>link das estatísticas</b> que o placar enviar: cada ponto vira um lance em vídeo.';
+    else if (on) $('#camHint').textContent = 'Não feche esta tela nem bloqueie o celular: a gravação para se o app sair da tela.';
+  }
+  async function camStart() {
+    if (!cam.info) return;
+    camRelease();
+    cam.r = CVd.createRecorder({ matchId: cam.info.id, label: cam.info.names.join(' × '), device: 'camera', facing: cam.facing, preview: $('#camVideo'), onState: st => { if (st.error) toast(st.error); renderCamState(); } });
+    try { await cam.r.start(); } catch (e) { cam.r = null; renderCamState(); return; }
+    requestWakeLock();
+    clearInterval(cam.timer); cam.timer = setInterval(renderCamState, 1000);
+    renderCamState();
+  }
+  async function camStop(quiet) {
+    clearInterval(cam.timer);
+    if (cam.r && cam.r.state.recording) { cam.stoppedAt = Date.now(); await cam.r.stop(); if (!quiet) toast('Vídeo guardado neste aparelho'); }
+    renderCamState();
+  }
+
+  // ----- vídeo na partida: painel e lances -----
+  async function fillVideoPanels(root) {
+    const boxes = $$('[data-vidfor]', root || document);
+    for (const box of boxes) {
+      const key = box.dataset.vidfor;
+      let segs = [];
+      try { segs = await CVd.segments(key); } catch (e) { console.info('[vídeo] sem acesso aos vídeos', e); }
+      if (!segs.length) { box.hidden = true; continue; }
+      const ms = segs.reduce((n, x) => n + x.end - x.start, 0), bytes = segs.reduce((n, x) => n + x.size, 0);
+      box.hidden = false;
+      box.innerHTML = ph('i-camera', 'Vídeo da partida', '<span class="sec-meta">' + fmtClock(ms) + ' · ' + CVd.fmtMB(bytes) + '</span>') +
+        '<p class="hint">Gravado neste aparelho. Toque num ponto para ver o lance.</p>' +
+        '<div class="actions"><button class="btn btn-brand" type="button" data-clips="' + esc(box.dataset.mid) + '">' + ic('i-play') + 'Ver lances em vídeo</button><button class="btn" type="button" data-vidsave="' + esc(key) + '">' + ic('i-download') + 'Salvar vídeo</button><button class="btn" type="button" data-viddel="' + esc(key) + '">' + ic('i-trash') + 'Apagar</button></div>';
+    }
+  }
+  const clip = { m: null, key: '', segs: [], rows: [], cur: -1, url: '', stopAt: 0 };
+  async function openClips(id, at) {
+    const m = findMatch(id); if (!m) return;
+    clip.m = m; clip.key = videoKey(m);
+    clip.segs = await CVd.segments(clip.key).catch(() => []);
+    const d = canReplay(m) ? motionData(m) : null;
+    const raw = (m.events || []).filter(e => e && e.type === 'point');
+    clip.rows = d ? d.pts.map((p, i) => ({ i, team: p.team, label: p.label, sub: o => (p.sub || p.tsub), t: raw[i] && raw[i].t, score: '' })) : [];
+    clip.sync = (prefs.vidSync && prefs.vidSync[clip.key]) || 0;
+    const T = m.teams;
+    $('#clipsTitle').textContent = 'Lances · ' + T[0].name + ' × ' + T[1].name;
+    $('#clipList').innerHTML = clip.rows.map(r => {
+      const has = r.t && CVd.locate(clip.segs, r.t + clip.sync * 1000, 8, 2);
+      return '<button class="clip-row' + (has ? '' : ' none') + '" type="button" data-clip="' + r.i + '"' + (has ? '' : ' disabled') + '><span class="pt-n">' + (r.i + 1) + '</span><i style="--tc:' + colorVar(T[r.team].color) + '"></i><span class="clip-what"><b>' + esc(r.label) + '</b><small>' + esc(r.sub()) + '</small></span>' + (has ? ic('i-play', 'ic clip-play') : '<small class="clip-no">sem vídeo</small>') + '</button>';
+    }).join('') || '<p class="hint">Esta partida não tem pontos marcados. O vídeo inteiro está em Salvar vídeo.</p>';
+    renderClipBar();
+    openSheet('#sheetClips');
+    const first = at != null ? at : clip.rows.findIndex(r => r.t && CVd.locate(clip.segs, r.t + clip.sync * 1000, 8, 2));
+    if (first >= 0) playClip(first); else $('#clipEmpty').hidden = false;
+  }
+  function renderClipBar() {
+    $('#clipBar').innerHTML = '<span class="clip-cur" id="clipCur">' + (clip.cur >= 0 ? 'Ponto ' + (clip.cur + 1) + ' de ' + clip.rows.length : '') + '</span>' +
+      '<span class="clip-nav"><button class="icon-btn" type="button" data-clipnav="-1" title="Lance anterior">' + ic('i-back') + '</button><button class="icon-btn" type="button" data-clipnav="1" title="Próximo lance">' + ic('i-chev') + '</button></span>' +
+      '<span class="clip-sync" title="Se o vídeo estiver adiantado ou atrasado em relação aos pontos"><button class="btn btn-sm" type="button" data-clipsync="-1">−1s</button><b>' + (clip.sync > 0 ? '+' : '') + clip.sync + 's</b><button class="btn btn-sm" type="button" data-clipsync="1">+1s</button></span>';
+  }
+  function playClip(i) {
+    const r = clip.rows[i]; if (!r || !r.t) return;
+    const loc = CVd.locate(clip.segs, r.t + clip.sync * 1000, 8, 2);
+    const v = $('#clipVideo');
+    $('#clipEmpty').hidden = !!loc;
+    clip.cur = i; renderClipBar();
+    $$('#clipList .clip-row').forEach(el => el.classList.toggle('on', Number(el.dataset.clip) === i));
+    const row = $('#clipList .clip-row.on'); if (row) row.scrollIntoView({ block: 'nearest' });
+    if (!loc) { v.removeAttribute('src'); v.load(); return; }
+    if (clip.url && clip.urlSeg !== loc.seg.key) { URL.revokeObjectURL(clip.url); clip.url = ''; }
+    if (!clip.url) { clip.url = URL.createObjectURL(loc.seg.blob); clip.urlSeg = loc.seg.key; v.src = clip.url; }
+    clip.stopAt = loc.until;
+    const go2 = () => { v.currentTime = loc.offset; v.play().catch(() => {}); };
+    if (v.readyState >= 1) go2(); else v.onloadedmetadata = () => { v.onloadedmetadata = null; go2(); };
+  }
+  function wireClips() {
+    const v = $('#clipVideo');
+    v.addEventListener('timeupdate', () => { if (clip.stopAt && v.currentTime >= clip.stopAt) { v.pause(); clip.stopAt = 0; } });
+    $('#sheetClips').addEventListener('click', e => {
+      const c = e.target.closest('[data-clip]'); if (c) { playClip(Number(c.dataset.clip)); return; }
+      const n = e.target.closest('[data-clipnav]');
+      if (n) { const d = Number(n.dataset.clipnav); let i = clip.cur + d; while (clip.rows[i] && !(clip.rows[i].t && CVd.locate(clip.segs, clip.rows[i].t + clip.sync * 1000, 8, 2))) i += d; if (clip.rows[i]) playClip(i); return; }
+      const sy = e.target.closest('[data-clipsync]');
+      if (sy) { clip.sync = Math.max(-30, Math.min(30, clip.sync + Number(sy.dataset.clipsync))); prefs.vidSync = Object.assign({}, prefs.vidSync, { [clip.key]: clip.sync }); savePrefs(); renderClipBar(); if (clip.cur >= 0) playClip(clip.cur); }
+    });
+    document.addEventListener('click', async e => {
+      const o = e.target.closest('[data-clips]'); if (o) { openClips(o.dataset.clips); return; }
+      const sv = e.target.closest('[data-vidsave]');
+      if (sv) {
+        const segs = await CVd.segments(sv.dataset.vidsave);
+        const files = segs.map((x, i) => new File([x.blob], 'ultra-video-' + sv.dataset.vidsave.slice(0, 8) + '-' + String(i + 1).padStart(2, '0') + (x.type.includes('mp4') ? '.mp4' : '.webm'), { type: x.type }));
+        try {
+          if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files, title: 'Vídeo da partida' }); return; }
+          files.forEach((f, i) => setTimeout(() => { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); }, i * 400));
+          toast(files.length === 1 ? 'Vídeo salvo' : files.length + ' partes do vídeo salvas (2 min cada)');
+        } catch (err) { if (!err || err.name !== 'AbortError') toast('Não deu para salvar: ' + (err && err.message || err)); }
+        return;
+      }
+      const dl = e.target.closest('[data-viddel]');
+      if (dl) {
+        if (dl.dataset.armed !== '1') { dl.dataset.armed = '1'; dl.lastChild.textContent = 'Toque de novo'; setTimeout(() => { if (dl.isConnected) { dl.dataset.armed = ''; dl.lastChild.textContent = 'Apagar'; } }, 4000); return; }
+        await CVd.removeMatch(dl.dataset.viddel); toast('Vídeo apagado deste aparelho'); fillVideoPanels();
+      }
+    });
+  }
+
   function deleteMatch(id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Toque de novo para excluir de vez'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Excluir partida'; } }, 4000); return; }
     if (!writeHist(readHist().filter(m => m.id !== id))) return;
@@ -3633,6 +3886,8 @@
 
     wireSocial();
     wireLinks();
+    wireCam();
+    wireClips();
     askPersist();
     wireClaims();
     wirePrivacy();
@@ -3722,6 +3977,7 @@
   }
 
   function openPrefs() {
+    renderVidStore();
     $('#pName').value = prefs.myName || (myName() === 'Você' ? '' : myName());
     renderPrivacy(); $('#pUid').innerHTML = esc(myUid()) + ic('i-copy'); $('#pUid').dataset.copy = myUid();
     $('#pCity').value = prefs.city || '';
