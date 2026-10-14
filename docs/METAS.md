@@ -2,6 +2,16 @@
 
 Feita em 13/10/2026 com os preços de `docs/ASSINATURA.md` e as taxas de `docs/PRECOS.md`. São estimativas para planejar, não promessa: trocando as premissas abaixo, os números mudam.
 
+
+> **Revisão de 14/10/2026** (`reports/Tempo até MRR em apps.md`): os benchmarks mostram que preço e mix estão certos, mas o ritmo é otimista. A conversão de 5% fica no top quartil (mediana de Health & Fitness: 2,9%). O crescimento composto de 15% a 25% ao mês por 3 anos passa do tamanho do mercado. O churn real dos planos mensais está perto de 14% ao mês. Use como base os cenários revistos do relatório:
+>
+> | Prazo | Membros ativos | Pagantes | Receita total |
+> |---|---|---|---|
+> | 6 meses | ~900 | — | o app paga os custos |
+> | 12 meses | 1,6 a 2 mil | 60 a 80 | — |
+> | 24 meses | 5 a 6 mil | ~200 | R$ 3 a 4 mil/mês |
+> | 36 meses | ~10 mil | ~300 | US$ 1 a 1,3 mil de MRR, contando professores e arenas |
+
 ## Premissas
 - **Membro ativo:** quem abriu o app no mês (MAU).
 - **Conversão:** parte dos membros ativos que paga. Três cenários:
