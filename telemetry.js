@@ -53,7 +53,19 @@
     sending = false;
     if (sent && q.length) setTimeout(flush, 1000); // ainda tem lote na fila
   }
+  // erros do app, para a "Saúde do app" no painel: só com consentimento, no máximo 5 por visita, e só arquivo, linha e tipo
+  // (a mensagem fica de fora: pode trazer texto que a pessoa digitou)
+  let errN = 0;
+  function onErr(kind, file, line) {
+    if (errN >= 5) return;
+    errN++;
+    const same = typeof location !== 'undefined' && String(file || '').startsWith(location.origin);
+    const where = same ? (String(file).split('?')[0].split('/').pop().replace(/[^\w.-]/g, '').slice(0, 30) || '?') + ':' + (Number(line) || 0) : 'externo';
+    track('js_error', { where, kind: String(kind || 'Error').replace(/[^\w]/g, '').slice(0, 24) || 'Error' });
+  }
   if (typeof window !== 'undefined') {
+    window.addEventListener('error', e => { if (e.filename) onErr(e.error && e.error.name, e.filename, e.lineno); });
+    window.addEventListener('unhandledrejection', e => { const r = e.reason || {}; const m = String(r.stack || '').match(/(https?:\/\/[^\s)]+?\.js)[^:\s)]*:(\d+)/); onErr(r.name || 'Rejection', m && m[1], m && m[2]); });
     window.addEventListener('online', () => flush());
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
   }

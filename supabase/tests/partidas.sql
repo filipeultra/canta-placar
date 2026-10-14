@@ -230,7 +230,7 @@ select pg_temp.ok((select avatar_url from public.groups where id = :'gid') like 
 \o /dev/null
 select pg_temp.u('a2');
 \o
-update public.groups set avatar_url = 'x' where id = :'gid';
+update public.groups set avatar_url = 'avatars/' || auth.uid() || '/minha.jpg' where id = :'gid';
 select pg_temp.ok((select avatar_url from public.groups where id = :'gid') like 'avatars/%', '45. membro comum não troca a foto do grupo');
 update public.profiles set tag_policy = 'conexoes' where id = auth.uid();
 select pg_temp.ok((select tag_policy from public.profiles where id = auth.uid()) = 'conexoes', '46. cada um muda quem pode marcar');
@@ -359,3 +359,21 @@ select pg_temp.u('a3');
 \o
 select pg_temp.err($$select public.request_match_deletion('p8', 'de novo')$$, 'pedido_em_andamento', '74. dois pedidos de exclusão na mesma partida: o segundo recebe um aviso claro');
 select pg_temp.ok(exists (select 1 from public.feed_following() where id = 'p8') and not exists (select 1 from public.feed_following() where id = 'p7'), '75. a timeline Seguindo mostra a partida aberta e não mostra a apagada');
+-- ---------- foto só do próprio armazenamento ----------
+\o /dev/null
+select pg_temp.u('a3');
+\o
+select pg_temp.err($$update public.profiles set avatar_url = 'https://rastreador.exemplo.com/pixel.gif' where id = auth.uid()$$, 'violates check constraint', '76. foto de perfil de fora do app é recusada (evita rastrear quem abre o perfil)');
+update public.profiles set avatar_url = 'avatars/' || auth.uid() || '/foto.jpg' where id = auth.uid();
+select pg_temp.ok((select avatar_url from public.profiles where id = auth.uid()) like 'avatars/%', '77. foto no armazenamento do app vale');
+-- ---------- vídeo na nuvem só para Pro ----------
+select pg_temp.err($$insert into public.video_segments (match_id, owner_id, storage_path, start_at, end_at, bytes, mime) values ('p8', auth.uid(), auth.uid() || '/p8/1.webm', now() - interval '5 minutes', now(), 1000, 'video/webm')$$, 'row-level security', '78. sem Pro, não sobe trecho de vídeo para a nuvem');
+reset role;
+update public.profiles set pro_until = now() + interval '30 days' where id = '00000000-0000-0000-0000-0000000000a3';
+set role authenticated;
+insert into public.video_segments (match_id, owner_id, storage_path, start_at, end_at, bytes, mime) values ('p8', auth.uid(), auth.uid() || '/p8/1.webm', now() - interval '5 minutes', now(), 1000, 'video/webm');
+select pg_temp.ok(exists (select 1 from public.video_segments where match_id = 'p8'), '79. com Pro, sobe');
+reset role;
+update public.profiles set pro_until = null where id = '00000000-0000-0000-0000-0000000000a3';
+set role authenticated;
+select pg_temp.ok(exists (select 1 from public.video_segments where match_id = 'p8'), '80. o Pro acabou: o vídeo que já subiu continua visível para o dono');

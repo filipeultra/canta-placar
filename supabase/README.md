@@ -7,12 +7,14 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 | `schema.sql` | Tabelas, índices, gatilhos e regras por linha (RLS): pessoas, seguir, bloquear, lugares e quadras, temporadas da arena, **grupos** (membros, papéis, foto, resenha), partidas, lances, jogadores marcados, pedidos de convidado, zaps, notificações, vídeos (Pro), assinatura, denúncias e as **regras da partida entre várias pessoas** (quem pode marcar, placar travado, excluir para mim, pedido de exclusão para todos, correção de placar, prazos de 14 dias, conta apagada). |
 | `storage.sql` | Pastas de arquivos: fotos de perfil (públicas) e vídeos (privados, Pro). |
 | `tests/regras.sql` | 28 verificações das regras, rodadas num Postgres 16 local em 13/10/2026: todas passaram. |
-| `tests/partidas.sql` | 75 verificações das regras da partida entre várias pessoas (ver `docs/REGRAS-PARTIDAS.md`): quem pode marcar, grupo, flood, placar travado, excluir para mim, exclusão para todos, correção de placar, prazos, conta apagada, bloqueio, denúncias e foto do grupo. Todas passando em 13/10/2026. |
+| `tests/partidas.sql` | 80 verificações das regras da partida entre várias pessoas (ver `docs/REGRAS-PARTIDAS.md`): quem pode marcar, grupo, flood, placar travado, excluir para mim, exclusão para todos, correção de placar, prazos, conta apagada, bloqueio, denúncias, foto do grupo, foto só do próprio armazenamento e vídeo na nuvem só para Pro. Todas passando em 14/10/2026. |
 | `tests/carga.sql` | Teste de carga: 5.000 pessoas, 200 mil "seguir", 100 mil partidas e 400 mil marcações; mede as telas e ações mais usadas (resultado abaixo). |
 | `tests/sobrecarga/` | Scripts do `pgbench` para 50 pessoas usando ao mesmo tempo (80% leitura, 20% lançar e marcar). |
 | `tests/corrida.sh` | Dois votos no mesmo segundo no pedido de exclusão: os dois têm que contar. |
 | `admin.sql` | Estatísticas de uso e painel de admin (ver abaixo). |
+| `tests/admin-seguranca.sql` | 32 verificações do acesso ao painel: papéis, código recente para ações sensíveis, e-mail mascarado, acessos com aparelho novo, limite de cortesias, admin suspenso e registro que não se apaga. |
 | `tests/admin.sql` | 21 verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê nem age; busca, cortesia, denúncias (tirar do ar) e registro de ações. |
+| `tests/arquivos.sql` | Regras de arquivos (com `tests/storage-stub.sql`): foto só na própria pasta, vídeo na nuvem só para Pro, quem deixou de ser Pro ainda vê e apaga o que subiu. |
 | `tests/supabase-stub.sql` | Simula o que o Supabase já traz (`auth.users`, `auth.uid()`), para rodar os testes fora dele. |
 
 ## O que as regras garantem (testado)
@@ -30,16 +32,17 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
 - **Sem servidor:** mostra **dados de demonstração** (fictícios), para ver o painel funcionando. Com o servidor ligado, `?demo=1` no endereço volta à demonstração.
 - **Com servidor:** entra com o e-mail de uma conta admin (link mágico do Supabase). Só lê os números quem estiver na tabela `admins`; para os outros, a função `admin_metrics` recusa.
 - **Seções** (menu ao lado no computador, faixa no topo no celular; período de 7, 30 ou 90 dias comparando com o anterior):
-  - **Visão geral:** quem está usando agora (últimos 15 min), ativos no dia/semana/mês, 8 indicadores com mini gráfico, visitas e ativos por dia e **“O que olhar agora”** (denúncias, variação das visitas, maior perda do funil, retenção, versões antigas, custo da IA).
-  - **Crescimento:** contas, novas contas, conversão visita → conta, instalações, convites, contas excluídas, funil, origem (utm, convite `?ref=`, direto) e retenção por semana.
-  - **Uso do app:** ativos (DAU/WAU/MAU) e frequência, partidas, % de pontos por voz, % que usa o app instalado, gravações, compartilhamentos, sugestões, partidas por esporte, **mapa de calor de quando se joga** (dia × hora) e versões do app em uso.
-  - **Receita:** MRR, ARR, assinantes pagando e de cortesia, ticket médio, novas assinaturas, cancelamentos, churn mensal, valor por assinante (LTV), custo da IA no mês, planos e um simulador de projeção.
-  - **Contas:** busca por nome, @, código UP-… ou e-mail, e **Pro de cortesia** (7, 30, 90 dias ou 1 ano; ou tirar).
+  - **Visão geral:** quem está usando agora (últimos 15 min), ativos no dia/semana/mês, 8 indicadores com mini gráfico, visitas e ativos por dia, **próxima meta** (membros ativos, pagantes e receita, pelas metas de `docs/METAS.md`) e **“O que olhar agora”** (denúncias, aparelho novo no painel, alta de erros, marcações recusadas, variação das visitas, maior perda do funil, retenção, versões antigas, custo da IA).
+  - **Crescimento:** contas, novas contas, conversão visita → conta, instalações, convites, contas excluídas, funil, origem (utm, convite `?ref=`, direto), **cidades** e retenção por semana.
+  - **Uso do app:** ativos (DAU/WAU/MAU) e frequência, partidas, % de pontos por voz, % que usa o app instalado, gravações, compartilhamentos, sugestões, partidas por esporte, **mapa de calor de quando se joga** (dia × hora), versões do app em uso, **saúde do app** (erros por arquivo e linha, aparelhos afetados) e **comunidade** (marcações aceitas e recusadas, bloqueios, pedidos de exclusão e correção abertos, placares corrigidos).
+  - **Receita:** MRR, ARR, assinantes pagando e de cortesia, ticket médio, novas assinaturas, cancelamentos, churn mensal, valor por assinante (LTV), custo da IA no mês, em teste grátis, **receita mensal dia a dia**, planos e um simulador de projeção.
+  - **Contas:** busca por nome, @, código UP-… ou e-mail (e-mail **mascarado**; o dono pode mostrar inteiro), e **Pro de cortesia** (7, 30, 90 dias ou 1 ano; ou tirar).
+  - **Segurança:** seu papel, há quanto tempo digitou o código, acesso anterior, **acessos ao painel** (quando, quem, IP e aparelho, com aparelho novo em destaque), **equipe** (só o dono) e a lista do que protege o painel.
   - **Grupos:** os mais movimentados (membros, pedidos, partidas, posts).
   - **Moderação:** fila de denúncias (abertas, resolvidas, descartadas) com **Em análise, Resolvida, Tirar do ar e Descartar**, e o **registro de ações** de todos os admins.
   - **IA:** análises, quem usou, custo, custo por análise, projeção e tokens. **Eventos:** o que o app registra.
-  - Tema claro/escuro, atualização automática a cada minuto e **CSV** de cada tabela.
-- **De onde vêm os números:** `admin.sql` (tabelas `app_events`, `admins`, `plan_prices`, `admin_log` e as funções `admin_metrics`, `admin_users`, `admin_grant_pro`, `admin_reports`, `admin_handle_report`, `admin_groups`), testado em `tests/admin.sql` (21 verificações, todas passando em 13/10/2026).
+  - Tema claro/escuro, atualização automática a cada minuto, **Ocultar dados** (borra nomes, e-mails e IPs para compartilhar a tela) e **CSV** de cada tabela (baixar fica no registro).
+- **De onde vêm os números:** `admin.sql` (tabelas `app_events`, `admins`, `plan_prices`, `admin_log` e as funções `admin_metrics`, `admin_users`, `admin_grant_pro`, `admin_reports`, `admin_handle_report`, `admin_groups`), testado em `tests/admin.sql` (21 verificações) e `tests/admin-seguranca.sql` (32), todas passando em 14/10/2026.
   - O app e o site mandam eventos por `telemetry.js`, mas só quando `config.js` estiver preenchido.
   - **Sem consentimento**, só a visita, com um id que some ao fechar.
   - **Com consentimento** (o app pergunta uma vez, depois da 1ª partida; e em Ajustes → Estatísticas de uso), os eventos de uso, com um id sorteado do aparelho.
@@ -49,10 +52,20 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
   - **Ninguém se torna admin pelo app ou pela API:** a tabela `admins` não aceita gravação de ninguém (só pelo SQL Editor do Supabase, com a sua conta de dono do projeto). Também não dá para se dar Pro, criar assinatura, mudar preço, mexer em denúncia ou no registro de ações.
   - **Não dá para descobrir quem é admin:** `is_admin()` só responde sobre a própria sessão.
   - **Permissões fechadas por tabela:** o Supabase libera toda tabela nova para todo mundo; `admin.sql` tira tudo e devolve só o necessário. Os testes simulam essa liberação padrão para pegar qualquer esquecimento.
-  - **Sair de verdade:** "Sair" invalida a sessão no servidor; parado por 30 min, o painel sai sozinho. A sessão fica só na aba (some ao fechar).
+  - **Papéis** (`admins.role`): **dono** faz tudo; **moderador** cuida de denúncias e contas, com e-mail mascarado e sem dar Pro; **leitor** só vê os números. `admins.disabled_at` suspende alguém na hora, sem apagar o histórico.
+  - **Código recente para ações sensíveis:** dar ou tirar Pro, tirar do ar, ver e-mails inteiros e baixar a planilha de contas pedem que o código do autenticador tenha sido digitado nas últimas **8 horas** (o banco lê a hora em `amr` no token). Se passou, o painel pede o código de novo e repete a ação.
+  - **Limites por admin:** 30 cortesias e 300 respostas a denúncias por dia. Uma conta roubada não distribui Pro nem apaga a moderação à vontade.
+  - **Registro que não se apaga:** `admin_log` recusa alteração e exclusão, inclusive de quem tem acesso ao banco. A única exceção é a conta de admin apagada, quando só o vínculo some.
+  - **Acessos registrados:** cada entrada guarda aparelho e IP (`admin_hello`), uma vez a cada 30 minutos por aparelho, e marca aparelho novo.
+  - **Sair de verdade:** "Sair" invalida a sessão no servidor. Parado por 15 minutos, o painel sai sozinho, com aviso 1 minuto antes. A sessão fica só na aba e some ao fechar.
+  - **Não abre dentro de outro site:** dentro de um iframe, a página fica em branco (o GitHub Pages não deixa mandar o cabeçalho `frame-ancestors`).
   - **No Supabase (você):** Authentication → URL Configuration: pôr `https://filipeultra.github.io/canta-placar/admin/` nas URLs de redirecionamento; Authentication → Multi-Factor: deixar TOTP ligado (já vem ligado). Nunca coloque a chave `service_role` no `config.js` nem no site: só a `anon`.
   - **Limite conhecido:** qualquer um pode mandar eventos de visita (é assim que o site conta visitas sem login). Isso não dá acesso a nada, mas alguém mal-intencionado pode inflar os números de visitas; o Supabase limita a taxa de pedidos por IP e o painel mostra a origem para identificar.
-- **Primeiro admin:** depois de criar sua conta no app, rode no SQL Editor: `insert into admins (user_id) select id from auth.users where email = 'seu@email.com';`
+- **Primeiro admin:** depois de criar sua conta no app, rode no SQL Editor: `insert into admins (user_id) select id from auth.users where email = 'seu@email.com';` (entra como dono).
+- **Mais gente na equipe:**
+  - incluir: `insert into admins (user_id, role) select id, 'moderador' from auth.users where email = 'pessoa@email.com';` (ou `'leitor'`);
+  - trocar o papel: `update admins set role = 'leitor' where user_id = (select id from auth.users where email = 'pessoa@email.com');`;
+  - suspender: `update admins set disabled_at = now() where user_id = (select id from auth.users where email = 'pessoa@email.com');` (para devolver, `disabled_at = null`).
 
 ## Jogando agora (presença e placar ao vivo) e análise do dia
 Já estão no `schema.sql`, com testes em `tests/ao-vivo.sql` (24 verificações). O app ainda usa a rede de demonstração; quando a conta na nuvem for ligada, ele passa a publicar o placar nestas tabelas.

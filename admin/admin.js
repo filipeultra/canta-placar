@@ -2,6 +2,8 @@
    Sem servidor configurado (config.js) ou com ?demo=1, mostra dados de demonstração (fictícios) para ver o painel. */
 (function () {
   'use strict';
+  // dentro de um iframe de outro site, não abre (evita clique enganado no painel; o GitHub Pages não manda frame-ancestors)
+  if (window.top !== window.self) { document.documentElement.replaceChildren(); return; }
   const C = window.ULTRA_CONFIG || {};
   const configured = !!(C.supabaseUrl && C.supabaseAnonKey && /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(C.supabaseUrl));
   const params = new URLSearchParams(location.search);
@@ -18,14 +20,21 @@
   const PLAN = { pro_mensal: 'Pro mensal', pro_anual: 'Pro anual', fundador: 'Fundador', professor: 'Professor', arena: 'Arena', cortesia: 'Cortesia' };
   const USD_BRL = 5.5, PRICE_IN = 1, PRICE_OUT = 5; // US$ por milhão de tokens (referência classe Haiku; ver docs/IA.md)
   let days = 30, data = null, session = null;
-  const EVT = { visit: 'Visita ao site ou ao app', app_open: 'Abriu o app', signup: 'Criou conta', match_start: 'Começou uma partida', match_end: 'Terminou uma partida', share: 'Compartilhou imagem ou vídeo', pro_view: 'Viu a tela do Pro', pro_start: 'Ativou o Pro', link_open: 'Conectou o celular câmera', group_create: 'Criou um grupo', group_join: 'Entrou num grupo', invite: 'Convidou alguém', install: 'Instalou o app', feedback: 'Mandou sugestão ou problema', rec_start: 'Começou a gravar', ai_analysis: 'Pediu análise por IA', retro: 'Viu a retrospectiva', tutorial: 'Tutorial (aceitou, pulou ou terminou)' };
+  const EVT = { visit: 'Visita ao site ou ao app', app_open: 'Abriu o app', signup: 'Criou conta', match_start: 'Começou uma partida', match_end: 'Terminou uma partida', share: 'Compartilhou imagem ou vídeo', pro_view: 'Viu a tela do Pro', pro_start: 'Ativou o Pro', link_open: 'Conectou o celular câmera', group_create: 'Criou um grupo', group_join: 'Entrou num grupo', invite: 'Convidou alguém', install: 'Instalou o app', feedback: 'Mandou sugestão ou problema', rec_start: 'Começou a gravar', ai_analysis: 'Pediu análise por IA', retro: 'Viu a retrospectiva', tutorial: 'Tutorial (aceitou, pulou ou terminou)', js_error: 'Erro no app (só arquivo, linha e tipo)' };
   const SECS = {
     visao: ['Visão geral', 'Como o ULTRA PLAY está indo no período.'], crescimento: ['Crescimento', 'Quem chega, de onde vem e quem fica.'],
     uso: ['Uso do app', 'Quanto e como as pessoas usam.'], receita: ['Receita', 'Assinaturas, receita mensal e projeção.'],
     contas: ['Contas', 'Busque uma pessoa e dê Pro de cortesia.'], grupos: ['Grupos', 'As turmas mais movimentadas.'],
     moderacao: ['Moderação', 'Denúncias e registro de ações dos admins.'], ia: ['IA', 'Análises do jogo por IA e quanto custam.'],
+    seguranca: ['Segurança', 'Quem entrou no painel, a equipe e como o acesso é protegido.'],
     eventos: ['Eventos', 'O que o app registra (sem dados pessoais).'],
   };
+  // o que cada papel vê: leitor só os números; moderador também contas e denúncias; dono tudo
+  const ROLE = { dono: 'Dono', moderador: 'Moderador', leitor: 'Leitor' };
+  const NEEDS = { contas: 'moderador', moderacao: 'moderador' };
+  const RANK = { leitor: 0, moderador: 1, dono: 2 };
+  let role = 'dono', hello = null, access = null, team = null, reveal = false;
+  const can = need => RANK[role] >= RANK[need];
   let sec = 'visao', rst = 'abertas', users = null, reports = null, groups = null, log = null, userQ = '';
   const csvStore = {};
   const icon = (name, cls) => { const s = sv('svg', { class: cls || 'ic', 'aria-hidden': 'true' }); s.append(sv('use', { href: '#i-' + name })); return s; };
@@ -96,6 +105,38 @@
     const j = await auth('factors/' + encodeURIComponent(mfaFactor) + '/verify', { challenge_id: ch.id, code });
     saveSession({ access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (j.expires_in || 3600) * 1000 });
   }
+  // ação sensível com código antigo (mais de 8 h): pede o código do autenticador de novo e repete a ação
+  async function reauth() {
+    if (DEMO) return true;
+    const u = await me().catch(() => null);
+    const f = ((u && u.factors) || []).find(x => x.factor_type === 'totp' && x.status === 'verified');
+    if (!f) { toast('Cadastre o app autenticador antes (saia e entre de novo).', 'alert'); return false; }
+    mfaFactor = f.id;
+    return new Promise(resolve => {
+      let done = false;
+      const inp = el('input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '6', placeholder: '123456', 'aria-label': 'Código de 6 números', class: 'code-in' });
+      const msg = el('p', { class: 'small msg', role: 'status' });
+      openDlg({ icon: 'lock', title: 'Confirme que é você', body: [el('p', { text: 'Esta ação é sensível e o seu código tem mais de 8 horas. Digite o código do app autenticador.' }), inp, msg], actions: [
+        { label: 'Cancelar', act: () => { done = true; resolve(false); } },
+        { label: 'Confirmar', kind: 'brand', icon: 'check', act: async () => {
+          const c = inp.value.replace(/\D/g, '');
+          if (c.length !== 6) { msg.textContent = 'São 6 números.'; return false; }
+          try { await verifyMfa(c); if (hello) hello.mfa_age_min = 0; done = true; resolve(true); } catch (e) { msg.textContent = 'Código não confere. Use o código novo do app.'; inp.select(); return false; }
+        } }] });
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#dlgA').lastChild.click(); } });
+      setTimeout(() => inp.focus(), 30);
+      dlg.addEventListener('close', () => { if (!done) { done = true; resolve(false); } }, { once: true });
+    });
+  }
+  async function sensitive(fn) {
+    try { return await fn(); }
+    catch (e) {
+      if (e.code !== 'mfa') throw e;
+      if (dlg.open) dlg.close();
+      if (!(await reauth())) { const c = new Error('cancelado'); c.code = 'cancel'; throw c; }
+      return await fn();
+    }
+  }
   // sair de verdade: o servidor invalida a sessão (o link roubado de uma aba não vale mais)
   async function logout() {
     if (session && session.access_token && configured) { try { await fetch(C.supabaseUrl + '/auth/v1/logout', { method: 'POST', headers: H(session.access_token) }); } catch (e) { /* sem rede: apaga só aqui */ } }
@@ -111,13 +152,17 @@
     let r = await go();
     if (r.status === 401 && await refresh()) r = await go();
     if (r.status === 401) { const e = new Error('sessão'); e.code = 401; throw e; }
-    if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.message || 'HTTP ' + r.status); e.code = j.code === '42501' ? 403 : r.status; throw e; }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.message || 'HTTP ' + r.status); e.code = j.code === '28000' || /codigo_recente/.test(j.message || '') ? 'mfa' : j.code === '42501' ? 403 : r.status; throw e; }
     return r.json();
   }
   const rpc = (fn, args) => call('/rest/v1/rpc/' + fn, args || {});
   const api = {
     metrics: d => (DEMO ? Promise.resolve(demoMetrics(d)) : rpc('admin_metrics', { days: d })),
-    users: q => (DEMO ? Promise.resolve(demoStore().users.filter(u => !q || [u.name, u.handle, u.public_id, u.email].some(v => v && v.toLowerCase().includes(q.toLowerCase()))).slice(0, 50)) : rpc('admin_users', { q, lim: 50 })),
+    users: (q, rv) => (DEMO ? Promise.resolve(demoStore().users.filter(u => !q || [u.name, u.handle, u.public_id, u.email].some(v => v && v.toLowerCase().includes(q.toLowerCase()))).slice(0, 50).map(u => Object.assign({}, u, { email: rv ? u.email : maskEmail(u.email) }))) : rpc('admin_users', { q, lim: 50, reveal: !!rv })),
+    hello: () => (DEMO ? Promise.resolve({ role: 'dono', last_login: new Date(Date.now() - 26 * 36e5).toISOString(), new_device: false, mfa_age_min: 3 }) : rpc('admin_hello')),
+    access: () => (DEMO ? Promise.resolve(demoStore().access.slice()) : rpc('admin_access', { lim: 30 })),
+    team: () => (DEMO ? Promise.resolve(demoStore().team.slice()) : rpc('admin_team')),
+    noteExport: what => (DEMO ? Promise.resolve(true) : rpc('admin_note_export', { what })),
     reports: st => (DEMO ? Promise.resolve(demoStore().reports.filter(r => st === 'todas' || (st === 'abertas' ? ['aberta', 'em_analise'].includes(r.status) : r.status === st))) : rpc('admin_reports', { st, lim: 100 })),
     groups: d => (DEMO ? Promise.resolve(demoStore().groups.map(g => Object.assign({}, g, { matches: Math.round(g.matches * d / 30), posts: Math.round(g.posts * d / 30) }))) : rpc('admin_groups', { days: d, lim: 30 })),
     log: () => (DEMO ? Promise.resolve(demoStore().log.slice()) : call('/rest/v1/admin_log?select=action,target,detail,created_at&order=id.desc&limit=40', null, 'GET')),
@@ -156,7 +201,9 @@
         ai_runs: Math.round(matches * 0.18), ai_tokens_in: Math.round(matches * 0.18 * 1500), ai_tokens_out: Math.round(matches * 0.18 * 250), ai_users: Math.round(matches * 0.05),
         live_now: 7 + Math.round(r() * 9), dau: cur[cur.length - 1].active, wau: Math.round(sum(all.slice(-7), 'active') * 0.55), mau: Math.round(sum(all.slice(-30), 'active') * 0.42),
         installs: Math.round(visits * 0.045), standalone_pct: 41, voice_pct: 63, recs: Math.round(matches * 0.08), shares: Math.round(matches * 0.42), invites: Math.round(matches * 0.1), feedbacks: Math.round(d * 0.9),
-        subs_new: Math.round(paying * 0.12 * d / 30), subs_cancel: Math.round(paying * 0.035 * d / 30), users_deleted: Math.round(d * 0.2), groups_new: Math.round(d * 0.6), posts: Math.round(matches * 0.07) },
+        subs_new: Math.round(paying * 0.12 * d / 30), subs_cancel: Math.round(paying * 0.035 * d / 30), users_deleted: Math.round(d * 0.2), groups_new: Math.round(d * 0.6), posts: Math.round(matches * 0.07),
+        tags_new: Math.round(matches * 1.6), tags_accepted: Math.round(matches * 1.6 * 0.84), tags_refused: Math.round(matches * 1.6 * 0.06), blocks_new: Math.round(d * 0.15), del_open: 2, fix_open: 1, fixes_done: Math.round(d * 0.3),
+        trials: Math.round(paying * 0.09), errors: Math.round(d * 1.7), errors_devices: Math.round(d * 0.8), errors_prev: Math.round(d * 2.4) },
       daily: cur,
       sports: [['beach', 0.58], ['padel', 0.17], ['peteca', 0.11], ['tenis', 0.08], ['volei', 0.04], ['futevolei', 0.02]].map(([sport, k]) => ({ sport, n: Math.round(matches * k) })),
       funnel: [['visit', 1], ['signup', 0.31], ['match_start', 0.24], ['match_end', 0.19], ['share', 0.09], ['pro_start', 0.022]].map(([step, k]) => ({ step, n: Math.round(f0 * k) })),
@@ -165,6 +212,9 @@
       plans: [['pro_mensal', 0.52], ['pro_anual', 0.3], ['professor', 0.18]].map(([plan, k]) => ({ plan, n: Math.round(paying * k) })).concat([{ plan: 'cortesia', n: pro - paying }]),
       versions: [['2026.10.13', 0.71], ['2026.10.06', 0.21], ['2026.09.29', 0.08]].map(([version, k]) => ({ version, n: Math.round(sum(cur, 'active') * 0.42 * k) })),
       hours: (() => { const o = [], rr = rng(77); for (let dw = 0; dw < 7; dw++) for (let h = 6; h < 24; h++) { const wkend = dw === 0 || dw === 6; const w = wkend ? Math.exp(-Math.pow((h - 9) / 2.4, 2)) + 0.5 * Math.exp(-Math.pow((h - 16) / 2, 2)) : Math.exp(-Math.pow((h - 19.5) / 1.7, 2)) + 0.25 * Math.exp(-Math.pow((h - 7) / 1.2, 2)); const n = Math.round(matches / 30 * w * (wkend ? 2.2 : 1.1) * (0.8 + rr() * 0.4)); if (n) o.push({ d: dw, h, n }); } return o; })(),
+      cities: [['Montes Claros, MG', 0.31], ['Belo Horizonte, MG', 0.22], ['São Paulo, SP', 0.12], ['Vitória, ES', 0.08], ['Rio de Janeiro, RJ', 0.07], ['Florianópolis, SC', 0.05], ['Salvador, BA', 0.04], ['Brasília, DF', 0.03]].map(([city, k]) => ({ city, n: Math.round(users * k) })),
+      errors_top: [['app.js:4521', 'TypeError', 0.46, 0.4], ['video.js:812', 'NotAllowedError', 0.27, 0.3], ['voice.js:233', 'NetworkError', 0.17, 0.2], ['motion.js:96', 'RangeError', 0.1, 0.1]].map(([where, kind, k, dk]) => ({ where, kind, n: Math.round(d * 1.7 * k), devices: Math.max(1, Math.round(d * 0.8 * dk)) })),
+      mrr_daily: cur.map((x, i) => { const g = 0.82 + 0.18 * (i / Math.max(1, cur.length - 1)); const mrr = Math.round(paying * g * (0.52 * 24.9 + 0.3 * 14.99 + 0.18 * 59.9)); return { day: x.day, mrr, paying: Math.round(paying * g) }; }),
       events: [['app_open', 3.1], ['match_start', 1.2], ['match_end', 1], ['share', 0.42], ['pro_view', 0.3], ['group_join', 0.12], ['invite', 0.1], ['rec_start', 0.08], ['ai_analysis', 0.06], ['signup', 0.07]].map(([name, k]) => ({ name, n: Math.round(matches * k) })),
     };
   }
@@ -196,9 +246,14 @@
       { id: 'd4', kind: 'grupo', target: 'Vendas de raquete · G-' + code(), reason: 'Spam, só propaganda', status: 'resolvida', created_at: H(80), handled_at: H(70), reporter: 'UP-' + code(), same_target: 1, removed: true },
       { id: 'd5', kind: 'post', target: 'Bora jogar amanhã 7h?', reason: 'Engano', status: 'descartada', created_at: H(120), handled_at: H(118), reporter: 'UP-' + code(), same_target: 1, removed: false },
     ];
-    demoS = { users, groups, reports, log: [{ action: 'pro_grant', target: users[3].public_id, detail: { days: 30 }, created_at: H(26) }, { action: 'report_resolvida', target: 'd4', detail: { remove: true }, created_at: H(70) }, { action: 'report_descartada', target: 'd5', detail: { remove: false }, created_at: H(118) }] };
+    const ua = ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36'];
+    const access = [{ created_at: H(0.02), admin: 'Filipe Oliveira', ip: '177.71.12.40', ua: ua[0], new_device: false }, { created_at: H(26), admin: 'Filipe Oliveira', ip: '177.71.12.40', ua: ua[0], new_device: false },
+      { created_at: H(51), admin: 'Ana Moderadora', ip: '189.40.88.12', ua: ua[1], new_device: false }, { created_at: H(98), admin: 'Filipe Oliveira', ip: '201.17.3.155', ua: ua[1], new_device: true }, { created_at: H(170), admin: 'Ana Moderadora', ip: '189.40.88.12', ua: ua[2], new_device: true }];
+    const team = [{ name: 'Filipe Oliveira', public_id: 'UP-' + code(), role: 'dono', disabled: false, created_at: H(2400), last_login: H(0.02) }, { name: 'Ana Moderadora', public_id: 'UP-' + code(), role: 'moderador', disabled: false, created_at: H(900), last_login: H(51) }, { name: 'Contador', public_id: 'UP-' + code(), role: 'leitor', disabled: true, created_at: H(700), last_login: H(600) }];
+    demoS = { users, groups, reports, access, team, log: [{ action: 'pro_grant', target: users[3].public_id, detail: { days: 30 }, created_at: H(26) }, { action: 'report_resolvida', target: 'd4', detail: { remove: true }, created_at: H(70) }, { action: 'report_descartada', target: 'd5', detail: { remove: false }, created_at: H(118) }] };
     return demoS;
   }
+  const maskEmail = e => (!e ? e : e.indexOf('@') < 2 ? '***' : e.slice(0, 2) + '***@' + e.split('@')[1]);
   function demoLog(action, target, detail) { demoStore().log.unshift({ action, target, detail, created_at: new Date().toISOString() }); }
 
   // ---------- desenho ----------  // ---------- desenho ----------
@@ -335,8 +390,12 @@
     return { arpu, churnM, ltv: churnM ? arpu / churnM : 0, conv: K.users ? K.pro_paying / K.users : 0 };
   }
   function setCsv(key, name, head, rows) { csvStore[key] = { name, head, rows }; }
-  function downloadCsv(key) {
+  async function downloadCsv(key) {
     const c = csvStore[key]; if (!c) return;
+    if (key === 'users') {   // a planilha de contas leva e-mail: só o dono, com código recente, e fica no registro
+      if (!can('dono')) { toast('Só o dono baixa a planilha de contas.', 'lock'); return; }
+      try { await sensitive(() => api.noteExport('contas')); } catch (e) { if (e.code !== 'cancel') toast('Não deu: ' + e.message, 'alert'); return; }
+    } else api.noteExport(c.name).catch(() => { /* registro do download é melhor esforço */ });
     const q = v => { const s = v == null ? '' : String(v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const body = '﻿' + [c.head].concat(c.rows).map(r => r.map(q).join(';')).join('\r\n');
     const a = el('a', { href: URL.createObjectURL(new Blob([body], { type: 'text/csv;charset=utf-8' })), download: 'ultraplay-' + c.name + '-' + new Date().toISOString().slice(0, 10) + '.csv' });
@@ -354,7 +413,7 @@
     $('#dlgB').replaceChildren(...(o.body || []));
     $('#dlgA').replaceChildren(...o.actions.map(a => {
       const b = el('button', { class: 'btn ' + (a.kind || ''), type: 'button' }); if (a.icon) b.append(icon(a.icon)); b.append(document.createTextNode(a.label));
-      b.addEventListener('click', async () => { if (!a.act) { dlg.close(); return; } b.disabled = true; try { if ((await a.act()) !== false) dlg.close(); } catch (e) { toast('Não deu: ' + e.message, 'alert'); } b.disabled = false; });
+      b.addEventListener('click', async () => { if (!a.act) { dlg.close(); return; } b.disabled = true; try { if ((await a.act()) !== false) dlg.close(); } catch (e) { if (e.code !== 'cancel') toast('Não deu: ' + e.message, 'alert'); } b.disabled = false; });
       return b;
     }));
     dlg.showModal();
@@ -385,15 +444,34 @@
     $('#lgDaily').replaceChildren(...ser.map(s => { const i = el('i'); i.style.setProperty('--c', css(s.color)); return el('span', {}, [i, document.createTextNode(s.label)]); }));
     if (daily.length && !$('#chDaily').hidden) lineChart($('#chDaily'), daily, ser, 'Visitas e pessoas ativas por dia');
     table($('#tbDaily'), ['Dia', 'Visitas', 'Ativas', 'Novas contas', 'Partidas'], daily.slice().reverse().map(r => [dshort(r.day), nf.format(r.visits), nf.format(r.active), nf.format(r.signups), nf.format(r.matches)]), { caption: 'Números por dia' });
+    renderGoals(K);
     $('#insights').replaceChildren(...insights().map(it => {
       const inner = [el('span', { class: 'dot' }, [icon(it.icon)]), el('span', {}, [document.createTextNode(it.text), it.sub ? el('small', { text: it.sub }) : ''])];
       if (it.sec) { const a = el('a', { href: '#' + it.sec }, inner); a.append(icon('chev', 'ic go')); return el('li', { class: it.tone || '' }, [a]); }
       return el('li', { class: it.tone || '' }, [el('div', {}, inner)]);
     }));
   }
+  // metas revistas (docs/METAS.md, cenário base): mostra a próxima ainda não batida
+  const GOALS = [{ when: '6 meses', mau: 900, pay: 40, mrr: 630 }, { when: '12 meses', mau: 1800, pay: 70, mrr: 1000 }, { when: '24 meses', mau: 5500, pay: 200, mrr: 2900 }, { when: '36 meses', mau: 10000, pay: 300, mrr: 4700 }];
+  function renderGoals(K) {
+    const cur = { mau: K.mau, pay: K.pro_paying, mrr: Number(K.mrr) };
+    const i = GOALS.findIndex(g => cur.mau < g.mau || cur.pay < g.pay || cur.mrr < g.mrr);
+    const g = GOALS[i < 0 ? GOALS.length - 1 : i];
+    $('#goalStep').textContent = i < 0 ? 'Todas as metas de 36 meses batidas' : 'Marco de ' + g.when + ' · ' + (i + 1) + ' de ' + GOALS.length;
+    const row = (ic, label, v, goal, fmt) => {
+      const p = Math.min(100, Math.round((100 * v) / goal));
+      const fill = el('i'); fill.style.width = p + '%';
+      const bar = el('div', { class: 'gbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(p), 'aria-label': label + ': ' + p + '% da meta' }, [fill]);
+      return el('div', { class: 'goal' + (p >= 100 ? ' done' : '') }, [el('div', { class: 'gk' }, [icon(ic), el('span', { text: label })]), el('div', { class: 'gv' }, [el('b', { text: fmt(v) }), el('span', { text: ' de ' + fmt(goal) })]), bar, el('small', { text: p >= 100 ? 'Meta batida' : 'Faltam ' + fmt(goal - v) + ' · ' + p + '%' })]);
+    };
+    $('#goals').replaceChildren(row('users', 'Membros ativos no mês', cur.mau, g.mau, v => nf.format(v)), row('crown', 'Pessoas pagando', cur.pay, g.pay, v => nf.format(v)), row('wallet', 'Receita mensal', cur.mrr, g.mrr, v => money.format(v)));
+  }
   // frases curtas sobre o que mudou ou pede atenção, da mais urgente para a menos
   function insights() {
     const K = data.kpi, out = [], rv = revenue(K);
+    const nd = (access || []).filter(a => a.new_device && Date.now() - Date.parse(a.created_at) < 7 * 864e5).length;
+    if (nd && can('dono')) out.push({ tone: 'warn', icon: 'lock', text: nf.format(nd) + (nd === 1 ? ' entrada de aparelho novo no painel' : ' entradas de aparelho novo no painel') + ' nos últimos 7 dias', sub: 'Confira se foi você ou alguém da equipe.', sec: 'seguranca' });
+    if (K.errors && K.errors_prev != null && K.errors > K.errors_prev * 1.5 && K.errors >= 10) out.push({ tone: 'bad', icon: 'bug', text: 'Erros do app subiram: ' + nf.format(K.errors) + ' no período (antes, ' + nf.format(K.errors_prev) + ')', sub: 'Veja onde em Uso do app → Saúde do app.', sec: 'uso' });
     if (K.reports_open) out.push({ tone: 'bad', icon: 'flag', text: nf.format(K.reports_open) + (K.reports_open === 1 ? ' denúncia esperando resposta' : ' denúncias esperando resposta'), sub: 'Responder rápido evita que o problema cresça.', sec: 'moderacao' });
     const dv = K.visits_prev ? Math.round((100 * (K.visits - K.visits_prev)) / K.visits_prev) : null;
     if (dv != null && Math.abs(dv) >= 10) out.push({ tone: dv > 0 ? 'good' : 'warn', icon: 'trend', text: 'Visitas ' + (dv > 0 ? '+' : '') + dv + '% em relação aos ' + days + ' dias anteriores', sub: 'Veja de onde vieram em Crescimento.', sec: 'crescimento' });
@@ -407,6 +485,7 @@
     const ai = aiCost(K);
     if (K.ai_runs) out.push({ tone: K.mrr && ai / K.mrr > 0.1 ? 'warn' : '', icon: 'sparkle', text: 'IA: ' + nf.format(K.ai_runs) + ' análises, ' + money.format(ai) + ' no período', sub: K.mrr ? (ai / K.mrr * 100).toFixed(1).replace('.', ',') + '% da receita mensal' : '', sec: 'ia' });
     if (K.pro_paying) out.push({ tone: '', icon: 'wallet', text: 'Cada assinante paga em média ' + money.format(rv.arpu) + ' por mês', sub: rv.ltv ? 'Valor estimado ao longo da assinatura: ' + money.format(rv.ltv) : '', sec: 'receita' });
+    if (K.tags_new >= 20) { const acc = Math.round((100 * K.tags_accepted) / K.tags_new); if (acc < 70) out.push({ tone: 'warn', icon: 'users', text: 'Só ' + acc + '% das marcações foram aceitas', sub: 'Pode ser marcação em massa ou gente que ainda não conhece o app.', sec: 'uso' }); }
     if (!out.length) out.push({ icon: 'check', tone: 'good', text: 'Tudo tranquilo por aqui.' });
     return out.slice(0, 6);
   }
@@ -422,6 +501,10 @@
     if (data.daily.length) barChart($('#chSignups'), data.daily, 'signups', 'Novas contas', '--series-1');
     hbars($('#chFunnel'), f.map((s, i) => ({ label: STEP[s.step] || s.step, n: s.n, prev: i ? f[i - 1].n : null })), it => pct(it.n, f0) + '% do início' + (it.prev != null ? ' · ' + pct(it.n, it.prev) + '% da etapa' : ''));
     setCsv('funnel', 'funil', ['Etapa', 'Aparelhos'], f.map(s => [STEP[s.step] || s.step, s.n]));
+    const ct = data.cities || [];
+    hbars($('#chCities'), ct.map(c => ({ label: c.city, n: c.n })), it => pct(it.n, K.users) + '% das contas');
+    if (!ct.length) $('#chCities').replaceChildren(empty('Ninguém pôs a cidade no perfil ainda.', 'flagpin'));
+    setCsv('cities', 'cidades', ['Cidade', 'Contas'], ct.map(c => [c.city, c.n]));
     const src = data.sources || [];
     table($('#tbSources'), ['Origem', 'Visitas', 'Contas', 'Conversão'], src.map(s => [{ text: s.source, sub: s.medium || '' }, nf.format(s.visits), nf.format(s.signups), pct(s.signups, s.visits) + '%']), { caption: 'Origem das visitas' });
     setCsv('sources', 'origem', ['Origem', 'Meio', 'Visitas', 'Contas'], src.map(s => [s.source, s.medium, s.visits, s.signups]));
@@ -455,6 +538,18 @@
     hbars($('#chVersions'), vs.map((v, i) => ({ label: v.version, n: v.n })), it => pct(it.n, vt) + '%');
     $('#verNote').textContent = vs.length ? 'Aparelhos que abriram o app no período, pela versão. A mais nova no topo é ' + vs[0].version + '.' : '';
     setCsv('versions', 'versoes', ['Versão', 'Aparelhos'], vs.map(v => [v.version, v.n]));
+    const errDelta = K.errors_prev ? Math.round((100 * (K.errors - K.errors_prev)) / K.errors_prev) : null;
+    $('#kpiHealth').replaceChildren(
+      kpi('bug', 'Erros', nf.format(K.errors || 0), { note: errDelta == null ? 'no período' : (errDelta > 0 ? '+' : '') + errDelta + '% vs. antes', alert: errDelta != null && errDelta >= 50 && K.errors >= 10 }),
+      kpi('phone', 'Aparelhos com erro', nf.format(K.errors_devices || 0), { note: K.active ? pct(K.errors_devices || 0, K.active) + '% dos ativos' : '' }));
+    table($('#tbErrors'), [{ text: 'Onde', cls: 'l' }, { text: 'Tipo', cls: 'l' }, 'Vezes', 'Aparelhos'], (data.errors_top || []).map(e => [{ text: e.where, cls: 'l mono' }, { text: e.kind || '—', cls: 'l' }, nf.format(e.n), nf.format(e.devices)]), { caption: 'Onde o app mais quebra', empty: 'Nenhum erro registrado no período.' });
+    const acc = K.tags_new ? pct(K.tags_accepted, K.tags_new) : 0;
+    $('#kpiCommunity').replaceChildren(
+      kpi('users', 'Marcações', nf.format(K.tags_new || 0), { note: 'de uma pessoa em outra' }),
+      kpi('check', 'Aceitas', acc + '%', { note: nf.format(K.tags_refused || 0) + ' recusadas', alert: K.tags_new >= 20 && acc < 70 }),
+      kpi('lock', 'Bloqueios', nf.format(K.blocks_new || 0), { note: 'no período' }),
+      kpi('clock', 'Pedidos abertos', nf.format((K.del_open || 0) + (K.fix_open || 0)), { note: nf.format(K.del_open || 0) + ' de exclusão · ' + nf.format(K.fix_open || 0) + ' de correção' }),
+      kpi('check', 'Placares corrigidos', nf.format(K.fixes_done || 0), { note: 'todos aceitaram' }));
   }
   const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], DOWL = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
   function heat(box, hours) {
@@ -485,12 +580,18 @@
       kpi('dollar', 'Receita anual (ARR)', money.format(K.mrr * 12), { note: 'MRR × 12' }),
       kpi('crown', 'Assinantes pagando', nf.format(K.pro_paying), { note: (rv.conv * 100).toFixed(1).replace('.', ',') + '% das contas' }),
       kpi('gift', 'Pro de cortesia', nf.format(K.pro - K.pro_paying), { note: 'dado pelo painel ou campanha' }),
+      kpi('clock', 'Em teste grátis', nf.format(K.trials || 0), { note: '14 dias; vira assinatura se não cancelar' }),
       kpi('tag', 'Ticket médio (ARPU)', money.format(rv.arpu), { note: 'por assinante, por mês' }),
       kpi('user-plus', 'Novas assinaturas', nf.format(K.subs_new), { note: 'no período' }),
       kpi('x', 'Cancelamentos', nf.format(K.subs_cancel), { note: 'cancelada ou encerrada no período' }),
       kpi('percent', 'Cancelamento ao mês', (rv.churnM * 100).toFixed(1).replace('.', ',') + '%', { note: 'churn mensal estimado' }),
       kpi('trend', 'Valor por assinante', rv.ltv ? money.format(rv.ltv) : '—', { note: 'LTV ≈ ticket ÷ churn' }),
       kpi('sparkle', 'Custo de IA ao mês', money.format(ai), { note: K.mrr ? (ai / K.mrr * 100).toFixed(1).replace('.', ',') + '% do MRR' : '' }));
+    const md = data.mrr_daily || [];
+    const ms = [{ key: 'mrr', label: 'Receita mensal (R$)', color: '--series-1' }];
+    $('#lgMrr').replaceChildren(...ms.map(x => { const i = el('i'); i.style.setProperty('--c', css(x.color)); return el('span', {}, [i, document.createTextNode(x.label)]); }));
+    if (md.length) lineChart($('#chMrr'), md.map(r => Object.assign({}, r, { mrr: Math.round(Number(r.mrr)) })), ms, 'Receita mensal por dia'); else $('#chMrr').replaceChildren(empty('Sem assinaturas no período.', 'wallet'));
+    setCsv('mrr', 'receita-por-dia', ['Dia', 'Receita mensal', 'Pagantes'], md.map(r => [r.day, r.mrr, r.paying]));
     hbars($('#chPlans'), (data.plans || []).map(p => ({ label: PLAN[p.plan] || p.plan, n: p.n, color: p.plan === 'cortesia' ? css('--fg-3') : null })), it => pct(it.n, K.pro) + '%');
     setCsv('plans', 'planos', ['Plano', 'Assinantes'], (data.plans || []).map(p => [PLAN[p.plan] || p.plan, p.n]));
     const proj = $('#proj'), cur = Math.max(1, Math.ceil(rv.conv * 200) / 2 + 1);
@@ -512,12 +613,13 @@
     const box = $('#tbUsers');
     if (!users) { box.replaceChildren(el('span', { class: 'skel' })); return; }
     table(box, ['Conta', { text: 'E-mail', cls: 'l' }, { text: 'Plano', cls: 'l' }, 'Partidas', 'Última partida', 'Desde', ''], users.map(u => {
-      const who = el('div', {}, [el('b', { text: u.name })]); who.append(el('span', { class: 'sub', text: (u.handle ? '@' + u.handle + ' · ' : '') + u.public_id + (u.city ? ' · ' + u.city : '') }));
+      const who = el('div', { class: 'pii' }, [el('b', { text: u.name })]); who.append(el('span', { class: 'sub', text: (u.handle ? '@' + u.handle + ' · ' : '') + u.public_id + (u.city ? ' · ' + u.city : '') }));
       if (u.is_admin) who.querySelector('b').after(document.createTextNode(' '), el('span', { class: 'pill', text: 'admin' }));
       if (u.reported) who.querySelector('b').after(document.createTextNode(' '), el('span', { class: 'pill bad', title: 'denúncias contra esta conta' }, [icon('flag'), document.createTextNode(String(u.reported))]));
-      const b = el('button', { class: 'btn sm', type: 'button', 'data-grant': u.public_id, 'aria-label': 'Dar Pro de cortesia para ' + u.name }, [icon('gift'), document.createTextNode('Cortesia')]);
-      return [who, { text: u.email || '—', cls: 'l' }, { node: planPill(u), cls: 'l' }, nf.format(u.matches), ago(u.last_match), fdate(u.created_at), b];
+      const b = can('dono') ? el('button', { class: 'btn sm', type: 'button', 'data-grant': u.public_id, 'aria-label': 'Dar Pro de cortesia para ' + u.name }, [icon('gift'), document.createTextNode('Cortesia')]) : '';
+      return [who, { text: u.email || '—', cls: 'l pii' }, { node: planPill(u), cls: 'l' }, nf.format(u.matches), ago(u.last_match), fdate(u.created_at), b];
     }), { caption: 'Contas', empty: userQ ? 'Ninguém encontrado para “' + userQ + '”.' : 'Nenhuma conta ainda.' });
+    const rv = $('#reveal'); rv.hidden = !can('dono'); rv.replaceChildren(icon(reveal ? 'eye-off' : 'eye'), document.createTextNode(reveal ? 'Mascarar e-mails' : 'Mostrar e-mails'));
     $('#usersNote').textContent = users.length >= 50 ? 'Mostrando as 50 primeiras. Refine a busca para achar alguém.' : nf.format(users.length) + (users.length === 1 ? ' conta' : ' contas') + (userQ ? ' encontradas' : ' mais recentes');
     setCsv('users', 'contas', ['Nome', 'Usuário', 'Código', 'E-mail', 'Cidade', 'Plano', 'Pro até', 'Partidas', 'Última partida', 'Criada em'], users.map(u => [u.name, u.handle, u.public_id, u.email, u.city, u.plan || '', u.pro_until || '', u.matches, u.last_match || '', u.created_at]));
   }
@@ -526,8 +628,8 @@
     const has = u.pro_until && Date.parse(u.pro_until) > Date.now();
     const opts = el('div', { class: 'seg choice', role: 'radiogroup', 'aria-label': 'Quanto tempo' }, [7, 30, 90, 365].map(d => el('label', {}, [el('input', Object.assign({ type: 'radio', name: 'gdays', value: String(d) }, d === 30 ? { checked: '' } : {})), el('span', { text: d === 365 ? '1 ano' : d + ' dias' })])));
     const acts = [{ label: 'Cancelar' }];
-    if (has) acts.push({ label: 'Tirar cortesia', kind: 'danger', act: async () => { await api.grant(pid, 0); toast('Cortesia retirada de ' + u.name); await loadUsers(); } });
-    acts.push({ label: 'Dar Pro', kind: 'brand', icon: 'gift', act: async () => { const d = Number((dlg.querySelector('input[name="gdays"]:checked') || {}).value || 30); await api.grant(pid, d); toast('Pro de cortesia para ' + u.name + ' por ' + (d === 365 ? '1 ano' : d + ' dias')); await loadUsers(); } });
+    if (has) acts.push({ label: 'Tirar cortesia', kind: 'danger', act: async () => { dlg.close(); await sensitive(() => api.grant(pid, 0)); toast('Cortesia retirada de ' + u.name); await loadUsers(); return false; } });
+    acts.push({ label: 'Dar Pro', kind: 'brand', icon: 'gift', act: async () => { const d = Number((dlg.querySelector('input[name="gdays"]:checked') || {}).value || 30); dlg.close(); await sensitive(() => api.grant(pid, d)); toast('Pro de cortesia para ' + u.name + ' por ' + (d === 365 ? '1 ano' : d + ' dias')); await loadUsers(); return false; } });
     openDlg({ icon: 'gift', title: 'Pro de cortesia', body: [el('p', { text: u.name + ' · ' + u.public_id }), el('p', { class: 'small', text: has ? 'Já tem cortesia até ' + fdate(u.pro_until) + '. Os dias se somam.' : u.plan ? 'Já assina o ' + (PLAN[u.plan] || u.plan) + '; a cortesia vale se a assinatura acabar.' : 'Libera todos os recursos Pro. Fica registrado em Moderação → Registro.' }), opts], actions: acts });
   }
   function renderGrupos() {
@@ -552,7 +654,7 @@
       const [ic, kl] = KIND[r.kind] || ['flag', r.kind];
       const head = el('div', { class: 'rt' }, [el('span', { class: 'pill', text: kl }), el('q', { text: r.target || '(removido)' })]);
       if (r.same_target > 1) head.append(el('span', { class: 'pill bad', text: r.same_target + ' denúncias' }));
-      const meta = el('div', { class: 'rm', text: 'Motivo: ' + (r.category && REPORT_CAT[r.category] ? REPORT_CAT[r.category] + (r.reason && r.reason !== REPORT_CAT[r.category] ? ' (' + r.reason + ')' : '') : r.reason) + ' · por ' + (r.reporter || '—') + ' · ' + ago(r.created_at) + ' · ' + (RST[r.status] || r.status) + (r.removed ? ' · tirado do ar' : '') });
+      const meta = el('div', { class: 'rm pii', text: 'Motivo: ' + (r.category && REPORT_CAT[r.category] ? REPORT_CAT[r.category] + (r.reason && r.reason !== REPORT_CAT[r.category] ? ' (' + r.reason + ')' : '') : r.reason) + ' · por ' + (r.reporter || '—') + ' · ' + ago(r.created_at) + ' · ' + (RST[r.status] || r.status) + (r.removed ? ' · tirado do ar' : '') });
       const acts = el('div', { class: 'ra' });
       const btn = (label, ic2, kind, st, remove) => { const b = el('button', { class: 'btn sm ' + kind, type: 'button', 'data-rep': r.id, 'data-st': st }, [icon(ic2), document.createTextNode(label)]); if (remove) b.dataset.remove = '1'; acts.append(b); };
       if (r.status === 'aberta') btn('Em análise', 'eye', '', 'em_analise');
@@ -561,13 +663,13 @@
     }));
     const lb = $('#tbLog');
     if (!log) { lb.replaceChildren(el('span', { class: 'skel' })); return; }
-    const ACT = { pro_grant: 'Deu Pro de cortesia', pro_revoke: 'Tirou a cortesia', report_em_analise: 'Denúncia em análise', report_resolvida: 'Resolveu denúncia', report_descartada: 'Descartou denúncia' };
-    table(lb, ['Quando', { text: 'Ação', cls: 'l' }, { text: 'Alvo', cls: 'l' }], log.map(x => [ago(x.created_at), { text: (ACT[x.action] || x.action) + (x.detail && x.detail.days ? ' · ' + x.detail.days + ' dias' : '') + (x.detail && x.detail.remove ? ' · tirou do ar' : ''), cls: 'l' }, { text: x.target || '', cls: 'l' }]), { caption: 'Registro de ações', empty: 'Nenhuma ação ainda.' });
+    const ACT = { pro_grant: 'Deu Pro de cortesia', pro_revoke: 'Tirou a cortesia', report_em_analise: 'Denúncia em análise', report_resolvida: 'Resolveu denúncia', report_descartada: 'Descartou denúncia', emails_view: 'Viu os e-mails das contas', export: 'Baixou planilha' };
+    table(lb, ['Quando', { text: 'Ação', cls: 'l' }, { text: 'Alvo', cls: 'l' }], log.filter(x => x.action !== 'login').map(x => [ago(x.created_at), { text: (ACT[x.action] || x.action) + (x.detail && x.detail.days ? ' · ' + x.detail.days + ' dias' : '') + (x.detail && x.detail.remove ? ' · tirou do ar' : ''), cls: 'l' }, { text: x.target || '', cls: 'l' }]), { caption: 'Registro de ações', empty: 'Nenhuma ação ainda.' });
   }
   function reportAct(id, st, remove) {
-    const run = async () => { await api.handle(id, st, remove); toast(remove ? 'Conteúdo tirado do ar' : st === 'descartada' ? 'Denúncia descartada' : st === 'em_analise' ? 'Marcada como em análise' : 'Denúncia resolvida'); await load(true); };
-    if (!remove) { run().catch(e => toast('Não deu: ' + e.message, 'alert')); return; }
-    openDlg({ icon: 'eye-off', title: 'Tirar do ar?', body: [el('p', { text: 'O conteúdo denunciado some do app para todo mundo e a denúncia fica como resolvida. Dá para restaurar só pelo banco.' })], actions: [{ label: 'Cancelar' }, { label: 'Tirar do ar', kind: 'brand', icon: 'eye-off', act: run }] });
+    const run = async () => { if (dlg.open) dlg.close(); await sensitive(() => api.handle(id, st, remove)); toast(remove ? 'Conteúdo tirado do ar' : st === 'descartada' ? 'Denúncia descartada' : st === 'em_analise' ? 'Marcada como em análise' : 'Denúncia resolvida'); await load(true); };
+    if (!remove) { run().catch(e => { if (e.code !== 'cancel') toast('Não deu: ' + e.message, 'alert'); }); return; }
+    openDlg({ icon: 'eye-off', title: 'Tirar do ar?', body: [el('p', { text: 'O conteúdo denunciado some do app para todo mundo e a denúncia fica como resolvida. Dá para restaurar só pelo banco.' })], actions: [{ label: 'Cancelar' }, { label: 'Tirar do ar', kind: 'brand', icon: 'eye-off', act: async () => { await run(); return false; } }] });
   }
   function renderIA() {
     const K = data.kpi, ai = aiCost(K), per = K.ai_runs ? ai / K.ai_runs : 0;
@@ -588,7 +690,42 @@
     table($('#tbEvents'), [{ text: 'Evento', cls: 'l' }, { text: 'O que é', cls: 'l' }, 'Vezes'], ev.map(e => [{ text: e.name, cls: 'l' }, { text: EVT[e.name] || '—', cls: 'l' }, nf.format(e.n)]), { caption: 'Eventos mais comuns' });
     setCsv('events', 'eventos', ['Evento', 'Vezes'], ev.map(e => [e.name, e.n]));
   }
-  const RENDER = { visao: renderVisao, crescimento: renderCresc, uso: renderUso, receita: renderReceita, contas: renderContas, grupos: renderGrupos, moderacao: renderModeracao, ia: renderIA, eventos: renderEventos };
+  // aparelho em poucas palavras, a partir do navegador ("iPhone · Safari")
+  function device(ua) {
+    if (!ua || ua === '?') return 'desconhecido';
+    const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac OS X/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'Outro';
+    const br = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'navegador';
+    return os + ' · ' + br;
+  }
+  const IDLE_MIN = 15;
+  function renderSeguranca() {
+    const h = hello || {}, acc = access || [];
+    const nd = acc.filter(a => a.new_device && Date.now() - Date.parse(a.created_at) < 30 * 864e5).length;
+    const mfaAge = h.mfa_age_min != null ? h.mfa_age_min : null;
+    $('#kpiSec').replaceChildren(
+      kpi('shield', 'Seu papel', ROLE[role] || role, { note: role === 'dono' ? 'vê e faz tudo' : role === 'moderador' ? 'denúncias e contas (e-mail mascarado)' : 'só os números' }),
+      kpi('lock', 'Código do autenticador', mfaAge == null ? '—' : mfaAge < 60 ? 'há ' + Math.max(1, mfaAge) + ' min' : 'há ' + Math.round(mfaAge / 60) + ' h', { note: 'ações sensíveis pedem de novo depois de 8 h', alert: mfaAge != null && mfaAge > 480 }),
+      kpi('clock', 'Acesso anterior', h.last_login ? ago(h.last_login) : 'primeiro acesso', { note: h.new_device ? 'esta entrada é de um aparelho novo' : 'sai sozinho após ' + IDLE_MIN + ' min parado', alert: !!h.new_device }),
+      kpi('phone', 'Aparelhos novos', nf.format(nd), { note: 'entradas de aparelho novo em 30 dias', alert: nd > 0 }));
+    if (!access) $('#tbAccess').replaceChildren(el('span', { class: 'skel' }));
+    else table($('#tbAccess'), ['Quando', { text: 'Quem', cls: 'l' }, { text: 'IP', cls: 'l' }, { text: 'Aparelho', cls: 'l' }], acc.map(a => [ago(a.created_at), { text: a.admin || '—', cls: 'l pii' }, { text: a.ip || '—', cls: 'l mono pii' }, { cls: 'l', node: el('span', { class: 'devc' }, [document.createTextNode(device(a.ua)), a.new_device ? el('span', { class: 'pill bad', text: 'novo' }) : '']) }]), { caption: 'Acessos ao painel', empty: 'Nenhum acesso registrado ainda.' });
+    $('#accNote').textContent = role === 'dono' ? 'Entradas de todos os admins, com o aparelho e o IP. Aparelho novo aparece em destaque.' : 'Só as suas entradas. O dono vê as de toda a equipe.';
+    if (!can('dono')) $('#tbTeam').replaceChildren(empty('Só o dono vê a equipe.', 'lock'));
+    else if (!team) $('#tbTeam').replaceChildren(el('span', { class: 'skel' }));
+    else table($('#tbTeam'), [{ text: 'Pessoa', cls: 'l' }, { text: 'Papel', cls: 'l' }, 'Último acesso', ''], team.map(t => [{ text: t.name, sub: t.public_id, cls: 'l pii' }, { text: ROLE[t.role] || t.role, cls: 'l' }, t.last_login ? ago(t.last_login) : '—', t.disabled ? el('span', { class: 'pill bad', text: 'suspenso' }) : el('span', { class: 'pill', text: 'ativo' })]), { caption: 'Equipe', empty: 'Ninguém na equipe.' });
+    const CHECKS = [
+      ['Entrar pede o link no e-mail e o código do app autenticador (dois fatores). Sem o código, o banco não entrega nada.', 'lock'],
+      ['Ações sensíveis (dar Pro, tirar do ar, ver e-mails, baixar a planilha de contas) pedem o código de novo se ele tem mais de 8 horas.', 'shield'],
+      ['Sai sozinho depois de ' + IDLE_MIN + ' minutos parado, com aviso 1 minuto antes. Sair invalida a sessão no servidor.', 'clock'],
+      ['Papéis: dono, moderador e leitor. Admin suspenso perde o acesso na hora.', 'users'],
+      ['E-mails aparecem mascarados. Ver inteiro fica no registro de ações.', 'eye-off'],
+      ['O registro de ações não pode ser alterado nem apagado, nem pelo banco.', 'list'],
+      ['No máximo 30 cortesias e 300 respostas a denúncias por dia por admin: uma conta roubada não faz estrago grande.', 'gift'],
+      ['O painel não abre dentro de outro site e não aparece no Google. A chave secreta do servidor nunca fica no painel.', 'eye'],
+    ];
+    $('#secChecks').replaceChildren(...CHECKS.map(([t, ic]) => el('li', {}, [el('span', { class: 'ck' }, [icon('check')]), el('span', {}, [icon(ic, 'ic sm'), document.createTextNode(' ' + t)])])));
+  }
+  const RENDER = { visao: renderVisao, crescimento: renderCresc, uso: renderUso, receita: renderReceita, contas: renderContas, grupos: renderGrupos, moderacao: renderModeracao, ia: renderIA, seguranca: renderSeguranca, eventos: renderEventos };
   function render() {
     if (!data) return;
     const K = data.kpi, bd = $('#navBadge');
@@ -599,7 +736,7 @@
     $('#stamp').textContent = 'Atualizado às ' + new Date(data.generated_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' · ' + days + ' dias desde ' + (data.from ? dshort(data.from) : dshort(data.daily[0].day));
   }
   function show(s) {
-    if (!SECS[s]) s = 'visao';
+    if (!SECS[s] || (NEEDS[s] && !can(NEEDS[s]))) s = 'visao';
     sec = s;
     document.querySelectorAll('.sec').forEach(p => { p.hidden = p.dataset.page !== s; });
     document.querySelectorAll('.nav-i').forEach(a => { if (a.dataset.sec === s) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
@@ -611,6 +748,17 @@
     if (s === 'contas' && !users) loadUsers();
     if (s === 'grupos' && !groups) loadGroups();
     if (s === 'moderacao' && (!reports || !log)) loadMod();
+    if (s === 'seguranca') loadSec();
+  }
+  async function loadSec() {
+    try { [access, team] = await Promise.all([api.access(), can('dono') ? api.team() : Promise.resolve(null)]); } catch (e) { if (e.code === 401) fail(e); else { access = access || []; console.warn('[admin] acessos indisponíveis', e.message); } if (sec === 'seguranca') renderSeguranca(); return; }
+    const nd = (access || []).some(a => a.new_device && Date.now() - Date.parse(a.created_at) < 7 * 864e5);
+    $('#secBadge').hidden = !(nd && can('dono'));
+    if (sec === 'seguranca') renderSeguranca();
+  }
+  // o que o papel não pode ver some do menu
+  function applyRole() {
+    document.querySelectorAll('.nav-i').forEach(a => { const need = NEEDS[a.dataset.sec]; a.hidden = !!need && !can(need); });
   }
 
   function fail(e) {
@@ -620,14 +768,14 @@
     else $('#notice').textContent = 'Não consegui carregar (' + e.message + '). Tente Atualizar.';
     return false;
   }
-  async function loadUsers() { try { users = await api.users(userQ); if (sec === 'contas') renderContas(); } catch (e) { fail(e); } }
+  async function loadUsers() { try { users = await (reveal ? sensitive(() => api.users(userQ, true)) : api.users(userQ, false)); if (sec === 'contas') renderContas(); } catch (e) { if (e.code === 'cancel') { reveal = false; return loadUsers(); } fail(e); } }
   async function loadGroups() { try { groups = await api.groups(days); if (sec === 'grupos') renderGrupos(); } catch (e) { fail(e); } }
   async function loadMod() { try { [reports, log] = await Promise.all([api.reports(rst), api.log()]); if (sec === 'moderacao') renderModeracao(); } catch (e) { fail(e); } }
   async function load(quiet) {
     const app = $('#dash'), rb = $('#refresh');
     if (!quiet) app.classList.add('loading');
     rb.classList.add('spin');
-    try { data = await api.metrics(days); render(); if (sec === 'grupos') loadGroups(); if (quiet && sec === 'moderacao') loadMod(); }
+    try { data = await api.metrics(days); if (data.role && data.role !== role) { role = data.role; applyRole(); } render(); if (sec === 'grupos') loadGroups(); if (quiet && sec === 'moderacao') loadMod(); }
     catch (e) { fail(e); }
     app.classList.remove('loading'); rb.classList.remove('spin');
   }
@@ -644,8 +792,12 @@
       out.addEventListener('click', async () => { await logout(); showLogin('Você saiu.'); });
       $('#who').replaceChildren(el('span', { title: u && u.email ? u.email : '' }, [icon('shield'), document.createTextNode(u && u.email ? u.email : 'admin')]), out);
     }
+    try { hello = await api.hello(); role = hello.role || 'leitor'; } catch (e) { if (e.code === 401) { fail(e); return; } console.warn('[admin] admin_hello indisponível (rode o admin.sql novo)', e.message); }
+    applyRole();
+    if (hello && hello.new_device && !DEMO) toast('Entrada de um aparelho novo registrada em Segurança.', 'lock');
     show(secFromHash());
     load();
+    loadSec();
   }
   const secFromHash = () => { const h = location.hash.slice(1); return SECS[h] ? h : 'visao'; };
 
@@ -702,10 +854,21 @@
     catch (err) { $('#mfaMsg').textContent = err.code === 401 ? 'Sessão expirou. Entre de novo.' : 'Código não confere. Veja se o relógio do celular está certo e tente o código novo.'; $('#mfaCode').select(); }
   });
   $('#mfaOut').addEventListener('click', async () => { await logout(); showLogin(); });
-  // parado por 30 min: sai sozinho (painel aberto num computador esquecido)
-  let lastAct = Date.now();
-  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { lastAct = Date.now(); }, true));
-  setInterval(async () => { if (!DEMO && session && Date.now() - lastAct > 30 * 60e3) { await logout(); showLogin('Saí sozinho depois de 30 minutos parado. Entre de novo.'); } }, 60e3);
+  // parado por 15 min: sai sozinho (painel aberto num computador esquecido); 1 min antes, avisa
+  let lastAct = Date.now(), warned = false;
+  ['pointerdown', 'keydown', 'wheel'].forEach(ev => document.addEventListener(ev, () => { lastAct = Date.now(); warned = false; }, { capture: true, passive: true }));
+  setInterval(async () => {
+    if (DEMO || !session || $('#dash').hidden) return;
+    const idle = Date.now() - lastAct;
+    if (idle > IDLE_MIN * 60e3) { if (dlg.open) dlg.close(); await logout(); showLogin('Saí sozinho depois de ' + IDLE_MIN + ' minutos parado. Entre de novo.'); return; }
+    if (idle > (IDLE_MIN - 1) * 60e3 && !warned) { warned = true; toast('Sem uso: o painel sai sozinho em 1 minuto. Toque em qualquer lugar para continuar.', 'clock'); }
+  }, 15e3);
+  // ocultar dados pessoais (para compartilhar a tela ou gravar um vídeo do painel)
+  const PKEY = 'ultra.admin.pii';
+  const setPii = on => { document.body.classList.toggle('pii-blur', on); $('#pii').checked = on; };
+  setPii(getLS(PKEY) === '1');
+  $('#pii').addEventListener('change', e => { setLS(PKEY, e.target.checked ? '1' : '0'); setPii(e.target.checked); toast(e.target.checked ? 'Nomes, e-mails e IPs borrados' : 'Dados visíveis de novo', e.target.checked ? 'eye-off' : 'eye'); });
+  $('#reveal').addEventListener('click', () => { reveal = !reveal; loadUsers(); });
 
   takeHash();
   session = readSession();

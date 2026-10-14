@@ -1192,7 +1192,7 @@ i.lg.x { background: none; width: auto; height: auto; font-size: 11px; font-weig
   .dock-btn svg { font-size: 22px; }
   .mic-btn { width: 60px; height: 60px; font-size: 25px; }
 }
-@media (max-width: 360px) { #matchChipText { display: none; } .match-chip { padding: 7px 10px; } } /* só o ícone do esporte; o formato abre no toque */
+@media (max-width: 400px) { #matchChipText { display: none; } .match-chip { padding: 7px 10px; } } /* só o ícone do esporte; o formato abre no toque */
 
 /* =========================================================
    v6 · acabamento premium (linguagem de painel "ops": fundo profundo com brilho ambiente,
@@ -3588,3 +3588,26 @@ body.plp-on { overflow: hidden; }
 .match-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
 .fix-link { color: var(--fg-2) !important; }
 .kpi b.kpi-txt { font-size: clamp(15px, 4.6vw, 20px) !important; line-height: 1.15 !important; white-space: normal; overflow-wrap: anywhere; }
+
+/* ===== v49 · animações em loop pausam fora da tela (app.js marca .anim-off) ===== */
+.anim-off, .anim-off *, .anim-off::before, .anim-off::after, .anim-off *::before, .anim-off *::after { animation-play-state: paused !important; }
+/* ===== v49 · telas estreitas (320–359 px: celulares pequenos ou com zoom de tela) e textos sem palavra sozinha ===== */
+.rec-txt small, .pc-name small, .news-card span, .voice-text b, .voice-text span, .wl-live span { text-wrap: balance; }
+@media (max-width: 359px) { .list .row small { text-wrap: balance; } }
+.streak span { overflow-wrap: anywhere; hyphens: auto; }
+.panel > *, .h2h, .h2h-row { min-width: 0; }   /* item de grid não cresce além do painel por causa de texto que não quebra */
+@media (max-width: 359px) {
+  .seg span { padding: 6px 8px; font-size: 12px; }
+  .seg-wide { grid-auto-columns: minmax(0, 1fr); }
+  .seg-wide span { white-space: normal; line-height: 1.2; overflow-wrap: anywhere; }
+  .seg span { padding: 6px 6px; }
+  .streaks { gap: 6px; }
+  .streak { padding: 10px 9px 12px; }
+  .streak span { font-size: 11px; }
+  .me-meta span { white-space: normal; min-width: 0; }
+  .h2h-row { gap: 8px; }
+  .h2h-row .rec { font-size: 13px; }
+  .row:has(.row-ic) { column-gap: 10px; padding-left: 12px; padding-right: 12px; }
+  .row:has(.row-ic):has(> span small) > .btn { grid-column: 2 / -1; justify-self: start; }   /* sem espaço para texto e botão lado a lado: o botão desce */
+}
+.act-badges button.mtag.gtag { padding-right: 9px; }

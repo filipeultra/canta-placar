@@ -1,5 +1,10 @@
 /* ULTRA PLAY · dicionário português → inglês, usado por i18n.js. Gerado a partir dos textos do app (ver docs/IDIOMAS.md). */
 window.CantaI18nDict = {
+"Revisão geral: telas pequenas, bateria e segurança": "Overall review: small screens, battery and security",
+"Celulares pequenos: textos, botões e números cabem na tela também a 320 px, sem palavra sozinha na linha.": "Small phones: text, buttons and numbers fit on screen even at 320 px, with no word alone on a line.",
+"Em inglês, vitórias e derrotas aparecem como W e L em todo o app.": "In English, wins and losses show as W and L across the app.",
+"As animações em loop param quando saem da tela, para gastar menos bateria.": "Looping animations pause when off screen, to save battery.",
+"O motor de voz offline vem do próprio app, sem depender de outro site.": "The offline voice engine now comes from the app itself, with no other site involved.",
 "Correção de placar e prazos": "Score fixes and deadlines",
 "Corrigir placar: ajuste os sets de uma partida já confirmada. Quando todos aceitam, o placar muda para todos, com o selo Placar corrigido. Vale também para as partidas lançadas à mão.": "Fix score: adjust the sets of a match that was already confirmed. When everyone accepts, the score changes for everyone, with the Score fixed label. Works for matches logged by hand too.",
 "Pedidos de exclusão e de correção expiram em 14 dias sem resposta. A partida fica como estava.": "Deletion and correction requests expire after 14 days without an answer. The match stays as it was.",

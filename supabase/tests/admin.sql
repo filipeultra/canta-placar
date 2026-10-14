@@ -19,7 +19,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","aal":"aal1"}', false) \g /dev/null
 do $$ begin perform public.admin_metrics(30); raise notice '3b. ERRO: admin sem a 2ª etapa leu'; exception when insufficient_privilege then raise notice '3b. admin que só entrou pelo link do e-mail (sem o código do autenticador) não lê'; end $$;
 select '3c. am_i_admin sem a 2ª etapa: ' || public.am_i_admin()::text;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","aal":"aal2"}', false) \g /dev/null
+select set_config('request.jwt.claims', jsonb_build_object('sub', '00000000-0000-0000-0000-00000000000a', 'aal', 'aal2', 'amr', jsonb_build_array(jsonb_build_object('method', 'totp', 'timestamp', extract(epoch from now())::bigint)))::text, false) \g /dev/null
 select '4. kpi: ' || (public.admin_metrics(30)->'kpi')::text;
 select '5. funil: ' || (public.admin_metrics(30)->'funnel')::text;
 select '6. origem: ' || (public.admin_metrics(30)->'sources')::text;

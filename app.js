@@ -708,7 +708,7 @@
     else if (st === 'error') h.textContent = voiceDetail || 'O microfone parou. Toque para tentar de novo.';
     else if (st === 'unsupported') h.textContent = 'Este navegador não reconhece voz. Use o Chrome ou o Edge, ou toque em Digitar.';
     else if (Date.now() - lastHeardAt > 8000) {
-      const ex = example();
+      const ex = example().replace(/ /g, '\u00a0');   // o comando de exemplo não quebra no meio
       h.textContent = st === 'off' ? 'Ou ligue a voz e diga “' + ex + '”' : prefs.wake ? 'Diga “placar, ' + ex + '”' : 'Diga “' + ex + '” ou “desfazer”';
     }
   }
@@ -2206,6 +2206,8 @@
 
   // Partida do histórico → atividade da timeline (mesmo formato das atividades fictícias).
   const actCache = new Map();
+  // sem palavra sozinha na 2ª linha (onde o CSS não equilibra: texto com limite de linhas)
+  const noWidow = s => String(s).replace(/ (\S{1,13})$/, '\u00a0$1');
   function toActivity(m, ownerId) {
     const p = m.post || {};
     const key = m.id + '|' + ownerId + '|' + (m.groupId || '') + '|' + (m.endedAt || 0) + '|' + m.events.length + '|' + JSON.stringify(p) + '|' + JSON.stringify(m.manual || null) + '|' + JSON.stringify(m.fix || null) + '|' + myName();
@@ -3461,7 +3463,7 @@
     countTo($('#wlToday'), n.today + (first ? 0 : Math.floor(Math.random() * 4)), first ? 1400 : 700);
     countTo($('#wlPts'), n.pts, first ? 1400 : 700);
     const city = (prefs.city || SO.CITY).split(',')[0];
-    $('#wlCityLbl').textContent = 'jogando em ' + city;
+    $('#wlCityLbl').textContent = noWidow('jogando em ' + city);
     countTo($('#wlCity'), Math.max(3, Math.round(wlNowVal * 0.009)), first ? 1400 : 700);
     const max = WL_SPORTS[0][1];
     $('#wlSports').innerHTML = WL_SPORTS.map(([sp, w]) => '<div class="wl-sp"><span>' + ic('s-' + sp) + esc(sportLabel(sp)) + '</span><u><em style="width:' + Math.round(w / max * 100) + '%"></em></u><b>' + fmtN(Math.round(wlNowVal * w)) + '</b></div>').join('');
@@ -3620,7 +3622,7 @@
         cells += '<i class="' + (fut ? 'fut' : n >= 2 ? 'l2' : n === 1 ? 'l1' : '') + '" style="grid-column:' + (w + 2) + ';grid-row:' + (d + 1) + '" title="' + new Date(k).toLocaleDateString('pt-BR') + (n ? ': ' + n + (n === 1 ? ' partida' : ' partidas') : '') + '"></i>';
       }
     }
-    const days = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((l, i) => '<b style="grid-column:1;grid-row:' + (i + 1) + '">' + (i % 2 ? '' : l) + '</b>').join('');
+    const days = (L('STQQSSD', 'MTWTFSS')).split('').map((l, i) => '<b style="grid-column:1;grid-row:' + (i + 1) + '">' + (i % 2 ? '' : l) + '</b>').join('');
     return '<div class="cal" aria-label="Partidas nas últimas 12 semanas">' + days + cells + '</div>' +
       '<div class="cal-legend"><span>12 semanas atrás</span><span class="cal-key">menos <i></i><i class="l1"></i><i class="l2"></i> mais</span><span>hoje</span></div>';
   }
@@ -3719,7 +3721,7 @@
       [['month', 'Mês'], ['year', 'Ano'], ['all', 'Sempre']].map(([v, l]) => '<label><input type="radio" name="mePeriod" value="' + v + '"' + (mePeriod === v ? ' checked' : '') + '><span>' + l + '</span></label>').join('') + '</div>') +
       kpiHTML([['Partidas', per.matches], ['Vitórias', per.wins], ['Em quadra', fmtDur(per.durationMs)]], true) + '</div>';
     h += '<div class="panel">' + ph('i-calendar', 'Atividade', '<span class="sec-meta">' + p.periods.month.matches + ' este mês</span>') + calendarHTML(p.calendar) + '</div>';
-    h += '<div class="panel">' + ph('i-list', 'Últimos jogos', '<span class="sec-meta">média por jogo</span>') + '<div class="form-guide">' + p.series.slice(-10).map(r => '<i class="' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '" title="' + esc(r.team + ' × ' + r.opp) + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</i>').join('') + '</div>' +
+    h += '<div class="panel">' + ph('i-list', 'Últimos jogos', '<span class="sec-meta">média por jogo</span>') + '<div class="form-guide">' + p.series.slice(-10).map(r => '<i class="' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '" title="' + esc(r.team + ' × ' + r.opp) + '">' + (r.won === true ? L('V', 'W') : r.won === false ? L('D', 'L') : '–') + '</i>').join('') + '</div>' +
       kpiHTML([['Seus pontos', one(p.avg.pts)], ['Seus erros', one(p.avg.errors)], ['Saldo do time', (p.avg.teamPts >= p.avg.oppPts ? '+' : '−') + one(Math.abs(p.avg.teamPts - p.avg.oppPts))]]) + '</div>';
     const attributed = p.series.some(r => r.pts || r.errors);
     h += '<div class="panel">' + ph('i-trend', 'Evolução', '<span class="sec-meta">últimas ' + Math.min(20, p.series.length) + '</span>') + (attributed ? trendSvg(p.series.slice(-20), 'pts', 'errors', 'Seus pontos', 'Seus erros') : trendSvg(p.series.slice(-20), 'teamPts', 'oppPts', 'Pontos do time', 'Pontos sofridos')) + '</div>';
@@ -3732,7 +3734,7 @@
       ['i-trend', 'Maior vitória', R.margin, v => '+' + v + ' pontos'], ['i-clock', 'Partida mais longa', R.longest, v => fmtDur(v)],
     ].filter(x => x[2]);
     if (rec.length) h += '<div class="panel">' + ph('i-trophy', 'Recordes pessoais') + '<div class="recs">' + rec.map(([icn, l, r, f]) =>
-      '<button class="rec-row rec-big" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic">' + ic(icn) + '</span><span class="rec-txt"><em>' + esc(l) + '</em><b>' + esc(f(r.value)) + '</b><small>' + (mixed && r.sport ? '<span class="sport-tag">' + ic('s-' + r.sport) + esc(SPORT_SHORT[r.sport] || sportLabel(r.sport)) + '</span>' : '') + esc(fmtWhen(r.endedAt)) + (r.opp ? ' · contra ' + esc(r.opp) : '') + '</small></span>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
+      '<button class="rec-row rec-big" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic">' + ic(icn) + '</span><span class="rec-txt"><em>' + esc(l) + '</em><b>' + esc(f(r.value)) + '</b><small>' + (mixed && r.sport ? '<span class="sport-tag">' + ic('s-' + r.sport) + esc(SPORT_SHORT[r.sport] || sportLabel(r.sport)) + '</span>' : '') + esc(noWidow(fmtWhen(r.endedAt) + (r.opp ? ' · contra ' + r.opp : ''))) + '</small></span>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
 
     // conquistas (sempre de todos os esportes)
     indexAch(all.achievements, who);
@@ -3762,15 +3764,15 @@
       const tough = enough.slice().sort((a, b) => a.wins / a.matches - b.wins / b.matches)[0];
       const fav = enough.slice().sort((a, b) => b.wins / b.matches - a.wins / a.matches)[0];
       h += '<div class="panel">' + ph('i-swords', 'Confrontos', rangeSel('confrontos')) + (opp.length ? '' : emptyRange) +
-        (tough && fav && tough !== fav ? '<div class="duo"><div class="duo-card warn"><span>' + ic('i-flame') + 'Mais difícil</span><b>' + esc(tough.name) + '</b><small>' + tough.wins + 'V · ' + tough.losses + 'D</small></div><div class="duo-card"><span>' + ic('i-trophy') + 'Melhor saldo</span><b>' + esc(fav.name) + '</b><small>' + fav.wins + 'V · ' + fav.losses + 'D</small></div></div>' : '') +
-        '<div class="h2h">' + opp.slice(0, 8).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
+        (tough && fav && tough !== fav ? '<div class="duo"><div class="duo-card warn"><span>' + ic('i-flame') + 'Mais difícil</span><b>' + esc(tough.name) + '</b><small>' + tough.wins + L('V', 'W') + ' · ' + tough.losses + L('D', 'L') + '</small></div><div class="duo-card"><span>' + ic('i-trophy') + 'Melhor saldo</span><b>' + esc(fav.name) + '</b><small>' + fav.wins + L('V', 'W') + ' · ' + fav.losses + L('D', 'L') + '</small></div></div>' : '') +
+        '<div class="h2h">' + opp.slice(0, 8).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo contra' : ' jogos contra') + '</small></span><span class="rec"><span class="wl">' + o.wins + L('V', 'W') + '</span> · ' + o.losses + L('D', 'L') + '</span></div>').join('') + '</div></div>';
     }
     const par = Object.keys(p.partners).length ? Object.values((profileIn(list, who, meRange.parceiros, meSport) || p).partners).sort((a, b) => b.matches - a.matches) : null;
-    if (par) h += '<div class="panel">' + ph('i-users', 'Parceiros', rangeSel('parceiros')) + (par.length ? '' : emptyRange) + '<div class="h2h">' + par.slice(0, 6).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></span><span class="rec"><span class="wl">' + o.wins + 'V</span> · ' + o.losses + 'D</span></div>').join('') + '</div></div>';
+    if (par) h += '<div class="panel">' + ph('i-users', 'Parceiros', rangeSel('parceiros')) + (par.length ? '' : emptyRange) + '<div class="h2h">' + par.slice(0, 6).map(o => '<div class="h2h-row"><span class="mini-av" style="--av:' + nameColor(o.name) + '">' + esc(initials(o.name)) + '</span><span class="h2h-txt"><b>' + esc(o.name) + '</b><small>' + o.matches + (o.matches === 1 ? ' jogo juntos' : ' jogos juntos') + '</small></span><span class="rec"><span class="wl">' + o.wins + L('V', 'W') + '</span> · ' + o.losses + L('D', 'L') + '</span></div>').join('') + '</div></div>';
 
     // partidas recentes
     h += '<div class="panel">' + ph('i-history', 'Partidas recentes') + '<div class="recs">' + p.recent.slice(0, 6).map(r =>
-      '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(sportLabel(r.sport)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? 'V' : r.won === false ? 'D' : '–') + '</span>' + (r.manual ? '<span class="mtag" title="Lançada depois do jogo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span><small>' + esc(fmtWhen(r.endedAt)) + ' · contra ' + esc(r.oppPlayers || r.opp) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
+      '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(sportLabel(r.sport)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? L('V', 'W') : r.won === false ? L('D', 'L') : '–') + '</span>' + (r.manual ? '<span class="mtag" title="Lançada depois do jogo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span><small>' + esc(noWidow(fmtWhen(r.endedAt) + ' · contra ' + (r.oppPlayers || r.opp))) + '</small></span><b>' + esc(r.sets.join(' ')) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
     body.innerHTML = h;
     const on = body.querySelector('.sf.on');
     if (on && meSport) { const strip = on.parentElement; strip.scrollLeft = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2; } // só na horizontal: não mexe na rolagem da página
@@ -3846,7 +3848,7 @@
           return '<div class="bk-row cmp"><b>' + esc(one(x)) + '</b><div class="bk-mid"><span>' + esc(lbl) + '</span><div class="bk-bars"><u><em style="width:' + w(x) + ';--tc:var(--chart)"></em></u><u><em style="width:' + w(y) + ';--tc:' + (side === 'opp' ? 'var(--alert)' : 'var(--c-azul)') + '"></em></u></div></div><b>' + esc(one(y)) + '</b></div>'; }).join('') +
         (side === 'mate' && a.teamPts ? '<p class="st-lead" translate="no">' + ic('i-users') + '<span>' + esc(L('Dos pontos do time, ' + Math.round(a.pts / a.teamPts * 100) + '% foram seus e ' + Math.round(o.pts / a.teamPts * 100) + '% de ' + fn + '.', 'Of the team\'s points, ' + Math.round(a.pts / a.teamPts * 100) + '% were yours and ' + Math.round(o.pts / a.teamPts * 100) + '% were ' + fn + '\'s.')) + '</span></p>' : '') + '</div>';
     } else h += '<p class="hint">' + ic('i-info') + ' ' + esc(L('Para comparar pontos, winners e erros, marque quem fez cada ponto.', 'To compare points, winners and errors, log who won each point.')) + '</p>';
-    h += '<div class="panel">' + ph('i-history', 'Partidas') + '<div class="recs">' + list.slice(-10).reverse().map(r => '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(r.endedAt)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? L('V', 'W') : r.won === false ? L('D', 'L') : '–') + '</span></span><small translate="no">' + (side === 'opp' ? L('contra ', 'vs ') + esc(oppTxt(r.opp)) : esc(TYPE_LABEL[r.type] || '')) + ' · ' + esc(L(Math.round(r.detail * 100) + '% detalhado', Math.round(r.detail * 100) + '% detailed')) + '</small></span><b>' + r.teamPts + '-' + r.oppPts + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
+    h += '<div class="panel">' + ph('i-history', 'Partidas') + '<div class="recs">' + list.slice(-10).reverse().map(r => '<button class="rec-row" type="button" data-open="' + esc(r.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + r.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(r.endedAt)) + '<span class="res-dot ' + (r.won === true ? 'w' : r.won === false ? 'l' : '') + '">' + (r.won === true ? L('V', 'W') : r.won === false ? L('D', 'L') : '–') + '</span></span><small translate="no">' + esc(noWidow((side === 'opp' ? L('contra ', 'vs ') + oppTxt(r.opp) : (TYPE_LABEL[r.type] || '')) + ' · ' + L(Math.round(r.detail * 100) + '% detalhado', Math.round(r.detail * 100) + '% detailed'))) + '</small></span><b>' + r.teamPts + '-' + r.oppPts + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div></div>';
     return h;
   }
   const xcData = new Map(); // gráficos interativos desenhados agora (id → pontos)
@@ -4122,7 +4124,7 @@
       const mx = Math.max(...months.map(m => m.w + m.l), 1);
       z += '<div class="panel">' + ph('i-calendar', 'Vitórias e derrotas por mês') + '<div class="st-months" role="img" aria-label="Vitórias e derrotas por mês">' + months.map((m, i) => {
         const lbl = new Date(m.y, m.m, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
-        return '<div class="stm" style="--k:' + i + '" title="' + esc(lbl + ': ' + m.w + 'V · ' + m.l + 'D') + '"><div class="stm-bar"><i class="w liq-v" style="height:' + (m.w / mx * 100) + '%"></i><i class="l liq-v" style="height:' + (m.l / mx * 100) + '%"></i></div><b>' + m.w + '<span>' + L('V', 'W') + '</span> ' + m.l + '<span>' + L('D', 'L') + '</span></b><small>' + esc(lbl) + '</small></div>';
+        return '<div class="stm" style="--k:' + i + '" title="' + esc(lbl + ': ' + m.w + L('V', 'W') + ' · ' + m.l + L('D', 'L')) + '"><div class="stm-bar"><i class="w liq-v" style="height:' + (m.w / mx * 100) + '%"></i><i class="l liq-v" style="height:' + (m.l / mx * 100) + '%"></i></div><b>' + m.w + '<span>' + L('V', 'W') + '</span> ' + m.l + '<span>' + L('D', 'L') + '</span></b><small>' + esc(lbl) + '</small></div>';
       }).join('') + '</div><div class="xlegend"><span><i class="w"></i>Vitórias</span><span><i class="lb"></i>Derrotas</span></div></div>';
     }
     return z;
@@ -4164,7 +4166,7 @@
     let h = '<div class="sd-head"><span class="st-ic big">' + ic(mt.ic) + '</span><div><b>' + esc(fmtMt(mt, val)) + '</b><span>' + esc(mtUnitTxt(mt) || (EN ? ST_PERIOD_EN[stF.period] : ST_PERIOD_LONG[stF.period])) + '</span></div>' + deltaHTML(mt, val, pa ? F.value(mt, pa) : null) + '</div>' +
       '<p class="hint">' + esc(mt.help) + '</p>' + xChartHTML(mt, s, true);
     if (s.length >= 2) h += '<div class="kpis">' + [['Melhor partida', fmtMt(mt, best)], ['Últimas 5', fmtMt(mt, avg(l5))], ['5 anteriores', b5.length ? fmtMt(mt, avg(b5)) : '–']].map(([l, x]) => '<div class="kpi"><span>' + esc(l) + '</span><b>' + esc(x) + '</b></div>').join('') + '</div>';
-    if (s.length) h += '<h4 class="sd-sub">Partida a partida</h4><div class="recs">' + s.slice(-12).reverse().map(p => '<button class="rec-row" type="button" data-open="' + esc(p.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + p.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(p.t)) + '<span class="res-dot ' + (p.won === true ? 'w' : p.won === false ? 'l' : '') + '">' + (p.won === true ? 'V' : p.won === false ? 'D' : '–') + '</span></span><small translate="no">' + L('contra ', 'vs ') + esc(oppTxt(p.opp)) + ' · ' + esc(TYPE_LABEL[p.type] || '') + (p.detail != null ? ' · ' + L(Math.round(p.detail * 100) + '% detalhado', Math.round(p.detail * 100) + '% detailed') : '') + '</small></span><b>' + esc(fmtMt(mt, p.v)) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div>';
+    if (s.length) h += '<h4 class="sd-sub">Partida a partida</h4><div class="recs">' + s.slice(-12).reverse().map(p => '<button class="rec-row" type="button" data-open="' + esc(p.id) + '"><span class="rec-ic rec-sport">' + ic('s-' + p.sport) + '</span><span class="rec-txt"><span class="rec-l">' + esc(fmtDay(p.t)) + '<span class="res-dot ' + (p.won === true ? 'w' : p.won === false ? 'l' : '') + '">' + (p.won === true ? L('V', 'W') : p.won === false ? L('D', 'L') : '–') + '</span></span><small translate="no">' + esc(noWidow(L('contra ', 'vs ') + oppTxt(p.opp) + ' · ' + (TYPE_LABEL[p.type] || '') + (p.detail != null ? ' · ' + L(Math.round(p.detail * 100) + '% detalhado', Math.round(p.detail * 100) + '% detailed') : ''))) + '</small></span><b>' + esc(fmtMt(mt, p.v)) + '</b>' + ic('i-chev', 'ic chev') + '</button>').join('') + '</div>';
     $('#statBody').innerHTML = h;
     openSheet('#sheetStat');
   }
@@ -6234,6 +6236,12 @@
   const APP_VERSION = '2026.10.13';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-14a', date: '14/10/2026', title: 'Revisão geral: telas pequenas, bateria e segurança', items: [
+      'Celulares pequenos: textos, botões e números cabem na tela também a 320 px, sem palavra sozinha na linha.',
+      'Em inglês, vitórias e derrotas aparecem como W e L em todo o app.',
+      'As animações em loop param quando saem da tela, para gastar menos bateria.',
+      'O motor de voz offline vem do próprio app, sem depender de outro site.',
+    ] },
     { id: '2026-10-13m', date: '13/10/2026', title: 'Correção de placar e prazos', items: [
       'Corrigir placar: ajuste os sets de uma partida já confirmada. Quando todos aceitam, o placar muda para todos, com o selo Placar corrigido. Vale também para as partidas lançadas à mão.',
       'Pedidos de exclusão e de correção expiram em 14 dias sem resposta. A partida fica como estava.',
@@ -7279,5 +7287,19 @@
     setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 320); }, wait);
   })();
   // Para testes manuais no console: Canta.hear('ponto azul')
+  // animações em loop (anel de jogando agora, raio on fire, chama, brilho) pausam fora da tela: menos bateria nos celulares simples
+  if ('IntersectionObserver' in window && 'MutationObserver' in window) {
+    const LOOP = '.onfire, .is-live, .streak.hot.lit, .st-entry, .live-dot, .wl-badge';
+    const io = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('anim-off', !e.isIntersecting)));
+    const watched = new Set();
+    let scanT = 0;
+    const scan = () => {
+      scanT = 0;
+      watched.forEach(n => { if (!n.isConnected) { io.unobserve(n); watched.delete(n); } });
+      document.querySelectorAll(LOOP).forEach(n => { if (!watched.has(n)) { watched.add(n); io.observe(n); } });
+    };
+    new MutationObserver(() => { if (!scanT) scanT = setTimeout(scan, 250); }).observe(document.body, { childList: true, subtree: true });
+    scan();
+  }
   window.Canta = { pro: on => setPro(on), hear: text => handleHeard([{ transcript: text, confidence: 1 }], 'voz'), state: () => state, match: () => match, go, history, players: (t, names) => { pl[t] = splitPlayers(names).slice(0, MAX_PER_TEAM).map(n => ({ name: n, userId: null })); plSync(); renderPlSlots(t); updateTeamForm(); } };
 })();

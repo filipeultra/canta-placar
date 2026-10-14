@@ -47,7 +47,7 @@ create table public.profiles (
   full_name      text check (char_length(full_name) <= 60),
   city           text check (char_length(city) <= 60),
   bio            text check (char_length(bio) <= 160),
-  avatar_url     text,
+  avatar_url     text check (avatar_url ~ '^(https://[a-z0-9-]+\.supabase\.co/storage/v1/object/public/)?avatars/[0-9a-f-]{36}/[A-Za-z0-9_.-]{1,80}$'),   -- só do próprio armazenamento, na pasta de alguém (foto de fora rastrearia quem abre o perfil)
   sports         text[] not null default '{}',
   privacy_level  text not null default 'aberto' check (privacy_level in ('aberto', 'personalizado', 'privado')),
   privacy_show   jsonb not null default '{"partidas":true,"estatisticas":true,"conquistas":true,"recordes":true,"confrontos":true,"atividade":true,"geral":true}',
@@ -135,7 +135,7 @@ create table public.groups (
   color        text not null default '#AFFB48' check (color ~ '^#[0-9A-F]{6}$'),
   description  text check (char_length(description) <= 160),
   open         boolean not null default false,                  -- aberto: entra direto; fechado: pede e o organizador aprova
-  avatar_url   text check (char_length(avatar_url) <= 300),     -- foto do grupo (bucket avatars, pasta do organizador)
+  avatar_url   text check (avatar_url ~ '^(https://[a-z0-9-]+\.supabase\.co/storage/v1/object/public/)?avatars/[0-9a-f-]{36}/[A-Za-z0-9_.-]{1,80}$'),     -- foto do grupo (bucket avatars, pasta do organizador)
   created_by   uuid not null references public.profiles(id) on delete cascade,
   created_at   timestamptz not null default now(),
   deleted_at   timestamptz
@@ -581,7 +581,9 @@ create policy notif_read on public.notifications for select using (user_id = aut
 create policy notif_mark on public.notifications for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- vídeos: só o dono (os jogadores veem pelo link assinado que o app gera)
-create policy videos_own on public.video_segments for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy videos_own on public.video_segments for select using (owner_id = auth.uid());
+create policy videos_del on public.video_segments for delete using (owner_id = auth.uid());
+create policy videos_upd on public.video_segments for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
 -- assinatura: cada um lê a sua; escrita só pela service role (webhook do pagamento)
 create policy subs_read on public.subscriptions for select using (user_id = auth.uid());
@@ -797,6 +799,8 @@ language sql stable security definer set search_path = public as $$
                  where m.member_id = uid and m.status = 'ativo' and s.plan like 'amigos_%'
                    and s.status in ('ativa', 'cancelada') and s.current_period_end > now())
 $$;
+-- trecho de vídeo novo na nuvem: só Pro (a regra fica aqui porque usa has_pro)
+create policy videos_add on public.video_segments for insert with check (owner_id = auth.uid() and public.has_pro(auth.uid()));
 
 alter table public.subscription_members enable row level security;
 alter table public.payments enable row level security;

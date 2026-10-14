@@ -145,7 +145,7 @@
 
   // ---------- Vosk: reconhecimento offline com gramatica fechada (celular e tablet) ----------
   // Modelo pequeno de portugues (vosk-model-small-pt-0.3, Apache 2.0), baixado uma vez e guardado no cache.
-  const VOSK_JS = 'https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js';
+  const VOSK_JS = 'vendor/vosk-0.0.8.js';   // no próprio app (antes vinha do jsdelivr): nada de script de terceiros
   const VOSK_MODEL = 'https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-pt-0.3.tar.gz';
   const VOSK_CACHE = 'canta-vosk-v1';
   const VOSK_MB = 31;

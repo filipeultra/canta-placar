@@ -1,6 +1,6 @@
 # ULTRA PLAY · regras da partida entre várias pessoas
 
-Atualizado em 13/10/2026. O banco aplica estas regras (`supabase/schema.sql`, seção "regras da partida entre várias pessoas") e os testes estão em `supabase/tests/partidas.sql`: 75 verificações, todas passando. A carga e a sobrecarga estão em `supabase/README.md`. O app segue as mesmas regras na rede de demonstração.
+Atualizado em 13/10/2026. O banco aplica estas regras (`supabase/schema.sql`, seção "regras da partida entre várias pessoas") e os testes estão em `supabase/tests/partidas.sql`: 80 verificações, todas passando. A carga e a sobrecarga estão em `supabase/README.md`. O app segue as mesmas regras na rede de demonstração.
 
 ## 1. Quem joga e quem registra
 - **Você joga sempre no 1º time.** Na Nova partida, o seu nome fica fixo (com cadeado) e não pode ser tirado.

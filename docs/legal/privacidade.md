@@ -97,7 +97,7 @@ Não usamos seus dados para publicidade e não os vendemos.
 
 6.3. O reconhecimento pode ser feito de duas formas:
   - **Reconhecimento do navegador ou sistema:** o navegador pode enviar o áudio a servidores do seu fornecedor para transformar fala em texto. Por exemplo, o Google (em navegadores como o Chrome) ou a Apple (no Safari/iOS) podem processar o áudio, inclusive fora do Brasil, conforme as políticas de privacidade deles. O ULTRA PLAY não controla esse processamento.
-  - **Motor offline (Vosk):** o modelo de voz é baixado uma vez de um CDN (jsDelivr, cdn.jsdelivr.net, para o motor; e GitHub Pages, ccoreilly.github.io, para o modelo de português) e o reconhecimento acontece **dentro do aparelho**, sem enviar o áudio para fora. No download, o CDN recebe dados técnicos de conexão (como IP e navegador).
+  - **Motor offline (Vosk):** o motor vem do próprio ULTRA PLAY e o modelo de português é baixado uma vez do GitHub Pages (ccoreilly.github.io). O reconhecimento acontece **dentro do aparelho**, sem enviar o áudio para fora. No download do modelo, o GitHub recebe dados técnicos de conexão (como IP e navegador).
 
 6.4. [DECISÃO: indicar no app, de forma visível, qual modo está ativo e permitir que o usuário escolha o offline, se o aparelho suportar.]
 
@@ -223,7 +223,7 @@ Para dúvidas ou outros pedidos, escreva para [E-MAIL DE CONTATO] ou para o enca
 
 16.3. Se um dia adotarmos analytics, cookies não essenciais ou anúncios, **pediremos seu consentimento antes**, com opção de recusar sem perder as funções principais, e atualizaremos esta Política.
 
-16.4. **Estatísticas de uso (quando o servidor for ligado).** [Implementado no app, desligado até existir servidor.] Sem consentimento, o app e o site contam só a visita, com um identificador sorteado que vale para aquela visita e é apagado ao fechar o navegador, mais a origem do link (utm e código de convite). Com o seu consentimento (pedido uma vez no app e mudável em Ajustes → Estatísticas de uso), o app passa a enviar eventos de uso (abriu, começou ou terminou uma partida, compartilhou, criou grupo, viu o Pro) com um identificador sorteado do aparelho. Os eventos **não levam** nome, e-mail, texto digitado nem os dados das partidas. Servem para medir o funil, a retenção e o que funciona, e só a equipe do ULTRA PLAY tem acesso. [A revisão jurídica deve confirmar a base legal da contagem de visitas sem consentimento (legítimo interesse, dado sem identificação) e o prazo de guarda dos eventos.]
+16.4. **Estatísticas de uso (quando o servidor for ligado).** [Implementado no app, desligado até existir servidor.] Sem consentimento, o app e o site contam só a visita, com um identificador sorteado que vale para aquela visita e é apagado ao fechar o navegador, mais a origem do link (utm e código de convite). Com o seu consentimento (pedido uma vez no app e mudável em Ajustes → Estatísticas de uso), o app passa a enviar eventos de uso (abriu, começou ou terminou uma partida, compartilhou, criou grupo, viu o Pro) e os erros do app (só o arquivo, a linha e o tipo do erro, no máximo 5 por visita, sem a mensagem) com um identificador sorteado do aparelho. Os eventos **não levam** nome, e-mail, texto digitado nem os dados das partidas. Servem para medir o funil, a retenção e o que funciona, e só a equipe do ULTRA PLAY tem acesso. [A revisão jurídica deve confirmar a base legal da contagem de visitas sem consentimento (legítimo interesse, dado sem identificação) e o prazo de guarda dos eventos.]
 
 ## 17. Segurança
 

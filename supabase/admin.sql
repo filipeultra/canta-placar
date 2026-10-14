@@ -25,17 +25,30 @@ create index app_events_device on public.app_events (device_id, created_at);
 
 create table public.admins (
   user_id     uuid primary key references public.profiles(id) on delete cascade,
+  -- dono: tudo (cortesia, tirar do ar, ver e-mails); moderador: denúncias e contas (e-mail mascarado); leitor: só os números
+  role        text not null default 'dono' check (role in ('dono', 'moderador', 'leitor')),
+  disabled_at timestamptz,   -- suspenso: perde o acesso na hora, sem apagar o histórico
   created_at  timestamptz not null default now()
 );
 -- admin = está na tabela admins E entrou com a 2ª etapa (código do app autenticador): o token da sessão diz aal2.
 -- Sem parâmetro: ninguém consegue perguntar "fulano é admin?" por outra pessoa.
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select auth.uid() is not null and coalesce(auth.jwt() ->> 'aal', '') = 'aal2' and exists (select 1 from admins where user_id = auth.uid())
+  select auth.uid() is not null and coalesce(auth.jwt() ->> 'aal', '') = 'aal2' and exists (select 1 from admins where user_id = auth.uid() and disabled_at is null)
 $$;
 -- só a própria pessoa, na tela de entrada do painel: "esta conta está na lista de admins?" (para pedir a 2ª etapa)
 create or replace function public.am_i_admin() returns boolean
-language sql stable security definer set search_path = public as $$ select auth.uid() is not null and exists (select 1 from admins where user_id = auth.uid()) $$;
+language sql stable security definer set search_path = public as $$ select auth.uid() is not null and exists (select 1 from admins where user_id = auth.uid() and disabled_at is null) $$;
+-- papel de quem está no painel (nulo para quem não é admin com a 2ª etapa)
+create or replace function public.admin_role() returns text
+language sql stable security definer set search_path = public as $$ select case when is_admin() then (select role from admins where user_id = auth.uid()) end $$;
+-- há quantos minutos a pessoa digitou o código do autenticador (o token guarda a hora em "amr"; renovar a sessão não muda)
+create or replace function public.admin_mfa_age_min() returns integer
+language sql stable set search_path = public as $$
+  select coalesce((select ((extract(epoch from now()) - max((a ->> 'timestamp')::numeric)) / 60)::int
+                   from jsonb_array_elements(coalesce(auth.jwt() -> 'amr', '[]'::jsonb)) a
+                   where a ->> 'method' in ('totp', 'mfa/totp') and a ->> 'timestamp' ~ '^[0-9]+$'), 99999)
+$$;
 revoke execute on function public.is_admin(), public.am_i_admin() from public, anon;
 grant execute on function public.is_admin(), public.am_i_admin() to authenticated;
 
@@ -122,7 +135,20 @@ begin
       'subs_cancel', (select count(*) from subscriptions where status in ('cancelada', 'encerrada') and updated_at >= t0),
       'users_deleted', (select count(*) from profiles where deleted_at >= t0),
       'groups_new', (select count(*) from groups where created_at >= t0 and deleted_at is null),
-      'posts', (select count(*) from group_posts where created_at >= t0 and deleted_at is null)
+      'posts', (select count(*) from group_posts where created_at >= t0 and deleted_at is null),
+      -- comunidade: marcações (sem contar o dono), bloqueios e pedidos entre jogadores
+      'tags_new', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.user_id is not null and mp.user_id <> m.owner_id),
+      'tags_accepted', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.user_id is not null and mp.user_id <> m.owner_id and mp.tag_status = 'aceito'),
+      'tags_refused', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.user_id is not null and mp.user_id <> m.owner_id and mp.tag_status = 'recusado'),
+      'blocks_new', (select count(*) from blocks where created_at >= t0),
+      'del_open', (select count(*) from match_delete_requests where status = 'aberto'),
+      'fix_open', (select count(*) from match_corrections where status = 'aberto'),
+      'fixes_done', (select count(*) from match_corrections where status = 'aprovado' and closed_at >= t0),
+      'trials', (select count(*) from subscriptions where status = 'trial' and (current_period_end is null or current_period_end > now())),
+      -- saúde do app: erros que o app mandou (só aparelhos com estatísticas ligadas; sem mensagem, só arquivo e linha)
+      'errors', (select count(*) from cur where name = 'js_error'),
+      'errors_devices', (select count(distinct device_id) from cur where name = 'js_error'),
+      'errors_prev', (select count(*) from prev where name = 'js_error')
     ) as v
   ),
   days_s as (select generate_series(t0, date_trunc('day', now()), interval '1 day') as day),
@@ -175,10 +201,24 @@ begin
   -- quando se joga: partidas por dia da semana (0 = domingo) e hora, no horário de Brasília
   hours as (select coalesce(jsonb_agg(jsonb_build_object('d', dw, 'h', hr, 'n', n)), '[]') as v from (
     select extract(dow from played_at at time zone 'America/Sao_Paulo')::int dw, extract(hour from played_at at time zone 'America/Sao_Paulo')::int hr, count(*) n
-    from matches where played_at >= t0 and deleted_at is null group by 1, 2) h)
+    from matches where played_at >= t0 and deleted_at is null group by 1, 2) h),
+  -- onde estão as contas (cidade do perfil, as 8 mais comuns)
+  cities as (select coalesce(jsonb_agg(jsonb_build_object('city', city, 'n', n) order by n desc), '[]') as v from (
+    select city, count(*) n from profiles where deleted_at is null and coalesce(trim(city), '') <> '' group by city order by 2 desc limit 8) c),
+  -- onde o app mais quebra: arquivo e linha (props.where), os 6 mais comuns
+  errors_top as (select coalesce(jsonb_agg(jsonb_build_object('where', w, 'kind', k, 'n', n, 'devices', dv) order by n desc), '[]') as v from (
+    select coalesce(props ->> 'where', '?') w, coalesce(props ->> 'kind', '') k, count(*) n, count(distinct device_id) dv from cur where name = 'js_error' group by 1, 2 order by 3 desc limit 6) e),
+  -- receita mensal dia a dia (assinaturas pagas valendo em cada dia, pelos preços de plan_prices)
+  mrr_daily as (select jsonb_agg(jsonb_build_object('day', to_char(ds.day, 'YYYY-MM-DD'), 'mrr',
+      (select coalesce(sum(pp.monthly), 0) from subscriptions s join plan_prices pp using (plan)
+        where s.provider <> 'cortesia' and s.created_at < ds.day + interval '1 day' and s.status in ('trial', 'ativa', 'cancelada', 'atrasada')
+          and (s.current_period_end is null or s.current_period_end > ds.day)),
+      'paying', (select count(*) from subscriptions s where s.provider <> 'cortesia' and s.created_at < ds.day + interval '1 day' and s.status in ('ativa', 'cancelada', 'atrasada')
+          and (s.current_period_end is null or s.current_period_end > ds.day))) order by ds.day) as v from days_s ds)
   select jsonb_build_object('days', d, 'from', to_char(t0, 'YYYY-MM-DD'), 'generated_at', now(), 'kpi', kpi.v, 'daily', daily.v, 'sports', sports.v, 'funnel', funnel.v,
-    'sources', sources.v, 'retention', retention.v, 'plans', plans.v, 'events', events_top.v, 'versions', versions.v, 'hours', hours.v)
-  into out from kpi, daily, sports, funnel, sources, retention, plans, events_top, versions, hours;
+    'sources', sources.v, 'retention', retention.v, 'plans', plans.v, 'events', events_top.v, 'versions', versions.v, 'hours', hours.v,
+    'cities', cities.v, 'errors_top', errors_top.v, 'mrr_daily', mrr_daily.v, 'role', admin_role(), 'mfa_age_min', admin_mfa_age_min())
+  into out from kpi, daily, sports, funnel, sources, retention, plans, events_top, versions, hours, cities, errors_top, mrr_daily;
   return out;
 end $$;
 revoke execute on function public.admin_metrics(int) from public, anon;
@@ -194,23 +234,40 @@ create table public.admin_log (
   created_at  timestamptz not null default now()
 );
 alter table public.admin_log enable row level security;
-create policy admin_log_read on public.admin_log for select using (public.is_admin());
+create policy admin_log_read on public.admin_log for select using (public.admin_role() in ('dono', 'moderador'));
 revoke all on public.admin_log from anon, authenticated;
 grant select on public.admin_log to authenticated;    -- a regra admin_log_read deixa só admin ler; escrever, só as funções abaixo
 revoke all on sequence public.admin_log_id_seq from anon, authenticated;
 
-create or replace function public.admin_guard() returns void
+-- need: papel mínimo; fresh_min: ação sensível pede o código digitado há no máximo tantos minutos (senão, o painel pede de novo)
+create or replace function public.admin_guard(need text default 'leitor', fresh_min integer default null) returns text
 language plpgsql stable security definer set search_path = public as $$
-begin if not is_admin() then raise exception 'acesso só para administradores' using errcode = '42501'; end if; end $$;
+declare r text := admin_role(); ranks text[] := array['leitor', 'moderador', 'dono'];
+begin
+  if r is null then raise exception 'acesso só para administradores' using errcode = '42501'; end if;
+  if array_position(ranks, r) < array_position(ranks, need) then raise exception 'sem_permissao (precisa ser %)', need using errcode = '42501'; end if;
+  if fresh_min is not null and admin_mfa_age_min() > fresh_min then
+    raise exception 'codigo_recente: digite o código do autenticador de novo' using errcode = '28000';
+  end if;
+  return r;
+end $$;
 
 -- busca de contas (nome, @, código UP-… ou e-mail); sem busca, as mais recentes
-create or replace function public.admin_users(q text default '', lim int default 50) returns jsonb
-language plpgsql stable security definer set search_path = public, auth as $$
+-- e-mail aparece mascarado (an***@gmail.com); só o dono vê inteiro, com código recente, e isso fica no registro
+create or replace function public.mask_email(e text) returns text
+language sql immutable as $$ select case when e is null then null when position('@' in e) < 2 then '***' else left(split_part(e, '@', 1), 2) || '***@' || split_part(e, '@', 2) end $$;
+create or replace function public.admin_users(q text default '', lim int default 50, reveal boolean default false) returns jsonb
+language plpgsql security definer set search_path = public, auth as $$
 declare pat text := '%' || replace(replace(replace(coalesce(trim(q), ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
 begin
-  perform admin_guard();
+  perform admin_guard('moderador');
+  if reveal then
+    perform admin_guard('dono', 480);
+    insert into admin_log (admin_id, action, target, detail) values (auth.uid(), 'emails_view', left(coalesce(q, ''), 60), '{}');
+  end if;
   return (select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc), '[]') from (
-    select p.public_id, p.handle::text as handle, p.name, p.city, p.created_at, p.deleted_at is not null as deleted, u.email,
+    select p.public_id, p.handle::text as handle, p.name, p.city, p.created_at, p.deleted_at is not null as deleted,
+      case when reveal then u.email else mask_email(u.email) end as email,
       s.plan, s.status as sub_status, p.pro_until, exists (select 1 from admins a where a.user_id = p.id) as is_admin,
       (select count(*) from matches m where m.owner_id = p.id and m.deleted_at is null) as matches,
       (select max(m.played_at) from matches m where m.owner_id = p.id and m.deleted_at is null) as last_match,
@@ -226,7 +283,10 @@ create or replace function public.admin_grant_pro(pid text, days int default 30)
 language plpgsql security definer set search_path = public as $$
 declare d int := greatest(0, least(coalesce(days, 30), 366)); uid uuid; until timestamptz;
 begin
-  perform admin_guard();
+  perform admin_guard('dono', 480);
+  if (select count(*) from admin_log where admin_id = auth.uid() and action in ('pro_grant', 'pro_revoke') and created_at > now() - interval '24 hours') >= 30 then
+    raise exception 'limite_de_cortesias: 30 por dia' using errcode = '54000';
+  end if;
   select id into uid from profiles where public_id = upper(pid) and deleted_at is null;
   if uid is null then raise exception 'conta não encontrada' using errcode = 'P0002'; end if;
   update profiles set pro_until = case when d = 0 then null else greatest(coalesce(pro_until, now()), now()) + make_interval(days => d) end
@@ -239,7 +299,7 @@ end $$;
 create or replace function public.admin_reports(st text default 'abertas', lim int default 100) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 begin
-  perform admin_guard();
+  perform admin_guard('moderador');
   return (select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc), '[]') from (
     select r.id, r.category, r.reason, r.status, r.created_at, r.handled_at, rp.public_id as reporter,
       case when r.target_post_id is not null then 'post' when r.target_match_id is not null then 'partida' when r.target_group_id is not null then 'grupo' else 'conta' end as kind,
@@ -262,7 +322,10 @@ create or replace function public.admin_handle_report(rid uuid, st text, remove 
 language plpgsql security definer set search_path = public as $$
 declare r reports%rowtype;
 begin
-  perform admin_guard();
+  perform admin_guard('moderador', case when remove then 480 end);   -- tirar do ar pede código recente
+  if (select count(*) from admin_log where admin_id = auth.uid() and action like 'report_%' and created_at > now() - interval '24 hours') >= 300 then
+    raise exception 'limite_de_acoes: 300 por dia' using errcode = '54000';
+  end if;
   if st not in ('em_analise', 'resolvida', 'descartada') then raise exception 'situação inválida' using errcode = '22023'; end if;
   select * into r from reports where id = rid;
   if not found then raise exception 'denúncia não encontrada' using errcode = 'P0002'; end if;
@@ -282,7 +345,7 @@ create or replace function public.admin_groups(days int default 30, lim int defa
 language plpgsql stable security definer set search_path = public as $$
 declare t0 timestamptz := date_trunc('day', now()) - make_interval(days => greatest(1, least(days, 365)) - 1);
 begin
-  perform admin_guard();
+  perform admin_guard('leitor');
   return (select coalesce(jsonb_agg(to_jsonb(x) order by x.matches desc, x.members desc), '[]') from (
     select g.code, g.name, g.sport, g.open, g.created_at,
       (select count(*) from group_members gm where gm.group_id = g.id and gm.status = 'ativo') as members,
@@ -293,7 +356,71 @@ begin
     order by 8 desc, 6 desc limit greatest(1, least(coalesce(lim, 20), 100))) x);
 end $$;
 
-revoke execute on function public.admin_guard(), public.admin_users(text, int), public.admin_grant_pro(text, int), public.admin_reports(text, int),
+revoke execute on function public.admin_guard(text, integer), public.admin_role(), public.admin_mfa_age_min(), public.admin_users(text, int, boolean), public.admin_grant_pro(text, int), public.admin_reports(text, int),
   public.admin_handle_report(uuid, text, boolean), public.admin_groups(int, int) from public, anon;
-grant execute on function public.admin_guard(), public.admin_users(text, int), public.admin_grant_pro(text, int), public.admin_reports(text, int),
+grant execute on function public.admin_guard(text, integer), public.admin_role(), public.admin_mfa_age_min(), public.admin_users(text, int, boolean), public.admin_grant_pro(text, int), public.admin_reports(text, int),
   public.admin_handle_report(uuid, text, boolean), public.admin_groups(int, int) to authenticated;
+
+-- ---------- segurança do painel ----------
+-- o registro de ações não muda nem some (nem por admin): só as funções do painel escrevem nele
+create or replace function public.admin_log_frozen() returns trigger
+language plpgsql as $$
+begin
+  -- única exceção: conta de admin apagada (a chave estrangeira só tira o vínculo; a ação continua registrada)
+  if tg_op = 'UPDATE' and new.admin_id is null and old.admin_id is not null
+     and (new.id, new.action, new.target, new.detail, new.created_at) is not distinct from (old.id, old.action, old.target, old.detail, old.created_at) then
+    return new;
+  end if;
+  raise exception 'o registro de ações não pode ser alterado nem apagado' using errcode = '42501';
+end $$;
+create trigger admin_log_frozen before update or delete on public.admin_log for each row execute function public.admin_log_frozen();
+
+-- entrada no painel: registra o acesso (aparelho e IP, uma vez a cada 30 min por aparelho) e avisa se o aparelho é novo
+create or replace function public.admin_hello() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare h jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
+  ua text := left(coalesce(h ->> 'user-agent', '?'), 160);
+  ip text := left(trim(split_part(coalesce(h ->> 'cf-connecting-ip', h ->> 'x-forwarded-for', h ->> 'x-real-ip', '?'), ',', 1)), 45);
+  r text := admin_guard('leitor'); last timestamptz; seen boolean;
+begin
+  select max(created_at) into last from admin_log where admin_id = auth.uid() and action = 'login';
+  seen := exists (select 1 from admin_log where admin_id = auth.uid() and action = 'login' and detail ->> 'ua' = ua and created_at > now() - interval '90 days');
+  if not exists (select 1 from admin_log where admin_id = auth.uid() and action = 'login' and detail ->> 'ua' = ua and created_at > now() - interval '30 minutes') then
+    insert into admin_log (admin_id, action, target, detail) values (auth.uid(), 'login', r, jsonb_build_object('ua', ua, 'ip', ip, 'new_device', not seen));
+  end if;
+  return jsonb_build_object('role', r, 'last_login', last, 'new_device', not seen, 'mfa_age_min', admin_mfa_age_min());
+end $$;
+
+-- acessos ao painel (o dono vê de todos; os outros, só os próprios)
+create or replace function public.admin_access(lim int default 30) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare r text := admin_guard('leitor');
+begin
+  return (select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc), '[]') from (
+    select l.created_at, p.name as admin, l.detail ->> 'ip' as ip, l.detail ->> 'ua' as ua, coalesce((l.detail ->> 'new_device')::boolean, false) as new_device
+    from admin_log l left join profiles p on p.id = l.admin_id
+    where l.action = 'login' and (r = 'dono' or l.admin_id = auth.uid())
+    order by l.created_at desc limit greatest(1, least(coalesce(lim, 30), 100))) x);
+end $$;
+
+-- a equipe: papel, situação e último acesso (só o dono)
+create or replace function public.admin_team() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform admin_guard('dono');
+  return (select coalesce(jsonb_agg(to_jsonb(x) order by x.role, x.name), '[]') from (
+    select p.name, p.public_id, a.role, a.disabled_at is not null as disabled, a.created_at,
+      (select max(l.created_at) from admin_log l where l.admin_id = a.user_id and l.action = 'login') as last_login
+    from admins a join profiles p on p.id = a.user_id) x);
+end $$;
+
+-- baixar planilha fica registrado; a de contas (com e-mail) é só do dono, com código recente
+create or replace function public.admin_note_export(what text) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if what = 'contas' then perform admin_guard('dono', 480); else perform admin_guard('leitor'); end if;
+  insert into admin_log (admin_id, action, target, detail) values (auth.uid(), 'export', left(what, 30), '{}');
+  return true;
+end $$;
+revoke execute on function public.admin_hello(), public.admin_access(int), public.admin_team(), public.admin_note_export(text), public.admin_log_frozen() from public, anon;
+grant execute on function public.admin_hello(), public.admin_access(int), public.admin_team(), public.admin_note_export(text) to authenticated;
