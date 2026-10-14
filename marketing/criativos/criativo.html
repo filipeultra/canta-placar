@@ -104,6 +104,23 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
 #end .btn b { color: var(--lime); }
 #end .sports { position: absolute; left: 0; right: 0; top: 1400px; font: 600 36px/1.3 "Bricolage Grotesque", sans-serif; opacity: .75; }
 #flash { background: #fff; opacity: 0; }
+/* estilo foto (lote 3): grão de filme, vinheta, legenda limpa e carimbo de data */
+#grain, #vig { display: none; pointer-events: none; }
+.foto #grain { display: block; width: 1080px; height: 1920px; mix-blend-mode: overlay; opacity: .3; }
+.foto #vig { display: block; background: radial-gradient(130% 90% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.42) 100%); }
+.foto #shade { background: linear-gradient(180deg, rgba(6,7,8,.35) 0%, rgba(6,7,8,0) 18%, rgba(6,7,8,0) 62%, rgba(6,7,8,.5) 100%); }
+.foto #cap { left: 70px; right: 70px; }
+.foto #cap .ln { display: inline; font: 800 72px/1.42 "Bricolage Grotesque", sans-serif; text-transform: none; letter-spacing: -.012em; -webkit-text-stroke: 0; text-shadow: none;
+  background: rgba(10,11,9,.66); padding: 6px 24px 10px; border-radius: 18px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.foto #cap .w { margin: 0 .06em; }
+.foto .kin .kl { font: 800 124px/1.02 "Bricolage Grotesque", sans-serif; text-transform: none; letter-spacing: -.03em; -webkit-text-stroke: 0; text-shadow: 0 8px 50px rgba(0,0,0,.7); white-space: nowrap; }
+.foto .pill { border: 0; border-radius: 999px; box-shadow: 0 14px 40px rgba(0,0,0,.45); font: 800 66px/1 "Bricolage Grotesque", sans-serif; text-transform: none; letter-spacing: -.015em; padding: 20px 42px 24px; }
+.foto .cnt .ct { -webkit-text-stroke: 0; text-shadow: 0 4px 24px rgba(0,0,0,.85); }
+.foto .cnt .cn b { -webkit-text-stroke: 0; text-shadow: 0 10px 70px rgba(0,0,0,.7); }
+.foto .cnt .cn small { -webkit-text-stroke: 0; text-shadow: 0 4px 20px rgba(0,0,0,.8); }
+.foto #phone { box-shadow: 0 0 0 4px #2a2d30, 0 40px 120px rgba(0,0,0,.7); }
+.dt { position: absolute; right: 86px; top: 1430px; font: 700 64px/1 "Archivo Condensed", sans-serif; letter-spacing: .12em; color: #FF8F3A;
+  text-shadow: 0 0 10px rgba(255,120,30,.9), 0 0 30px rgba(255,90,20,.5); opacity: .92; }
 </style>
 </head>
 <body>
@@ -117,6 +134,7 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
   </div>
   <div class="layer" id="shade"></div>
   <div class="layer" id="dim"></div>
+  <div class="layer" id="vig"></div>
   <div id="phone"><div id="screen"><div id="island"></div><div id="scrw"><img id="scr" alt=""><div id="taps"></div></div></div></div>
   <div class="layer" id="fx"></div>
   <div id="cap"></div>
@@ -126,6 +144,7 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
     <div class="btn" id="endBtn"></div>
     <div class="sports">beach tennis · padel · tênis · peteca · vôlei de praia · futevôlei</div>
   </div>
+  <canvas class="layer" id="grain" width="540" height="960"></canvas>
   <div class="layer" id="flash"></div>
 </div>
 <script src="src/falas.js"></script>
@@ -148,6 +167,14 @@ const F = window.FALAS[C], S = window.ROTEIROS[C];
 const K = F.legado ? F.K : 1;
 const T = x => x / K;                                            // tempo da narração -> tempo do vídeo
 if (S.accent === 'orange') document.documentElement.style.setProperty('--acc', COL.orange);
+const FOTO = S.estilo === 'foto';
+if (FOTO) document.body.classList.add('foto');
+// grão de filme: 6 quadros de ruído fixos (sorteio com semente), um por quadro do vídeo
+const GR = [];
+if (FOTO) { let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 6; k++) { const c = document.createElement('canvas'); c.width = 540; c.height = 960; const x = c.getContext('2d'), im = x.createImageData(540, 960);
+    for (let i = 0; i < im.data.length; i += 4) { const v = 128 + (rnd() - .5) * 190; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+    x.putImageData(im, 0, 0); GR.push(c); } }
 
 // ---------- elementos ----------
 const kinHTML = s => s.replace(/\[(.+?)\]/g, '<b>$1</b>');
@@ -158,6 +185,7 @@ const fxEls = S.fx.map(f => {
     e = document.createElement('div');
     if (f.k === 'bub') { e.className = 'bub ' + f.cls; e.innerHTML = f.text; }
     else if (f.k === 'pill') { e.className = 'pill ' + f.cls; e.innerHTML = f.text; }
+    else if (f.k === 'dt') { e.className = 'dt'; e.textContent = f.text; }
     else if (f.k === 'stamp') { e.className = 'stamp'; e.innerHTML = f.text; if (f.y) e.style.top = f.y + 'px'; }
     else if (f.k === 'card') { e.className = 'card'; e.innerHTML = f.html; }
     else if (f.k === 'kin') { e.className = 'kin'; e.style.top = (f.y || 300) + 'px'; e.innerHTML = f.lines.map((l, i) => '<span class="kl' + (/·/.test(l) ? ' sm' : '') + '">' + kinHTML(l) + '</span>').join(''); }
@@ -241,6 +269,7 @@ window.R = async function (t) {
     if (sc.blur) filt += `blur(${sc.blur}px) `;
     if (sc.gray) filt += 'grayscale(1) contrast(1.1) ';
     if (sc.fade) { const f = p(t, T(sc.fade[0]), T(sc.fade[1])); filt += `blur(${f * 14}px) grayscale(${f}) brightness(${1 - f * .35}) `; }
+    if (FOTO) filt += 'contrast(1.06) saturate(.9) sepia(.12) brightness(1.02) ';
     bg.style.filter = filt || 'none';
   }
   $('dim').style.opacity = sc.dim || 0;
@@ -268,6 +297,7 @@ window.R = async function (t) {
     const e = fxEls[k], a = T(f.t0), b = T(f.t1);
     if (t < a || t >= b) { e.style.opacity = 0; return; }
     if (TOPFX(f)) topBusy = true;
+    if (f.k === 'dt') { e.style.opacity = .92 * (1 - p(t, b - 0.1, b)); return; }
     const pin = back(p(t, a, a + 0.32)), out = p(t, b - 0.14, b), base = f.s || 1;
     e.style.opacity = 1 - out;
     if (f.k === 'stamp') { const zz = p(t, a, a + 0.18); e.style.transform = `rotate(-6deg) scale(${lerp(2.4, 1, eo(zz))})`; e.style.opacity = zz * (1 - out); return; }
@@ -318,7 +348,8 @@ window.R = async function (t) {
     const key = ch.i + '-' + ch.j;
     if (cap.dataset.k !== key) { cap.dataset.k = key; cap.innerHTML = '<span class="ln">' + ch.words.map(w => '<span class="w">' + w.txt.replace(/\.\.\.$/, '…') + '</span>').join(' ') + '</span>'; }
     const ln = cap.firstChild, zz = back(p(t, ch.a - 0.04, ch.a + 0.16));
-    ln.style.transform = `scale(${0.82 + 0.18 * zz}) rotate(${Math.sin(ch.i) * 1.6}deg)`;
+    if (FOTO) { cap.style.transform = `translateY(${(1 - zz) * 26}px)`; ln.style.opacity = p(t, ch.a - 0.04, ch.a + 0.08); }
+    else ln.style.transform = `scale(${0.82 + 0.18 * zz}) rotate(${Math.sin(ch.i) * 1.6}deg)`;
     [...ln.children].forEach((el, i) => { const w = ch.words[i]; el.className = 'w' + (t >= w.a - 0.03 && t < (ch.words[i + 1] ? ch.words[i + 1].a : ch.b) ? ' on' : ''); });
     cap.style.opacity = 1;
   } else cap.style.opacity = 0;
@@ -332,7 +363,8 @@ window.R = async function (t) {
   e.querySelector('.logo').style.transform = `scale(${0.8 + 0.2 * back(p(t, ea, ea + 0.4))})`;
   // flash nas trocas de cena
   let fl = 0; S.scenes.forEach(s => { const a = T(s.t0); if (s.t0 > 0 && t >= a && t < a + 0.12) fl = Math.max(fl, 1 - p(t, a, a + 0.12)); });
-  $('flash').style.opacity = fl * .35;
+  $('flash').style.opacity = FOTO ? 0 : fl * .35;
+  if (FOTO) { const g = $('grain').getContext('2d'), fi = Math.round(t * 30); g.drawImage(GR[fi % 6], -((fi * 37) % 40), -((fi * 53) % 40), 580, 1000); }
   await Promise.all(jobs);
 };
 window.DUR = T(S.dur); window.FIM_EM = T(S.endAt);

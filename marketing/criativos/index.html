@@ -117,12 +117,12 @@ td b.cond{font-size:16px}
 <div class="wrap">
   <header>
     <div>
-      <div class="lab">ULTRA PLAY · tráfego pago · lote 1 + lote 2</div>
+      <div class="lab">ULTRA PLAY · tráfego pago · lotes 1, 2 e 3</div>
       <h1>Criativos <em>9:16</em></h1>
-      <p>Os 13 vídeos verticais (1080×1920) para Reels, TikTok e Shorts. Filtre por esporte, tipo ou ângulo, marque os favoritos e copie a legenda e o link rastreável de cada um.</p>
+      <p>Os 21 vídeos verticais (1080×1920) para Reels, TikTok e Shorts. Filtre por esporte, tipo ou ângulo, marque os favoritos e copie a legenda e o link rastreável de cada um.</p>
     </div>
     <div class="kpis">
-      <div class="kpi"><b id="kN">13</b><span>vídeos</span></div>
+      <div class="kpi"><b id="kN">21</b><span>vídeos</span></div>
       <div class="kpi"><b>12–21s</b><span>duração</span></div>
       <div class="kpi"><b>4</b><span>esportes</span></div>
     </div>
@@ -149,7 +149,8 @@ td b.cond{font-size:16px}
       <div class="lab">Sugestão</div>
       <h2>Como montar as campanhas</h2>
       <ol>
-        <li><b>Uma campanha por esporte</b> (beach, padel, tênis, peteca). O público e a página de destino mudam por esporte. Os vídeos multi-esporte (B, C, A, D2) entram na campanha <b>geral</b>.</li>
+        <li><b>Uma campanha por esporte</b> (beach, padel, tênis, peteca). O público e a página de destino mudam por esporte. Os vídeos multi-esporte (A, B, C, D2, D10, E5, E8) entram na campanha <b>geral</b>.</li>
+        <li><b>Foto real × desenho:</b> o lote 3 (E1 a E8) repete ângulos dos lotes 1 e 2 com foto real. Ponha pares no mesmo conjunto (E5 × A, E6 × D6, E4 × D9) para ver qual estilo prende mais nos 3 primeiros segundos.</li>
         <li><b>Um conjunto por ângulo</b> dentro da campanha (ex.: padel → “erros” × “pontos decisivos”). Mesmo público, mesmo orçamento.</li>
         <li><b>Rode 3 a 5 dias sem mexer</b>, com R$ 30 a 50 por dia em cada conjunto.</li>
         <li><b>Leia nesta ordem:</b> taxa de gancho (3 s ÷ impressões) → retenção 50% e 100% → CTR → custo por conta criada.</li>
@@ -179,9 +180,65 @@ td b.cond{font-size:16px}
 const SITE = 'https://filipeultra.github.io/canta-placar/';
 const DEST = { beach:'site/placar-beach-tennis.html', padel:'site/placar-padel.html', tenis:'site/placar-tenis.html', peteca:'site/placar-peteca.html', geral:'' };
 const SPORT = { beach:'Beach tennis', padel:'Padel', tenis:'Tênis', peteca:'Peteca', geral:'Multi-esporte' };
-const TYPE = { ilu:'Ilustrado + app', app:'App ao vivo', motion:'Motion de dados' };
+const TYPE = { foto:'Foto real', ilu:'Ilustrado + app', app:'App ao vivo', motion:'Motion de dados' };
 
 const V = [
+ { id:'e1', lote:3, titulo:'Só quem joga beach entende', sport:'beach', type:'foto', angle:'Ritual / identidade', dur:16.6,
+   hook:'Acordar antes do sol. A areia ainda fria.', hookTela:'Pés na areia ao amanhecer, câmera baixa, carimbo de data de filme',
+   cta:'Ultra Play. Baixe agora.', end:'Só quem joga entende.',
+   trig:['Identidade','Ritual','Pertencimento'], pub:'Quem joga beach cedo, toda semana, com a mesma dupla',
+   fala:'Acordar antes do sol. A areia ainda fria. A mesma dupla de sempre... e a mesma discussão do placar. Só quem joga beach entende. Agora cada ponto fica: o placar, a estatística e o seu ano inteiro de jogo. Ultra Play. Baixe agora.',
+   legenda:'Só quem joga beach entende 🌅 Agora cada ponto fica: placar, estatística e o seu ano inteiro de jogo.',
+   obs:'Manifesto no estilo Track&Field e Nike. Ótimo para topo de funil e público frio.' },
+ { id:'e2', lote:3, titulo:'Quinta, 21h: o jogo mais importante da semana', sport:'padel', type:'foto', angle:'Ritual / identidade', dur:13.9,
+   hook:'Quinta, nove da noite. O jogo mais importante da semana.', hookTela:'Smash com flash direto na quadra de vidro + carimbo QUI 21:04',
+   cta:'Baixe agora.', end:'Quinta é dia de jogo.',
+   trig:['Identificação','Ritual','Rivalidade'], pub:'Turmas fixas de padel à noite (clubes e condomínios)',
+   fala:'Quinta, nove da noite. O jogo mais importante da semana. E ninguém lembra o placar da semana passada. Com o Ultra Play, você marca ponto a ponto, publica pra turma e vê quem está na frente no mês. Baixe agora.',
+   legenda:'O jogo de quinta é sério 🎾 Ponto a ponto, publicado pra turma e o ranking do mês.',
+   obs:'Troque o dia na legenda para o dia do público (ex.: “terça”) se for segmentar por clube.' },
+ { id:'e3', lote:3, titulo:'Quantos pontos você ganha sacando?', sport:'tenis', type:'foto', angle:'Saque / diagnóstico', dur:13.2,
+   hook:'Quando você está sacando... quantos pontos você ganha?', hookTela:'Saque no saibro, sol duro, e um “?%” girando',
+   cta:'Saia da quadra sabendo. Baixe agora.', end:'Saia da quadra sabendo.',
+   trig:['Pergunta','Curiosidade','Autoconhecimento'], pub:'Tenistas amadores de clube e ranking',
+   fala:'Quando você está sacando... quantos pontos você ganha? Sessenta por cento? Quarenta? O Ultra Play conta cada ponto da partida e mostra onde o seu jogo ganha e onde ele escapa. Saia da quadra sabendo. Baixe agora.',
+   legenda:'Sessenta por cento? Quarenta? Quanto você ganha no seu saque? 🎾',
+   obs:'Número real da análise do app: 58% dos pontos no saque.' },
+ { id:'e4', lote:3, titulo:'Domingo de peteca no parque', sport:'peteca', type:'foto', angle:'Ritual / turma', dur:16.9,
+   hook:'Domingo de manhã, peteca no parque.', hookTela:'Peteca no ar no parque de BH + carimbo DOM 08:15',
+   cta:'Baixe agora e chama o pessoal.', end:'Domingo é dia de peteca.',
+   trig:['Identidade','Turma','Humor'], pub:'Petequeiros de parque e clube, de 30 a 60+ anos (MG e DF)',
+   fala:'Domingo de manhã, peteca no parque. Quem ganhou mais esse ano? Todo mundo diz que foi ele. No Ultra Play, cada partida fica salva, com placar, estatística e o ranking da turma. Baixe agora e chama o pessoal.',
+   legenda:'Domingo de manhã é dia de peteca 🪶 E agora tem ranking da turma. Marca o pessoal do parque.',
+   obs:'Público mais velho que o do D9: bom para testar idade 35+.' },
+ { id:'e5', lote:3, titulo:'Ele jura que ganhou o último jogo', sport:'geral', type:'foto', angle:'Rivalidade', dur:14.2,
+   hook:'Ele jura que ganhou o último jogo.', hookTela:'Dois amigos discutindo na rede, rindo',
+   cta:'Manda o print pra ele. Baixe agora.', end:'Agora tem prova.',
+   trig:['Humor','Rivalidade','Prova'], pub:'Amigos e duplas de qualquer esporte de raquete',
+   fala:'Ele jura que ganhou o último jogo. Eu tenho certeza que fui eu. Agora tem prova: no Ultra Play, cada ponto fica registrado, com placar e horário. Manda o print pra ele. Baixe agora.',
+   legenda:'Marca aquele amigo que jura que ganhou o último jogo 😂',
+   obs:'Versão real do A e do D2. Bom para ver se foto real vence desenho no mesmo ângulo.' },
+ { id:'e6', lote:3, titulo:'Professor: mostre ao aluno o que aconteceu', sport:'beach', type:'foto', angle:'Professor / aula', dur:15.7,
+   hook:'Professor de beach: o seu aluno sai do jogo dizendo que perdeu por azar.', hookTela:'Professor agachado explicando ao aluno na areia',
+   cta:'Leve pra aula. Baixe agora.', end:'Mostra pro aluno o que aconteceu.',
+   trig:['Chamado direto','Autoridade','Solução'], pub:'Professores e escolinhas de beach tennis',
+   fala:'Professor de beach: o seu aluno sai do jogo dizendo que perdeu por azar. Mostra pra ele o que aconteceu. No Ultra Play, cada ponto vira dado: os erros, o saque e a dica pro próximo treino. Leve pra aula. Baixe agora.',
+   legenda:'Professor, o “perdi por azar” acabou 📊 Mostre ao aluno o que aconteceu na partida.',
+   obs:'Fala com o professor; cada professor indica a turma inteira. Público pequeno, orçamento menor.' },
+ { id:'e7', lote:3, titulo:'As meninas do beach', sport:'beach', type:'foto', angle:'Ranking da turma', dur:13.3,
+   hook:'Terça à noite, as meninas do beach.', hookTela:'Grupo de mulheres comemorando o ponto sob os refletores',
+   cta:'Chama as meninas e baixa agora.', end:'Chama as meninas.',
+   trig:['Pertencimento','Pergunta','Humor'], pub:'Mulheres de 25 a 45 anos que jogam beach em grupo',
+   fala:'Terça à noite, as meninas do beach. Quem foi a melhor do mês? Ninguém concorda. No Ultra Play, o grupo tem ranking, replay dos lances e cada partida no feed. Chama as meninas e baixa agora.',
+   legenda:'Quem foi a melhor do mês no grupo das meninas? 👀 Marca o grupo.',
+   obs:'Segmente por mulheres + interesse em beach tennis. A turma feminina é grande no beach.' },
+ { id:'e8', lote:3, titulo:'Sua mãe não foi no torneio. Mas viu cada ponto.', sport:'geral', type:'foto', angle:'Família / ao vivo', dur:14.9,
+   hook:'A sua mãe não conseguiu ir no torneio. Mas viu cada ponto.', hookTela:'Saque no torneio → mãe na cozinha vendo o celular',
+   cta:'Baixe agora.', end:'Quem ama acompanha.',
+   trig:['Emoção','Família','Novidade'], pub:'Atletas amadores que jogam torneio (e as famílias)',
+   fala:'A sua mãe não conseguiu ir no torneio. Mas viu cada ponto. No Ultra Play, quem não está na arquibancada acompanha o placar ao vivo, ponto a ponto. E no fim, a partida inteira fica no seu perfil. Baixe agora.',
+   legenda:'Quem ama acompanha ❤️ Placar ao vivo, ponto a ponto, pra quem não pôde ir.',
+   obs:'O ângulo mais emocional. Bom para datas como Dia das Mães e épocas de torneio.' },
  { id:'d1', lote:2, titulo:'Ficou fácil marcar o placar', sport:'beach', type:'app', angle:'Placar fácil', dur:13.4,
    hook:'Ficou fácil demais marcar o placar do seu beach.', hookTela:'Placar ao vivo na tela, já com toques no celular',
    cta:'Baixe o Ultra Play e jogue no modo Ultra!', end:'Placar fácil. Jogo de atleta.',

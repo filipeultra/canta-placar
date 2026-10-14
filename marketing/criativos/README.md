@@ -1,6 +1,6 @@
 # ULTRA PLAY · criativos de teste para tráfego pago (14/10/2026)
 
-Treze anúncios verticais (1080×1920, 30 fps, 12 a 21 s) para testar ângulos de mensagem no TikTok e no Instagram/Facebook (Reels e Stories): 3 do lote 1 (A, B, C) e 10 do lote 2 (D1 a D10, por esporte). Feitos com IA (Magnific) e com as telas reais do app, montados em código.
+Vinte e um anúncios verticais (1080×1920, 30 fps, 12 a 21 s) para testar ângulos de mensagem no TikTok e no Instagram/Facebook (Reels e Stories): 3 do lote 1 (A, B, C), 10 do lote 2 (D1 a D10, por esporte) e 8 do lote 3 (E1 a E8, com foto real). Feitos com IA (Magnific) e com as telas reais do app, montados em código.
 
 **Catálogo para escolher e subir:** [`index.html`](index.html) (no site: `/marketing/criativos/`). Filtra por esporte, tipo e ângulo, mostra gancho, CTA, público e legenda de cada vídeo, copia o link com UTM e guarda os escolhidos.
 
@@ -189,4 +189,41 @@ Gerar o vídeo inteiro por IA custaria muito mais. Só o Seedance Fast sai 1.175
 - a narração passa por `prep_voz.py`: pausas acima de 0,3 s ficam curtas, o fim de palavra arrastado é cortado e os tempos das palavras são refeitos. O vídeo fica 10% a 20% mais curto sem acelerar a voz.
 
 **Antes de subir:** ouça cada um com fone. A voz da IA pode errar a pronúncia de um nome ou número. No roteiro da voz, o nome está escrito "Ultra Plei" para sair certo em português.
+
+## 8. Lote 3 · 8 criativos com foto real (E1 a E8)
+
+**O pedido:** vídeos com imagem real, na pegada da fotografia da Biovita (identidade criada pela Ultra Design), para testar foto real contra desenho no tráfego.
+
+**Referências de estilo:**
+- **Biovita:** gente real, em movimento, sol duro, flash direto à noite, grão de filme 35 mm e cultura de rua, praia e quadra. Corte fora do padrão, corpo cortado, mão em ação, cor quente e meio lavada. Nada de sorriso posado nem banco de imagem.
+- **Strava, "Athletes Unfiltered":** membros reais, sem filtro (bolha, marca de sol, mão suja), contra o feed arrumado. [lbbonline.com](https://lbb.lbbonline.com/news/strava-pays-tribute-to-the-good-bad-and-ugly-of-true-amateur-athletes), [thedrum.com](https://www.thedrum.com/news/strava-campaign-encourages-athletes-be-unfiltered)
+- **Nike, "Winning Isn't Comfortable":** a garra do treino (chuva, madrugada, escada) para falar com o corredor amador. [contagious.com](https://contagious.com/news-and-views/campaign-of-the-week-nike-winning-isnt-comfortable-advert)
+- **Track&Field:** corredores reais, imagens com textura de arquivo pessoal e o ritual de acordar antes do sol ("só quem corre entende"). [grandesnomesdapropaganda.com.br](https://grandesnomesdapropaganda.com.br/?p=188506), [abcdoabc.com.br](https://abcdoabc.com.br/santander-trackfield-run-series-no-jk-iguatemi/)
+
+**Os 8:**
+| Vídeo | Esporte | Ângulo | Gancho (0–3 s) |
+|---|---|---|---|
+| **E1** Só quem joga beach entende | Beach | ritual (manifesto) | "Acordar antes do sol. A areia ainda fria." |
+| **E2** Quinta, 21h | Padel | ritual da turma | "Quinta, nove da noite. O jogo mais importante da semana." |
+| **E3** Quantos pontos você ganha sacando? | Tênis | saque | "Quando você está sacando… quantos pontos você ganha?" |
+| **E4** Domingo de peteca no parque | Peteca | ritual da turma | "Domingo de manhã, peteca no parque." |
+| **E5** Ele jura que ganhou | Todos | rivalidade (humor) | "Ele jura que ganhou o último jogo." |
+| **E6** Professor de beach | Beach | professor | "Professor de beach: o seu aluno sai do jogo dizendo que perdeu por azar." |
+| **E7** As meninas do beach | Beach | turma feminina | "Terça à noite, as meninas do beach." |
+| **E8** A sua mãe viu cada ponto | Todos | família / ao vivo | "A sua mãe não conseguiu ir no torneio. Mas viu cada ponto." |
+
+**Como foi feito:**
+- **Fotos:** 21 imagens no Seedream 5 Pro (2k, 9:16), com o mesmo pedido de estilo em todas: foto documental em filme 35 mm, grão, sol duro ou flash direto, cor quente lavada, gente real com suor e areia, ninguém olhando para a câmera, sem texto nem logo. Ficam em `src/img/e*.jpg`.
+- **Clipes de abertura:** 8 clipes de 5 s no Kling 2.5 (720p), a partir da 1ª foto de cada vídeo, com câmera na mão. No E2 a raquete some atrás do corpo depois de 1,5 s, então o clipe é cortado ali.
+- **Narração:** ElevenLabs v3, uma voz por vídeo (Rafael Valente, Vinícius Barroso, Henrique Cordeiro, Caio Nogueira, João Félix, Duarte Sampaio, Lívia Moreira e Catarina Cordeiro). As risadas do E4, E5 e E7 são mantidas no corte de pausas.
+- **Trilhas novas:** `trilha-doc` (violão e piano, clima de documentário: E1, E3, E6, E8) e `trilha-indie` (guitarra, palmas e pandeiro: E2, E4, E5, E7). Efeitos novos: ondas e risada de amigos.
+- **Estilo foto no motor:** `estilo: 'foto'` no roteiro liga:
+  - grão de filme animado (6 quadros de ruído fixos, sempre iguais), vinheta e cor quente;
+  - legenda em caixa escura no estilo das redes, em vez do texto com contorno;
+  - texto grande em Bricolage, pílulas sem contorno preto;
+  - carimbo de data laranja de câmera de filme (`k: 'dt'`) e cortes secos sem flash.
+  - A tela final verde é a mesma dos outros lotes, para a comparação ser justa.
+- **Custo no Magnific:** 3.821 créditos, conferido no saldo (21 fotos: 2.100; 8 clipes: 1.120; 8 narrações: 386; 2 trilhas: 160; 2 efeitos: 55). Sobram 61,5 mil.
+
+**Teste sugerido:** foto real × desenho no mesmo ângulo e no mesmo conjunto (E5 × A, E4 × D9, E6 × D6). O estilo que tiver a melhor taxa de gancho define o próximo lote.
 

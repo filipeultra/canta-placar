@@ -236,5 +236,171 @@ window.ROTEIROS = {
     ],
     chunks: [[7, 10], [11, 14], [15, 18], [19, 24], [25, 29], [30, 35], [36, 38]],
     endAt: 13.6, end: { h: 'Seu torneio no<br>modo Ultra.', size: 128, badge: 'Para organizadores e arenas', sub: 'Placar ao vivo e estatísticas de cada partida.', btn: 'Baixe agora →' }
+  },
+  // ---------- lote 3: foto real (estilo documental: gente real, sol duro, flash, grão de filme) ----------
+  e1: {
+    titulo: 'Só quem joga beach entende', dur: 16.6, accent: 'lime', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 2.95, seq: 'work/clips/e1', from: 0, speed: 1, n: 151, kb: [1.02, 1.08, 0, 0, 0, 10] },
+      { t0: 2.95, t1: 5.1, img: 'src/img/e1c.jpg', kb: [1.04, 1.14, 0, 0, 0, 30] },
+      { t0: 5.1, t1: 7.0, img: 'src/img/e1b.jpg', kb: [1.06, 1.16, 0, 0, 0, 20] },
+      { t0: 7.0, t1: 8.5, img: 'src/img/e1a.jpg', kb: [1.1, 1.18, 0, 0, 0, -20], dim: .35 },
+      { t0: 8.5, t1: 99, img: 'src/img/e1b.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [
+      { t0: 8.5, t1: 11.0, seq: 'work/app/beach-live', from: 0.25, n: 226, taps: 'beach-live' },
+      { t0: 11.0, t1: 13.7, seq: 'work/app/stats', from: 2.0, n: 180, z: [1.0, 1.05] }
+    ],
+    fx: [
+      { k: 'dt', t0: 0, t1: 2.95, text: "'26 10 14  06:12" },
+      { k: 'kin', t0: 7.0, t1: 8.5, y: 760, lines: ['Só quem joga', '[beach] entende.'] },
+      { k: 'pill', t0: 10.19, t1: 11.0, text: 'Placar', cls: 'lime', x: 60, y: 1360, rot: -3, s: .9 },
+      { k: 'pill', t0: 11.04, t1: 12.2, text: 'Estatística', cls: 'white', x: 520, y: 1380, rot: 3, s: .9 },
+      { k: 'pill', t0: 12.28, t1: 13.7, text: 'O ano inteiro', cls: 'lime', x: 80, y: 1360, rot: -2, s: .9 }
+    ],
+    chunks: [[0, 3], [4, 7], [8, 12], [13, 18], [19, 23], [24, 27], [28, 29], [30, 31], [32, 38]],
+    endAt: 13.7, end: { h: 'Só quem joga<br>entende.', size: 132, badge: 'Beach tennis', sub: 'Placar, estatística e o seu ano de jogo.', btn: 'Baixe agora →' }
+  },
+  e2: {
+    titulo: 'Quinta, 21h: o jogo mais importante da semana', dur: 13.9, accent: 'lime', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 1.5, seq: 'work/clips/e2', from: 0, speed: 1, n: 151, kb: [1.02, 1.06, 0, 0, 0, 10] },
+      { t0: 1.5, t1: 3.95, img: 'src/img/e2c.jpg', kb: [1.06, 1.18, 0, 0, 0, 30] },
+      { t0: 3.95, t1: 6.35, img: 'src/img/e2b.jpg', kb: [1.04, 1.14, 0, 0, 0, 30] },
+      { t0: 6.35, t1: 99, img: 'src/img/e2a.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [
+      { t0: 6.35, t1: 9.0, seq: 'work/app/placar', from: 0.35, n: 240 },
+      { t0: 9.0, t1: 10.35, seq: 'work/app/beach-share', from: 0.5, n: 180 },
+      { t0: 10.35, t1: 12.2, seq: 'work/app/grupo', from: 3.4, n: 150, z: [1.0, 1.04] }
+    ],
+    fx: [
+      { k: 'dt', t0: 0, t1: 3.95, text: 'QUI  21:04' },
+      { k: 'pill', t0: 9.05, t1: 10.35, text: 'Publica pra turma', cls: 'lime', x: 60, y: 1370, rot: -3, s: .85 },
+      { k: 'pill', t0: 10.61, t1: 12.2, text: 'Quem está na frente', cls: 'white', x: 90, y: 1370, rot: 2, s: .85 }
+    ],
+    chunks: [[0, 3], [4, 9], [10, 14], [15, 17], [18, 21], [22, 26], [27, 29], [30, 37]],
+    endAt: 12.2, end: { h: 'Quinta é<br>dia de jogo.', size: 140, badge: 'Padel', sub: 'Ponto a ponto, publicado pra turma.', btn: 'Baixe agora →' }
+  },
+  e3: {
+    titulo: 'Quantos pontos você ganha sacando?', dur: 13.2, accent: 'orange', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 2.8, seq: 'work/clips/e3', from: 0, speed: 1, n: 151, kb: [1.02, 1.08, 0, 0, 0, 10] },
+      { t0: 2.8, t1: 4.9, img: 'src/img/e3b.jpg', kb: [1.05, 1.15, 0, 0, 0, 30], dim: .3 },
+      { t0: 4.9, t1: 99, img: 'src/img/e3c.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [
+      { t0: 4.9, t1: 8.4, seq: 'work/app/tenis-analise', from: 0.8, n: 180, z: [1.0, 1.06] },
+      { t0: 8.4, t1: 11.8, seq: 'work/app/tenis-momento', from: 0.3, n: 180, z: [1.0, 1.04] }
+    ],
+    fx: [
+      { k: 'dt', t0: 0, t1: 2.8, text: 'SÁB  12:40' },
+      { k: 'count', t0: 2.85, t1: 4.9, y: 520, a: '?', suf: '%', spin: 1, title: 'Pontos ganhos no seu saque' },
+      { k: 'count', t0: 6.1, t1: 7.25, y: 230, a: 58, suf: '%', title: 'dos pontos ganhos no saque' },
+      { k: 'pill', t0: 8.4, t1: 9.25, text: 'Onde ganha', cls: 'lime', x: 60, y: 1370, rot: -3, s: .9 },
+      { k: 'pill', t0: 9.3, t1: 10.15, text: 'Onde escapa', cls: 'orange', x: 470, y: 1390, rot: 3, s: .9 }
+    ],
+    chunks: [[0, 3], [4, 7], [8, 10], [11, 11], [12, 15], [16, 19], [20, 26], [27, 30], [31, 34]],
+    endAt: 11.8, end: { h: 'Saia da quadra<br>sabendo.', size: 128, badge: 'Tênis', sub: 'Onde o seu jogo ganha e onde ele escapa.', btn: 'Baixe agora →' }
+  },
+  e4: {
+    titulo: 'Domingo de peteca no parque', dur: 16.9, accent: 'lime', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 3.0, seq: 'work/clips/e4', from: 0, speed: 1, n: 151, kb: [1.02, 1.08, 0, 0, 0, 10] },
+      { t0: 3.0, t1: 5.3, img: 'src/img/e4c.jpg', kb: [1.04, 1.14, 0, 0, 0, 30] },
+      { t0: 5.3, t1: 7.25, img: 'src/img/e4b.jpg', kb: [1.05, 1.14, 0, 0, 0, 20] },
+      { t0: 7.25, t1: 99, img: 'src/img/e4b.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [
+      { t0: 7.25, t1: 10.4, seq: 'work/app/peteca-live', from: 0.3, n: 211, taps: 'peteca-live' },
+      { t0: 10.4, t1: 14.15, seq: 'work/app/peteca-stats', from: 0.4, n: 150, z: [1.0, 1.05] }
+    ],
+    fx: [
+      { k: 'dt', t0: 0, t1: 3.0, text: 'DOM  08:15' },
+      { k: 'pill', t0: 10.64, t1: 11.5, text: 'Placar', cls: 'lime', x: 60, y: 1370, rot: -3, s: .9 },
+      { k: 'pill', t0: 11.5, t1: 12.7, text: 'Estatística', cls: 'white', x: 500, y: 1390, rot: 3, s: .9 },
+      { k: 'pill', t0: 12.76, t1: 14.15, text: 'Ranking da turma', cls: 'lime', x: 80, y: 1370, rot: -2, s: .9 }
+    ],
+    chunks: [[0, 2], [3, 5], [6, 10], [11, 16], [17, 19], [20, 23], [24, 26], [27, 31]],
+    endAt: 14.15, end: { h: 'Domingo é dia<br>de peteca.', size: 130, badge: 'Peteca', sub: 'Placar, estatística e o ranking da turma.', btn: 'Baixe agora →' }
+  },
+  e5: {
+    titulo: 'Ele jura que ganhou o último jogo', dur: 14.2, accent: 'lime', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 2.0, seq: 'work/clips/e5', from: 0, speed: 1, n: 151, kb: [1.02, 1.06, 0, 0, 0, 10] },
+      { t0: 2.0, t1: 4.7, img: 'src/img/e5b.jpg', kb: [1.05, 1.16, 0, 0, 0, 30] },
+      { t0: 4.7, t1: 6.2, seq: 'work/clips/e5', from: 2.4, speed: 1, n: 151, kb: [1.08, 1.12, 0, 0, 0, 0], dim: .35 },
+      { t0: 6.2, t1: 99, img: 'src/img/e5a.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [
+      { t0: 6.2, t1: 10.65, seq: 'work/app/momento', from: 0.6, n: 180, z: [1.0, 1.05] },
+      { t0: 10.65, t1: 12.45, seq: 'work/app/beach-share', from: 0.5, n: 180 }
+    ],
+    fx: [
+      { k: 'kin', t0: 4.77, t1: 6.2, y: 760, lines: ['Agora tem', '[prova].'] },
+      { k: 'pill', t0: 9.22, t1: 10.65, text: 'Placar e horário', cls: 'lime', x: 60, y: 1370, rot: -3, s: .85 },
+      { k: 'pill', t0: 10.72, t1: 12.45, text: 'Manda o print', cls: 'white', x: 380, y: 1390, rot: 3, s: .85 }
+    ],
+    chunks: [[0, 3], [4, 6], [7, 12], [13, 15], [16, 18], [19, 22], [23, 26], [27, 31]],
+    endAt: 12.45, end: { h: 'Agora tem<br>prova.', size: 150, badge: 'Beach · padel · tênis · peteca', sub: 'Cada ponto registrado, com placar e horário.', btn: 'Baixe agora →' }
+  },
+  e6: {
+    titulo: 'Professor: mostre ao aluno o que aconteceu', dur: 15.7, accent: 'lime', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 3.0, seq: 'work/clips/e6', from: 0, speed: 1, n: 151, kb: [1.02, 1.08, 0, 0, 0, 10] },
+      { t0: 3.0, t1: 4.65, img: 'src/img/e6b.jpg', kb: [1.04, 1.14, 0, 0, 0, 30] },
+      { t0: 4.65, t1: 6.6, img: 'src/img/e6a.jpg', kb: [1.12, 1.22, 0, 0, 0, 20] },
+      { t0: 6.6, t1: 99, img: 'src/img/e6a.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [{ t0: 6.6, t1: 14.2, seq: 'work/app/beach-derrota', from: 0.3, n: 180, z: [1.0, 1.08] }],
+    fx: [
+      { k: 'dt', t0: 0, t1: 3.0, text: 'TER  07:30' },
+      { k: 'bars', t0: 9.4, t1: 11.2, y: 250, title: 'Pontos entregues em erro', items: [['Na rede', 10, 'orange'], ['Pra fora', 5, 'white'], ['Dupla falta', 2, 'lime']], max: 11 },
+      { k: 'pill', t0: 11.2, t1: 12.95, text: 'A dica pro próximo treino', cls: 'lime', x: 50, y: 1370, rot: -2, s: .8 }
+    ],
+    chunks: [[0, 2], [3, 8], [9, 13], [14, 19], [20, 22], [23, 26], [27, 30], [31, 36], [37, 39]],
+    endAt: 14.2, end: { h: 'Mostra pro aluno<br>o que aconteceu.', size: 112, badge: 'Para professores de beach', sub: 'Erros, saque e a dica pro próximo treino.', btn: 'Baixe agora →' }
+  },
+  e7: {
+    titulo: 'As meninas do beach: quem foi a melhor do mês?', dur: 13.3, accent: 'lime', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 2.7, seq: 'work/clips/e7', from: 0, speed: 1, n: 151, kb: [1.02, 1.08, 0, 0, 0, 10] },
+      { t0: 2.7, t1: 4.65, img: 'src/img/e7b.jpg', kb: [1.04, 1.14, 0, 0, 0, 30] },
+      { t0: 4.65, t1: 6.2, seq: 'work/clips/e7', from: 2.9, speed: 1, n: 151, kb: [1.06, 1.1, 0, 0, 0, 0] },
+      { t0: 6.2, t1: 99, img: 'src/img/e7b.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [
+      { t0: 6.2, t1: 8.15, seq: 'work/app/grupo', from: 3.4, n: 150, z: [1.0, 1.04] },
+      { t0: 8.15, t1: 9.3, seq: 'work/app/replay', from: 2.2, n: 210 },
+      { t0: 9.3, t1: 10.85, seq: 'work/app/feed', from: 1.2, n: 120 }
+    ],
+    fx: [
+      { k: 'dt', t0: 0, t1: 2.7, text: 'TER  20:47' },
+      { k: 'pill', t0: 7.55, t1: 8.15, text: 'Ranking', cls: 'lime', x: 60, y: 1370, rot: -3, s: .9 },
+      { k: 'pill', t0: 8.17, t1: 9.3, text: 'Replay', cls: 'white', x: 560, y: 1390, rot: 3, s: .9 },
+      { k: 'pill', t0: 9.33, t1: 10.85, text: 'Cada partida no feed', cls: 'lime', x: 60, y: 1370, rot: -2, s: .85 }
+    ],
+    chunks: [[0, 2], [3, 6], [7, 12], [13, 14], [15, 17], [18, 21], [22, 24], [25, 29]],
+    endAt: 10.85, end: { h: 'Chama as<br>meninas.', size: 150, badge: 'Beach tennis', sub: 'Ranking, replay e cada partida no feed.', btn: 'Baixe agora →' }
+  },
+  e8: {
+    titulo: 'Sua mãe não foi no torneio. Mas viu cada ponto.', dur: 14.9, accent: 'lime', estilo: 'foto',
+    scenes: [
+      { t0: 0, t1: 2.5, seq: 'work/clips/e8', from: 0, speed: 1, n: 151, kb: [1.02, 1.08, 0, 0, 0, 10] },
+      { t0: 2.5, t1: 4.45, img: 'src/img/e8b.jpg', kb: [1.04, 1.14, 0, 0, 0, 30] },
+      { t0: 4.45, t1: 9.7, img: 'src/img/e8b.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 },
+      { t0: 9.7, t1: 11.4, img: 'src/img/e8c.jpg', kb: [1.04, 1.14, 0, 0, 0, 30] },
+      { t0: 11.4, t1: 99, img: 'src/img/e8c.jpg', kb: [1.3, 1.38, 0, 0, 0, 0], blur: 22, dim: .5 }
+    ],
+    phone: [
+      { t0: 4.45, t1: 9.7, seq: 'work/app/aovivo', from: 0.4, n: 210 },
+      { t0: 11.4, t1: 13.05, seq: 'work/app/recordes', from: 0, n: 150, hold: 0.5 }
+    ],
+    fx: [
+      { k: 'pill', t0: 7.37, t1: 9.7, text: 'Placar ao vivo', cls: 'lime', x: 60, y: 1370, rot: -3, s: .9 },
+      { k: 'pill', t0: 11.56, t1: 13.05, text: 'No seu perfil', cls: 'white', x: 420, y: 1390, rot: 3, s: .9 }
+    ],
+    chunks: [[0, 3], [4, 7], [8, 11], [12, 14], [15, 19], [20, 24], [25, 27], [28, 33], [34, 37]],
+    endAt: 13.05, end: { h: 'Quem ama<br>acompanha.', size: 150, badge: 'Placar ao vivo', sub: 'Cada ponto ao vivo, pra quem não pôde ir.', btn: 'Baixe agora →' }
   }
 };
