@@ -23,7 +23,9 @@
   const lang = detect();
   function setLang(l) {
     try { const p = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; p.lang = l === 'en' ? 'en' : 'pt'; localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* sem storage */ }
-    try { const u = new URL(location.href); u.searchParams.delete('lang'); location.replace(u.toString()); } catch (e) { location.reload(); }
+    // recarrega de verdade: location.replace para o mesmo endereço com #âncora só troca a âncora e não aplicava o idioma
+    try { const u = new URL(location.href); if (u.searchParams.has('lang')) { u.searchParams.delete('lang'); location.replace(u.toString()); return; } } catch (e) { /* sem URL */ }
+    location.reload();
   }
   const api = { lang, t: s => s, setLang, active: false };
   root.CantaI18n = api;
@@ -56,14 +58,18 @@
   let fragRe = null;
   SHORT.forEach(([a, b]) => { fragMap.set(a, b); frags.push(a); });
   try {
-    fragRe = new RegExp(frags.map(k => (/^[A-Za-zÀ-ÿ]/.test(k) ? '(?<![' + L + '])' : '') + esc(k) + (/[A-Za-zÀ-ÿ]$/.test(k) ? '(?![' + L + '])' : '')).join('|'), 'gi');
+    // conectivo de uma letra ("e") só entre espaços: não pega "e.g." nem "e-mail"
+    fragRe = new RegExp(frags.map(k => (k.length === 1 ? '(?<=\\s)' + esc(k) + '(?=\\s)' : (/^[A-Za-zÀ-ÿ]/.test(k) ? '(?<![' + L + '])' : '') + esc(k) + (/[A-Za-zÀ-ÿ]$/.test(k) ? '(?![' + L + '])' : ''))).join('|'), 'gi');
   } catch (e) { fragRe = null; } // navegador sem lookbehind: fica só a troca exata
   const fragOut = m => { const e = fragMap.get(m); if (e !== undefined) return e; const l = lower.get(m.trim().toLowerCase()); if (l === undefined) return m; const lead = m.match(/^\s*/)[0], tail = m.match(/\s*$/)[0]; return lead + caseLike(m.trim(), l) + tail; };
   const caseLike = (src, out) => (src === src.toUpperCase() && /[A-ZÀ-Ý]/.test(src) ? out.toUpperCase() : /^[A-ZÀ-Ý]/.test(src) ? out.charAt(0).toUpperCase() + out.slice(1) : out);
-  const cache = new Map();
+  const cache = new Map(), outs = new Set();   // outs: textos que já saíram traduzidos (não traduz de novo: "e.g." virava "and.g.")
   function t(s) {
     if (typeof s !== 'string' || s.length < 2 || !/[A-Za-zÀ-ÿ]/.test(s)) return s;
     const hit = cache.get(s); if (hit !== undefined) return hit;
+    if (outs.has(s)) return s;
+    // espaço que não quebra (o app usa para não deixar palavra sozinha na linha): traduz como espaço e devolve o último
+    if (s.indexOf('\u00a0') >= 0) { const o = t(s.replace(/\u00a0/g, ' ')).replace(/ (\S{1,13})$/, '\u00a0$1'); cache.set(s, o); outs.add(o); return o; }
     let out = exact.get(s);
     if (out === undefined) {
       const tr = s.trim(), lead = s.slice(0, s.indexOf(tr)), tail = s.slice(s.indexOf(tr) + tr.length);
@@ -74,8 +80,9 @@
       else out = s;
       out = out.replace(/(\d) de (\d)/g, '$1 of $2');
     }
-    if (cache.size > 6000) cache.clear();
+    if (cache.size > 6000) { cache.clear(); outs.clear(); }
     cache.set(s, out);
+    if (out !== s) outs.add(out);
     return out;
   }
   api.t = t; api.active = true;

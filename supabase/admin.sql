@@ -15,6 +15,7 @@ create table public.app_events (
   source      text check (char_length(source) <= 40),
   medium      text check (char_length(medium) <= 40),
   campaign    text check (char_length(campaign) <= 40),
+  content     text check (char_length(content) <= 40),   -- utm_content: o link rastreável (tracked_links.slug)
   ref         text check (ref ~ '^UP-[A-Z0-9]{6}$'),
   app_version text check (char_length(app_version) <= 20),
   created_at  timestamptz not null default now()
@@ -74,24 +75,26 @@ create policy prices_read on public.plan_prices for select using (true);
 grant usage on sequence public.app_events_id_seq to anon, authenticated;
 -- o Supabase dá acesso total às tabelas novas para anon e authenticated: aqui fica só o que precisa
 revoke all on public.app_events, public.admins, public.plan_prices from anon, authenticated;
-grant insert (device_id, session, user_id, name, props, path, source, medium, campaign, ref, app_version, created_at) on public.app_events to anon, authenticated;
+grant insert (device_id, session, user_id, name, props, path, source, medium, campaign, content, ref, app_version, created_at) on public.app_events to anon, authenticated;
 grant select on public.app_events to authenticated;   -- a regra events_admin deixa só admin ler
 grant select on public.admins to authenticated;       -- a regra admins_self deixa ver só a própria linha
 grant select on public.plan_prices to anon, authenticated;
 
 -- ---------- números do painel (uma chamada só; só admin) ----------
-create or replace function public.admin_metrics(days int default 30) returns jsonb
+-- days: tamanho do período; ate: último dia (nulo = hoje). Ex.: admin_metrics(30, '2026-09-30') é setembro.
+create or replace function public.admin_metrics(days int default 30, ate date default null) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
-  d int := greatest(1, least(days, 365));
-  t0 timestamptz := date_trunc('day', now()) - make_interval(days => d - 1);
+  d int := greatest(1, least(days, 730));
+  tend timestamptz := case when ate is null then now() else least(now(), (ate + 1)::timestamptz) end;   -- fim do período (exclusivo)
+  t0 timestamptz := date_trunc('day', tend - interval '1 second') - make_interval(days => d - 1);
   p0 timestamptz := t0 - make_interval(days => d);
   out jsonb;
 begin
   if not is_admin() then raise exception 'acesso só para administradores' using errcode = '42501'; end if;
   with
-  ev as (select * from app_events where created_at >= p0),
-  cur as (select * from ev where created_at >= t0),
+  ev as (select * from app_events where created_at >= p0 and created_at < tend),
+  cur as (select * from ev where created_at >= t0 and created_at < tend),
   prev as (select * from ev where created_at < t0),
   pro as (
     select s.plan from subscriptions s where s.status in ('trial', 'ativa') and (s.current_period_end is null or s.current_period_end > now())
@@ -105,20 +108,20 @@ begin
       'active', (select count(distinct device_id) from cur where name = 'app_open' and not session),
       'active_prev', (select count(distinct device_id) from prev where name = 'app_open' and not session),
       'users', (select count(*) from profiles where deleted_at is null),
-      'users_new', (select count(*) from profiles where created_at >= t0),
+      'users_new', (select count(*) from profiles where created_at >= t0 and created_at < tend),
       'users_new_prev', (select count(*) from profiles where created_at >= p0 and created_at < t0),
       'pro', (select count(*) from pro),
       'pro_paying', (select count(*) from pro where plan <> 'cortesia'),
       'mrr', (select coalesce(sum(pp.monthly), 0) from pro join plan_prices pp using (plan)),
-      'matches', (select count(*) from matches where created_at >= t0 and deleted_at is null),
+      'matches', (select count(*) from matches where created_at >= t0 and created_at < tend and deleted_at is null),
       'matches_prev', (select count(*) from matches where created_at >= p0 and created_at < t0 and deleted_at is null),
       'matches_total', (select count(*) from matches where deleted_at is null),
       'groups', (select count(*) from groups where deleted_at is null),
       'reports_open', (select count(*) from reports where status in ('aberta', 'em_analise')),
-      'ai_runs', (select count(*) from ai_usage where created_at >= t0),
-      'ai_tokens_in', (select coalesce(sum(input_tokens), 0) from ai_usage where created_at >= t0),
-      'ai_tokens_out', (select coalesce(sum(output_tokens), 0) from ai_usage where created_at >= t0),
-      'ai_users', (select count(distinct user_id) from ai_usage where created_at >= t0),
+      'ai_runs', (select count(*) from ai_usage where created_at >= t0 and created_at < tend),
+      'ai_tokens_in', (select coalesce(sum(input_tokens), 0) from ai_usage where created_at >= t0 and created_at < tend),
+      'ai_tokens_out', (select coalesce(sum(output_tokens), 0) from ai_usage where created_at >= t0 and created_at < tend),
+      'ai_users', (select count(distinct user_id) from ai_usage where created_at >= t0 and created_at < tend),
       -- uso (só aparelhos com estatísticas ligadas): agora = últimos 15 min; dia/semana/mês até agora
       'live_now', (select count(distinct device_id) from ev where created_at > now() - interval '15 minutes'),
       'dau', (select count(distinct device_id) from ev where name = 'app_open' and not session and created_at > now() - interval '1 day'),
@@ -131,19 +134,19 @@ begin
       'shares', (select count(*) from cur where name = 'share'),
       'invites', (select count(*) from cur where name = 'invite'),
       'feedbacks', (select count(*) from cur where name = 'feedback'),
-      'subs_new', (select count(*) from subscriptions where created_at >= t0 and provider <> 'cortesia'),
-      'subs_cancel', (select count(*) from subscriptions where status in ('cancelada', 'encerrada') and updated_at >= t0),
-      'users_deleted', (select count(*) from profiles where deleted_at >= t0),
-      'groups_new', (select count(*) from groups where created_at >= t0 and deleted_at is null),
-      'posts', (select count(*) from group_posts where created_at >= t0 and deleted_at is null),
+      'subs_new', (select count(*) from subscriptions where created_at >= t0 and created_at < tend and provider <> 'cortesia'),
+      'subs_cancel', (select count(*) from subscriptions where status in ('cancelada', 'encerrada') and updated_at >= t0 and updated_at < tend),
+      'users_deleted', (select count(*) from profiles where deleted_at >= t0 and deleted_at < tend),
+      'groups_new', (select count(*) from groups where created_at >= t0 and created_at < tend and deleted_at is null),
+      'posts', (select count(*) from group_posts where created_at >= t0 and created_at < tend and deleted_at is null),
       -- comunidade: marcações (sem contar o dono), bloqueios e pedidos entre jogadores
-      'tags_new', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.user_id is not null and mp.user_id <> m.owner_id),
-      'tags_accepted', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.user_id is not null and mp.user_id <> m.owner_id and mp.tag_status = 'aceito'),
-      'tags_refused', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.user_id is not null and mp.user_id <> m.owner_id and mp.tag_status = 'recusado'),
-      'blocks_new', (select count(*) from blocks where created_at >= t0),
+      'tags_new', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.created_at < tend and mp.user_id is not null and mp.user_id <> m.owner_id),
+      'tags_accepted', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.created_at < tend and mp.user_id is not null and mp.user_id <> m.owner_id and mp.tag_status = 'aceito'),
+      'tags_refused', (select count(*) from match_players mp join matches m on m.id = mp.match_id where mp.created_at >= t0 and mp.created_at < tend and mp.user_id is not null and mp.user_id <> m.owner_id and mp.tag_status = 'recusado'),
+      'blocks_new', (select count(*) from blocks where created_at >= t0 and created_at < tend),
       'del_open', (select count(*) from match_delete_requests where status = 'aberto'),
       'fix_open', (select count(*) from match_corrections where status = 'aberto'),
-      'fixes_done', (select count(*) from match_corrections where status = 'aprovado' and closed_at >= t0),
+      'fixes_done', (select count(*) from match_corrections where status = 'aprovado' and closed_at >= t0 and closed_at < tend),
       'trials', (select count(*) from subscriptions where status = 'trial' and (current_period_end is null or current_period_end > now())),
       -- saúde do app: erros que o app mandou (só aparelhos com estatísticas ligadas; sem mensagem, só arquivo e linha)
       'errors', (select count(*) from cur where name = 'js_error'),
@@ -151,7 +154,7 @@ begin
       'errors_prev', (select count(*) from prev where name = 'js_error')
     ) as v
   ),
-  days_s as (select generate_series(t0, date_trunc('day', now()), interval '1 day') as day),
+  days_s as (select generate_series(t0, date_trunc('day', tend - interval '1 second'), interval '1 day') as day),
   daily as (
     select jsonb_agg(jsonb_build_object(
       'day', to_char(ds.day, 'YYYY-MM-DD'),
@@ -161,7 +164,7 @@ begin
       'matches', (select count(*) from matches where created_at >= ds.day and created_at < ds.day + interval '1 day' and deleted_at is null)
     ) order by ds.day) as v from days_s ds
   ),
-  sports as (select coalesce(jsonb_agg(jsonb_build_object('sport', sport, 'n', n) order by n desc), '[]') as v from (select sport, count(*) n from matches where created_at >= t0 and deleted_at is null group by sport) x),
+  sports as (select coalesce(jsonb_agg(jsonb_build_object('sport', sport, 'n', n) order by n desc), '[]') as v from (select sport, count(*) n from matches where created_at >= t0 and created_at < tend and deleted_at is null group by sport) x),
   funnel as (
     select jsonb_build_array(
       jsonb_build_object('step', 'visit', 'n', (select count(distinct device_id) from cur where not session and name in ('visit', 'app_open'))),
@@ -201,7 +204,30 @@ begin
   -- quando se joga: partidas por dia da semana (0 = domingo) e hora, no horário de Brasília
   hours as (select coalesce(jsonb_agg(jsonb_build_object('d', dw, 'h', hr, 'n', n)), '[]') as v from (
     select extract(dow from played_at at time zone 'America/Sao_Paulo')::int dw, extract(hour from played_at at time zone 'America/Sao_Paulo')::int hr, count(*) n
-    from matches where played_at >= t0 and deleted_at is null group by 1, 2) h),
+    from matches where played_at >= t0 and played_at < tend and deleted_at is null group by 1, 2) h),
+  -- taxas: cancelamento (clientes e receita), teste → pago, ativação e retenção D1/D7/D30 de quem chegou no período
+  paid as (select s.*, pp.monthly from subscriptions s join plan_prices pp using (plan) where s.provider <> 'cortesia'),
+  firsts_p as (select device_id, min(created_at) f from app_events where name = 'app_open' and not session group by device_id having min(created_at) >= t0 and min(created_at) < tend),
+  sign_p as (select device_id, min(created_at) f from cur where name = 'signup' group by device_id),
+  rates as (select jsonb_build_object(
+      'paying_start', (select count(*) from paid where status <> 'trial' and created_at < t0 and (current_period_end is null or current_period_end > t0)),
+      'mrr_start', (select coalesce(sum(monthly), 0) from paid where status <> 'trial' and created_at < t0 and (current_period_end is null or current_period_end > t0)),
+      'canceled', (select count(*) from paid where status in ('cancelada', 'encerrada') and updated_at >= t0 and updated_at < tend),
+      'mrr_lost', (select coalesce(sum(monthly), 0) from paid where status in ('cancelada', 'encerrada') and updated_at >= t0 and updated_at < tend),
+      'mrr_new', (select coalesce(sum(monthly), 0) from paid where status <> 'trial' and created_at >= t0 and created_at < tend),
+      -- teste grátis de 14 dias: quem começou há mais de 14 dias e já pagou (aproximação sem o histórico de cada mudança)
+      'trial_total', (select count(*) from paid where created_at >= t0 - interval '14 days' and created_at < least(tend, now() - interval '14 days')),
+      'trial_paid', (select count(*) from paid where created_at >= t0 - interval '14 days' and created_at < least(tend, now() - interval '14 days') and status in ('ativa', 'cancelada', 'atrasada')),
+      -- ativação: criou conta e terminou uma partida em até 7 dias
+      'act_signups', (select count(*) from sign_p),
+      'act_done', (select count(*) from sign_p s where exists (select 1 from app_events e where e.device_id = s.device_id and e.name = 'match_end' and e.created_at >= s.f and e.created_at < s.f + interval '7 days')),
+      'ret_base1', (select count(*) from firsts_p where f + interval '2 days' <= now()),
+      'ret_d1', (select count(*) from firsts_p x where f + interval '2 days' <= now() and exists (select 1 from app_events e where e.device_id = x.device_id and e.name = 'app_open' and not e.session and e.created_at >= x.f + interval '1 day' and e.created_at < x.f + interval '2 days')),
+      'ret_base7', (select count(*) from firsts_p where f + interval '8 days' <= now()),
+      'ret_d7', (select count(*) from firsts_p x where f + interval '8 days' <= now() and exists (select 1 from app_events e where e.device_id = x.device_id and e.name = 'app_open' and not e.session and e.created_at >= x.f + interval '7 days' and e.created_at < x.f + interval '8 days')),
+      'ret_base30', (select count(*) from firsts_p where f + interval '31 days' <= now()),
+      'ret_d30', (select count(*) from firsts_p x where f + interval '31 days' <= now() and exists (select 1 from app_events e where e.device_id = x.device_id and e.name = 'app_open' and not e.session and e.created_at >= x.f + interval '30 days' and e.created_at < x.f + interval '31 days'))
+    ) as v),
   -- onde estão as contas (cidade do perfil, as 8 mais comuns)
   cities as (select coalesce(jsonb_agg(jsonb_build_object('city', city, 'n', n) order by n desc), '[]') as v from (
     select city, count(*) n from profiles where deleted_at is null and coalesce(trim(city), '') <> '' group by city order by 2 desc limit 8) c),
@@ -217,12 +243,13 @@ begin
           and (s.current_period_end is null or s.current_period_end > ds.day))) order by ds.day) as v from days_s ds)
   select jsonb_build_object('days', d, 'from', to_char(t0, 'YYYY-MM-DD'), 'generated_at', now(), 'kpi', kpi.v, 'daily', daily.v, 'sports', sports.v, 'funnel', funnel.v,
     'sources', sources.v, 'retention', retention.v, 'plans', plans.v, 'events', events_top.v, 'versions', versions.v, 'hours', hours.v,
-    'cities', cities.v, 'errors_top', errors_top.v, 'mrr_daily', mrr_daily.v, 'role', admin_role(), 'mfa_age_min', admin_mfa_age_min())
-  into out from kpi, daily, sports, funnel, sources, retention, plans, events_top, versions, hours, cities, errors_top, mrr_daily;
+    'cities', cities.v, 'errors_top', errors_top.v, 'mrr_daily', mrr_daily.v, 'rates', rates.v, 'role', admin_role(), 'mfa_age_min', admin_mfa_age_min(),
+    'to', to_char(tend - interval '1 second', 'YYYY-MM-DD'))
+  into out from kpi, daily, sports, funnel, sources, retention, plans, events_top, versions, hours, cities, errors_top, mrr_daily, rates;
   return out;
 end $$;
-revoke execute on function public.admin_metrics(int) from public, anon;
-grant execute on function public.admin_metrics(int) to authenticated;
+revoke execute on function public.admin_metrics(int, date) from public, anon;
+grant execute on function public.admin_metrics(int, date) to authenticated;
 
 -- ---------- ações do painel (só admin; cada uma fica registrada em admin_log) ----------
 create table public.admin_log (
@@ -424,3 +451,82 @@ begin
 end $$;
 revoke execute on function public.admin_hello(), public.admin_access(int), public.admin_team(), public.admin_note_export(text), public.admin_log_frozen() from public, anon;
 grant execute on function public.admin_hello(), public.admin_access(int), public.admin_team(), public.admin_note_export(text) to authenticated;
+
+-- ---------- links rastreáveis (UTM) ----------
+-- Cada link tem um código (slug) que vai no utm_content; origem, meio e campanha vão em utm_source, utm_medium e utm_campaign.
+-- O app guarda o 1º toque no aparelho e manda junto em cada evento, então dá para ver visitas, contas, 1ª partida e Pro por link.
+create table public.tracked_links (
+  slug        text primary key check (slug ~ '^[a-z0-9][a-z0-9_-]{1,39}$'),
+  label       text not null check (char_length(label) between 1 and 60),
+  dest        text not null default 'app' check (dest in ('app', 'site', 'beach', 'padel', 'tenis', 'peteca')),
+  source      text not null check (source ~ '^[a-z0-9_.-]{1,40}$'),
+  medium      text not null check (medium ~ '^[a-z0-9_.-]{1,40}$'),
+  campaign    text not null check (campaign ~ '^[a-z0-9_.-]{1,40}$'),
+  created_by  uuid references public.profiles(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  archived_at timestamptz
+);
+alter table public.tracked_links enable row level security;
+create policy links_read on public.tracked_links for select using (public.is_admin());
+revoke all on public.tracked_links from anon, authenticated;
+grant select on public.tracked_links to authenticated;   -- escrever, só pela função abaixo
+create index app_events_content on public.app_events (content, created_at) where content is not null;
+create index app_events_source on public.app_events (source, created_at) where source is not null;
+
+-- criar ou editar um link (moderador ou dono); arquivar = some da lista, os números ficam
+create or replace function public.admin_link_save(slug text, label text, dest text, source text, medium text, campaign text, archive boolean default false) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare clean text := lower(trim(slug)); out tracked_links;
+begin
+  perform admin_guard('moderador');
+  if (select count(*) from admin_log where admin_id = auth.uid() and action = 'link_save' and created_at > now() - interval '24 hours') >= 200 then
+    raise exception 'limite_de_links: 200 por dia' using errcode = '54000';
+  end if;
+  insert into tracked_links as t (slug, label, dest, source, medium, campaign, created_by)
+    values (clean, trim(label), coalesce(dest, 'app'), lower(trim(source)), lower(trim(medium)), lower(trim(campaign)), auth.uid())
+  on conflict on constraint tracked_links_pkey do update set label = excluded.label, dest = excluded.dest, source = excluded.source, medium = excluded.medium,
+    campaign = excluded.campaign, archived_at = case when archive then coalesce(t.archived_at, now()) else null end
+  returning * into out;
+  insert into admin_log (admin_id, action, target, detail) values (auth.uid(), 'link_save', clean, jsonb_build_object('archive', archive));
+  return to_jsonb(out);
+end $$;
+
+-- links com os números do período, e o tráfego por origem e campanha (dia a dia)
+create or replace function public.admin_links(days int default 30, ate date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare d int := greatest(1, least(days, 730));
+  tend timestamptz := case when ate is null then now() else least(now(), (ate + 1)::timestamptz) end;
+  t0 timestamptz := date_trunc('day', tend - interval '1 second') - make_interval(days => d - 1);
+begin
+  perform admin_guard('leitor');
+  return (with cur as (select * from app_events where created_at >= t0 and created_at < tend),
+  -- por aparelho: o 1º toque do período (origem, meio, campanha, link) e o que ele fez depois
+  dev as (select device_id,
+      (array_agg(source order by created_at) filter (where source is not null))[1] as src,
+      (array_agg(medium order by created_at) filter (where medium is not null))[1] as med,
+      (array_agg(campaign order by created_at) filter (where campaign is not null))[1] as cmp,
+      (array_agg(content order by created_at) filter (where content is not null))[1] as cnt,
+      bool_or(name = 'signup') as signed, bool_or(name = 'match_end') as played, bool_or(name = 'pro_start') as pro,
+      min(created_at) as first_at
+    from cur group by device_id),
+  links as (select coalesce(jsonb_agg(jsonb_build_object('slug', l.slug, 'label', l.label, 'dest', l.dest, 'source', l.source, 'medium', l.medium, 'campaign', l.campaign,
+      'created_at', l.created_at, 'archived', l.archived_at is not null,
+      'visits', (select count(*) from dev where cnt = l.slug), 'signups', (select count(*) from dev where cnt = l.slug and signed),
+      'played', (select count(*) from dev where cnt = l.slug and played), 'pro', (select count(*) from dev where cnt = l.slug and pro)) order by l.created_at desc), '[]') as v
+    from tracked_links l),
+  by_source as (select coalesce(jsonb_agg(jsonb_build_object('source', src, 'visits', n, 'signups', sg, 'pro', pr) order by n desc), '[]') as v from (
+    select coalesce(src, 'direto') src, count(*) n, count(*) filter (where signed) sg, count(*) filter (where pro) pr from dev group by 1 order by 2 desc limit 12) x),
+  by_campaign as (select coalesce(jsonb_agg(jsonb_build_object('campaign', cmp, 'source', src, 'visits', n, 'signups', sg, 'played', pl, 'pro', pr) order by n desc), '[]') as v from (
+    select cmp, string_agg(distinct coalesce(src, '?'), ', ') src, count(*) n, count(*) filter (where signed) sg, count(*) filter (where played) pl, count(*) filter (where pro) pr
+    from dev where cmp is not null group by cmp order by 3 desc limit 20) x),
+  top4 as (select coalesce(src, 'direto') src from dev group by 1 order by count(*) desc limit 4),
+  daily as (select coalesce(jsonb_agg(jsonb_build_object('day', to_char(dia, 'YYYY-MM-DD'), 'source', src, 'visits', n) order by dia), '[]') as v from (
+    select date_trunc('day', first_at) as dia, case when coalesce(src, 'direto') in (select src from top4) then coalesce(src, 'direto') else 'outros' end src, count(*) n
+    from dev group by 1, 2) x)
+  select jsonb_build_object('days', d, 'from', to_char(t0, 'YYYY-MM-DD'), 'to', to_char(tend - interval '1 second', 'YYYY-MM-DD'),
+    'links', links.v, 'sources', by_source.v, 'campaigns', by_campaign.v, 'daily', daily.v,
+    'totals', jsonb_build_object('visits', (select count(*) from dev), 'tagged', (select count(*) from dev where src is not null), 'signups', (select count(*) from dev where signed), 'pro', (select count(*) from dev where pro)))
+  from links, by_source, by_campaign, daily);
+end $$;
+revoke execute on function public.admin_link_save(text, text, text, text, text, text, boolean), public.admin_links(int, date) from public, anon;
+grant execute on function public.admin_link_save(text, text, text, text, text, text, boolean), public.admin_links(int, date) to authenticated;

@@ -3507,7 +3507,7 @@ body.plp-on { overflow: hidden; }
 .gnew-pick { flex-wrap: wrap; }
 .gnew-pick select { flex: 1 1 100%; max-width: none; height: 44px; font-size: 14px; }
 /* convidado que ainda não confirmou: nome opaco e sem link */
-.pl-pend { opacity: 0.5; cursor: default; }
+.pl-pend { color: var(--fg-2); font-weight: 500; cursor: default; text-decoration: underline dotted; text-underline-offset: 3px; }   /* sem opacidade: o nome continua legível (contraste AA) */
 .pl-off { cursor: default; }
 .prow.pend .av, .prow.pend .prow-txt b { opacity: 0.55; }
 

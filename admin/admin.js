@@ -19,11 +19,13 @@
   const STEP = { visit: 'Abriram o app ou o site', signup: 'Criaram conta', match_start: 'Começaram uma partida', match_end: 'Terminaram uma partida', share: 'Compartilharam', pro_start: 'Ativaram o Pro' };
   const PLAN = { pro_mensal: 'Pro mensal', pro_anual: 'Pro anual', fundador: 'Fundador', professor: 'Professor', arena: 'Arena', cortesia: 'Cortesia' };
   const USD_BRL = 5.5, PRICE_IN = 1, PRICE_OUT = 5; // US$ por milhão de tokens (referência classe Haiku; ver docs/IA.md)
-  let days = 30, data = null, session = null;
+  let days = 30, ate = null, data = null, session = null, linksData = null, showArchived = false;
   const EVT = { visit: 'Visita ao site ou ao app', app_open: 'Abriu o app', signup: 'Criou conta', match_start: 'Começou uma partida', match_end: 'Terminou uma partida', share: 'Compartilhou imagem ou vídeo', pro_view: 'Viu a tela do Pro', pro_start: 'Ativou o Pro', link_open: 'Conectou o celular câmera', group_create: 'Criou um grupo', group_join: 'Entrou num grupo', invite: 'Convidou alguém', install: 'Instalou o app', feedback: 'Mandou sugestão ou problema', rec_start: 'Começou a gravar', ai_analysis: 'Pediu análise por IA', retro: 'Viu a retrospectiva', tutorial: 'Tutorial (aceitou, pulou ou terminou)', js_error: 'Erro no app (só arquivo, linha e tipo)' };
   const SECS = {
     visao: ['Visão geral', 'Como o ULTRA PLAY está indo no período.'], crescimento: ['Crescimento', 'Quem chega, de onde vem e quem fica.'],
+    links: ['Links e tráfego', 'Crie links rastreáveis (UTM) e veja de onde vem cada visita, conta e assinatura.'],
     uso: ['Uso do app', 'Quanto e como as pessoas usam.'], receita: ['Receita', 'Assinaturas, receita mensal e projeção.'],
+    taxas: ['Taxas', 'Cancelamento, conversão, ativação e retenção, comparados com a referência do mercado.'],
     contas: ['Contas', 'Busque uma pessoa e dê Pro de cortesia.'], grupos: ['Grupos', 'As turmas mais movimentadas.'],
     moderacao: ['Moderação', 'Denúncias e registro de ações dos admins.'], ia: ['IA', 'Análises do jogo por IA e quanto custam.'],
     seguranca: ['Segurança', 'Quem entrou no painel, a equipe e como o acesso é protegido.'],
@@ -157,7 +159,14 @@
   }
   const rpc = (fn, args) => call('/rest/v1/rpc/' + fn, args || {});
   const api = {
-    metrics: d => (DEMO ? Promise.resolve(demoMetrics(d)) : rpc('admin_metrics', { days: d })),
+    metrics: d => (DEMO ? Promise.resolve(demoMetrics(d)) : rpc('admin_metrics', { days: d, ate })),
+    links: () => (DEMO ? Promise.resolve(demoLinks(days)) : rpc('admin_links', { days, ate })),
+    saveLink: o => {
+      if (!DEMO) return rpc('admin_link_save', o);
+      const st = demoStore(), i = st.links.findIndex(l => l.slug === o.slug);
+      const row = Object.assign(i >= 0 ? st.links[i] : { created_at: new Date().toISOString(), visits: 0, signups: 0, played: 0, pro: 0 }, { slug: o.slug, label: o.label, dest: o.dest, source: o.source, medium: o.medium, campaign: o.campaign, archived: !!o.archive });
+      if (i < 0) st.links.unshift(row); demoLog('link_save', o.slug, { archive: !!o.archive }); return Promise.resolve(row);
+    },
     users: (q, rv) => (DEMO ? Promise.resolve(demoStore().users.filter(u => !q || [u.name, u.handle, u.public_id, u.email].some(v => v && v.toLowerCase().includes(q.toLowerCase()))).slice(0, 50).map(u => Object.assign({}, u, { email: rv ? u.email : maskEmail(u.email) }))) : rpc('admin_users', { q, lim: 50, reveal: !!rv })),
     hello: () => (DEMO ? Promise.resolve({ role: 'dono', last_login: new Date(Date.now() - 26 * 36e5).toISOString(), new_device: false, mfa_age_min: 3 }) : rpc('admin_hello')),
     access: () => (DEMO ? Promise.resolve(demoStore().access.slice()) : rpc('admin_access', { lim: 30 })),
@@ -180,16 +189,20 @@
 
   // ---------- dados de demonstração (fictícios, sempre iguais) ----------
   function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // quantos dias antes de hoje termina o período escolhido (0 sem "até")
+  function demoOff(today, max) { return ate ? Math.min(max, Math.max(0, Math.round((today - new Date(ate + 'T00:00:00')) / 864e5))) : 0; }
   function demoMetrics(d) {
     const r = rng(20261013), today = new Date(); today.setHours(0, 0, 0, 0);
     const all = [];
-    for (let i = 179; i >= 0; i--) {
+    for (let i = 729; i >= 0; i--) {
       const day = new Date(today); day.setDate(day.getDate() - i);
-      const g = 1 + (179 - i) / 45, wk = [1.35, 0.85, 0.8, 0.9, 1, 1.15, 1.45][day.getDay()];
+      // antes dos últimos 6 meses, o app era menor
+      const g = i <= 179 ? 1 + (179 - i) / 45 : Math.max(0.35, 1 - (i - 179) / 700), wk = [1.35, 0.85, 0.8, 0.9, 1, 1.15, 1.45][day.getDay()];
       const visits = Math.round((38 + r() * 14) * g * wk), active = Math.round(visits * (0.32 + r() * 0.08));
       all.push({ day: day.toISOString().slice(0, 10), visits, active, signups: Math.round(visits * (0.07 + r() * 0.04)), matches: Math.round(active * (0.55 + r() * 0.25)) });
     }
-    const cur = all.slice(-d), prev = all.slice(-2 * d, -d), sum = (l, k) => l.reduce((n, x) => n + x[k], 0);
+    const end = all.length - demoOff(today, all.length - 1);   // "até" uma data: a janela termina nela
+    const cur = all.slice(Math.max(0, end - d), end), prev = all.slice(Math.max(0, end - 2 * d), Math.max(0, end - d)), sum = (l, k) => l.reduce((n, x) => n + x[k], 0);
     const visits = sum(cur, 'visits'), active = Math.round(sum(cur, 'active') * 0.42), matches = sum(cur, 'matches');
     const users = 1180 + sum(all.slice(0, -d), 'signups') * 0 + sum(cur, 'signups');
     const pro = Math.round(users * 0.061), paying = Math.round(pro * 0.78);
@@ -215,6 +228,9 @@
       cities: [['Montes Claros, MG', 0.31], ['Belo Horizonte, MG', 0.22], ['São Paulo, SP', 0.12], ['Vitória, ES', 0.08], ['Rio de Janeiro, RJ', 0.07], ['Florianópolis, SC', 0.05], ['Salvador, BA', 0.04], ['Brasília, DF', 0.03]].map(([city, k]) => ({ city, n: Math.round(users * k) })),
       errors_top: [['app.js:4521', 'TypeError', 0.46, 0.4], ['video.js:812', 'NotAllowedError', 0.27, 0.3], ['voice.js:233', 'NetworkError', 0.17, 0.2], ['motion.js:96', 'RangeError', 0.1, 0.1]].map(([where, kind, k, dk]) => ({ where, kind, n: Math.round(d * 1.7 * k), devices: Math.max(1, Math.round(d * 0.8 * dk)) })),
       mrr_daily: cur.map((x, i) => { const g = 0.82 + 0.18 * (i / Math.max(1, cur.length - 1)); const mrr = Math.round(paying * g * (0.52 * 24.9 + 0.3 * 14.99 + 0.18 * 59.9)); return { day: x.day, mrr, paying: Math.round(paying * g) }; }),
+      rates: { paying_start: Math.round(paying * 0.9), mrr_start: Math.round(paying * 0.9 * 15.9), canceled: Math.round(paying * 0.07 * d / 30), mrr_lost: Math.round(paying * 0.07 * d / 30 * 19.5), mrr_new: Math.round(paying * 0.16 * d / 30 * 15.9),
+        trial_total: Math.round(paying * 0.2 * d / 30), trial_paid: Math.round(paying * 0.2 * d / 30 * 0.41), act_signups: sum(cur, 'signups'), act_done: Math.round(sum(cur, 'signups') * 0.58),
+        ret_base1: Math.round(sum(cur, 'signups') * 0.95), ret_d1: Math.round(sum(cur, 'signups') * 0.95 * 0.36), ret_base7: Math.round(sum(cur, 'signups') * 0.8), ret_d7: Math.round(sum(cur, 'signups') * 0.8 * 0.21), ret_base30: Math.round(sum(cur, 'signups') * 0.4), ret_d30: Math.round(sum(cur, 'signups') * 0.4 * 0.12) },
       events: [['app_open', 3.1], ['match_start', 1.2], ['match_end', 1], ['share', 0.42], ['pro_view', 0.3], ['group_join', 0.12], ['invite', 0.1], ['rec_start', 0.08], ['ai_analysis', 0.06], ['signup', 0.07]].map(([name, k]) => ({ name, n: Math.round(matches * k) })),
     };
   }
@@ -250,8 +266,25 @@
     const access = [{ created_at: H(0.02), admin: 'Filipe Oliveira', ip: '177.71.12.40', ua: ua[0], new_device: false }, { created_at: H(26), admin: 'Filipe Oliveira', ip: '177.71.12.40', ua: ua[0], new_device: false },
       { created_at: H(51), admin: 'Ana Moderadora', ip: '189.40.88.12', ua: ua[1], new_device: false }, { created_at: H(98), admin: 'Filipe Oliveira', ip: '201.17.3.155', ua: ua[1], new_device: true }, { created_at: H(170), admin: 'Ana Moderadora', ip: '189.40.88.12', ua: ua[2], new_device: true }];
     const team = [{ name: 'Filipe Oliveira', public_id: 'UP-' + code(), role: 'dono', disabled: false, created_at: H(2400), last_login: H(0.02) }, { name: 'Ana Moderadora', public_id: 'UP-' + code(), role: 'moderador', disabled: false, created_at: H(900), last_login: H(51) }, { name: 'Contador', public_id: 'UP-' + code(), role: 'leitor', disabled: true, created_at: H(700), last_login: H(600) }];
-    demoS = { users, groups, reports, access, team, log: [{ action: 'pro_grant', target: users[3].public_id, detail: { days: 30 }, created_at: H(26) }, { action: 'report_resolvida', target: 'd4', detail: { remove: true }, created_at: H(70) }, { action: 'report_descartada', target: 'd5', detail: { remove: false }, created_at: H(118) }] };
+    const links = [['bio-insta', 'Bio do Instagram', 'app', 'instagram', 'bio', 'lancamento-out26', [310, 34, 22, 8]], ['story-lancamento', 'Story do lançamento', 'app', 'instagram', 'story', 'lancamento-out26', [180, 15, 9, 3]],
+      ['tiktok-video1', 'Vídeo 1 do TikTok', 'app', 'tiktok', 'video', 'lancamento-out26', [140, 11, 6, 2]], ['cartaz-arena-sul', 'Cartaz da Arena Sul', 'beach', 'cartaz', 'qr', 'torneio-arena-sul', [82, 12, 10, 3]],
+      ['grupo-whats-sabado', 'Grupo do sábado (WhatsApp)', 'app', 'whatsapp', 'grupo', 'torneio-arena-sul', [64, 11, 9, 2]], ['duda-reels', 'Reels da Duda', 'app', 'influencer', 'reels', 'embaixador-duda', [47, 6, 4, 1]]]
+      .map(([slug, label, dest, source, medium, campaign, seed], i) => ({ slug, label, dest, source, medium, campaign, seed, created_at: H(24 * (40 - i * 5)), archived: false }));
+    demoS = { users, groups, reports, access, team, links, log: [{ action: 'pro_grant', target: users[3].public_id, detail: { days: 30 }, created_at: H(26) }, { action: 'report_resolvida', target: 'd4', detail: { remove: true }, created_at: H(70) }, { action: 'report_descartada', target: 'd5', detail: { remove: false }, created_at: H(118) }] };
     return demoS;
+  }
+  // links rastreáveis de exemplo (só na demonstração)
+  function demoLinks(d) {
+    const st = demoStore(), k = d / 30, r = rng(99), today = new Date(); today.setHours(0, 0, 0, 0);
+    const src = [['instagram', 0.34, 0.11, 0.025], ['direto', 0.25, 0.07, 0.015], ['tiktok', 0.14, 0.08, 0.012], ['whatsapp', 0.11, 0.16, 0.04], ['cartaz', 0.07, 0.13, 0.03], ['site', 0.05, 0.09, 0.02], ['influencer', 0.04, 0.12, 0.03]];
+    const total = Math.round(1180 * k);
+    const sources = src.map(([source, s0, c, pr]) => ({ source, visits: Math.round(total * s0), signups: Math.round(total * s0 * c), pro: Math.round(total * s0 * pr) }));
+    const daily = [];
+    const off = demoOff(today, 729);
+    for (let i = off + d - 1; i >= off; i--) { const day = new Date(today); day.setDate(day.getDate() - i); const base = (total / d) * (0.8 + r() * 0.4); daily.push({ day: day.toISOString().slice(0, 10), source: 'direto', visits: Math.round(base * 0.25) }, { day: day.toISOString().slice(0, 10), source: 'instagram', visits: Math.round(base * 0.75) }); }
+    const links = st.links.map(l => Object.assign({}, l, l.seed ? { visits: Math.round(l.seed[0] * k), signups: Math.round(l.seed[1] * k), played: Math.round(l.seed[2] * k), pro: Math.round(l.seed[3] * k) } : {})).filter(l => showArchived || !l.archived);
+    const campaigns = [['lancamento-out26', 'instagram, tiktok', 0.42, 0.1, 0.07, 0.02], ['torneio-arena-sul', 'cartaz, whatsapp', 0.12, 0.15, 0.12, 0.04], ['embaixador-duda', 'influencer', 0.04, 0.12, 0.09, 0.03]].map(([campaign, source, v, sg, pl, pr]) => ({ campaign, source, visits: Math.round(total * v), signups: Math.round(total * v * sg), played: Math.round(total * v * pl), pro: Math.round(total * v * pr) }));
+    return Promise.resolve({ days: d, links, sources, campaigns, daily, totals: { visits: total, tagged: Math.round(total * 0.75), signups: sources.reduce((a, x) => a + x.signups, 0), pro: sources.reduce((a, x) => a + x.pro, 0) } });
   }
   const maskEmail = e => (!e ? e : e.indexOf('@') < 2 ? '***' : e.slice(0, 2) + '***@' + e.split('@')[1]);
   function demoLog(action, target, detail) { demoStore().log.unshift({ action, target, detail, created_at: new Date().toISOString() }); }
@@ -725,7 +758,104 @@
     ];
     $('#secChecks').replaceChildren(...CHECKS.map(([t, ic]) => el('li', {}, [el('span', { class: 'ck' }, [icon('check')]), el('span', {}, [icon(ic, 'ic sm'), document.createTextNode(' ' + t)])])));
   }
-  const RENDER = { visao: renderVisao, crescimento: renderCresc, uso: renderUso, receita: renderReceita, contas: renderContas, grupos: renderGrupos, moderacao: renderModeracao, ia: renderIA, seguranca: renderSeguranca, eventos: renderEventos };
+  // ---------- taxas: cada uma com a conta, a base e a referência do mercado (docs/pesquisa, relatório Tempo até MRR) ----------
+  const p1 = v => (v * 100).toFixed(1).replace('.', ',') + '%';
+  function renderTaxas() {
+    const K = data.kpi, R = data.rates || {}, m30 = 30 / days;
+    const ratio = (a, b) => (b ? a / b : null);
+    const rows = [
+      { ic: 'x', k: 'Cancelamento de clientes', v: ratio(R.canceled, R.paying_start), month: true, base: nf.format(R.canceled || 0) + ' de ' + nf.format(R.paying_start || 0) + ' que pagavam no começo', ref: 0.137, refTxt: 'planos mensais perdem ~13,7% ao mês (RevenueCat 2025: 17% ficam depois de 1 ano)', good: v => v <= 0.08, bad: v => v > 0.137, lower: true },
+      { ic: 'wallet', k: 'Cancelamento de receita', v: ratio(R.mrr_lost, R.mrr_start), month: true, base: money.format(R.mrr_lost || 0) + ' perdidos de ' + money.format(R.mrr_start || 0) + ' de receita mensal no começo', good: v => v <= 0.08, bad: v => v > 0.137, lower: true },
+      { ic: 'trend', k: 'Crescimento líquido da receita', v: ratio((R.mrr_new || 0) - (R.mrr_lost || 0), R.mrr_start), month: true, base: '+' + money.format(R.mrr_new || 0) + ' novos − ' + money.format(R.mrr_lost || 0) + ' perdidos', ref: 0.053 / 12, refTxt: 'app mediano: +5,3% ao ano (RevenueCat 2026); top 10%: +306%', good: v => v >= 0.05, bad: v => v < 0 },
+      { ic: 'clock', k: 'Teste grátis → pagamento', v: ratio(R.trial_paid, R.trial_total), base: nf.format(R.trial_paid || 0) + ' de ' + nf.format(R.trial_total || 0) + ' testes que já terminaram', ref: 0.377, refTxt: 'mediana Saúde e Fitness: 37,7% (RevenueCat 2026); América Latina: 25%', good: v => v >= 0.377, bad: v => v < 0.25 },
+      { ic: 'crown', k: 'Contas que pagam', v: ratio(K.pro_paying, K.users), base: nf.format(K.pro_paying) + ' de ' + nf.format(K.users) + ' contas', ref: 0.029, refTxt: 'mediana Saúde e Fitness: 2,9%; top 25%: 6,2% (RevenueCat 2026); Strava: ~2%', good: v => v >= 0.05, bad: v => v < 0.02 },
+      { ic: 'ball', k: 'Ativação', v: ratio(R.act_done, R.act_signups), base: nf.format(R.act_done || 0) + ' de ' + nf.format(R.act_signups || 0) + ' contas novas terminaram uma partida em 7 dias', refTxt: 'meta do app: 60% (sem referência pública confiável)', good: v => v >= 0.6, bad: v => v < 0.35 },
+      { ic: 'users', k: 'Voltam no dia seguinte (D1)', v: ratio(R.ret_d1, R.ret_base1), base: nf.format(R.ret_d1 || 0) + ' de ' + nf.format(R.ret_base1 || 0) + ' que chegaram no período', refTxt: 'meta do app: 40%', good: v => v >= 0.4, bad: v => v < 0.2 },
+      { ic: 'calendar', k: 'Voltam na 2ª semana (D7)', v: ratio(R.ret_d7, R.ret_base7), base: nf.format(R.ret_d7 || 0) + ' de ' + nf.format(R.ret_base7 || 0), refTxt: 'meta do app: 25%', good: v => v >= 0.25, bad: v => v < 0.1 },
+      { ic: 'calendar', k: 'Voltam depois de 1 mês (D30)', v: ratio(R.ret_d30, R.ret_base30), base: nf.format(R.ret_d30 || 0) + ' de ' + nf.format(R.ret_base30 || 0), refTxt: 'meta do app: 15%', good: v => v >= 0.15, bad: v => v < 0.05 },
+      { ic: 'activity', k: 'Frequência (ativos hoje ÷ no mês)', v: ratio(K.dau, K.mau), base: nf.format(K.dau) + ' hoje de ' + nf.format(K.mau) + ' no mês', refTxt: 'conta de base: quem abre 2 a 3 vezes por semana dá de 25% a 40%', good: v => v >= 0.25, bad: v => v < 0.1 },
+    ];
+    const rv = revenue(K), churn = ratio(R.canceled, R.paying_start);
+    const cm = churn != null ? Math.min(1, churn * m30) : null;
+    $('#rates').replaceChildren(...rows.map(r => {
+      const v = r.v == null ? null : r.month ? r.v * m30 : r.v;
+      const tone = v == null ? '' : r.good(v) ? 'good' : r.bad(v) ? 'bad' : 'warn';
+      const box = el('div', { class: 'rate ' + tone });
+      box.append(el('div', { class: 'k' }, [icon(r.ic), el('span', { text: r.k })]), el('div', { class: 'v', text: v == null ? '—' : p1(v) + (r.month ? ' ao mês' : '') }));
+      box.append(el('p', { class: 'small muted', text: v == null ? 'Ainda sem base no período.' : r.base }));
+      if (r.refTxt) box.append(el('p', { class: 'ref small' }, [el('b', { text: (r.ref != null ? 'Referência: ' : '') }), document.createTextNode(r.refTxt)]));
+      if (v != null) box.append(el('span', { class: 'tag ' + tone, text: tone === 'good' ? 'bom' : tone === 'bad' ? 'atenção' : 'ok' }));
+      return box;
+    }), (() => { const ltv = cm ? rv.arpu / cm : 0; const box = el('div', { class: 'rate' }); box.append(el('div', { class: 'k' }, [icon('tag'), el('span', { text: 'Valor de cada assinante (LTV)' })]), el('div', { class: 'v', text: ltv ? money.format(ltv) : '—' }), el('p', { class: 'small muted', text: 'ticket médio de ' + money.format(rv.arpu) + ' ÷ cancelamento mensal' }), el('p', { class: 'ref small' }, [el('b', { text: 'Para trazer alguém: ' }), document.createTextNode('gaste no máximo ' + (ltv ? money.format(ltv / 3) : '—') + ' por assinante (1/3 do LTV)')])); return box; })());
+    setCsv('rates', 'taxas', ['Taxa', 'Valor', 'Base'], rows.map(r => [r.k, r.v == null ? '' : ((r.month ? r.v * m30 : r.v) * 100).toFixed(2) + '%', r.base]));
+    $('#ratesHelp').replaceChildren(...[
+      'Taxas com "ao mês" são o período levado a 30 dias: 7 dias com 2% de cancelamento viram cerca de 8,6% ao mês.',
+      'Cancelamento de clientes conta quem cancelou no período sobre quem pagava no começo dele. O de receita faz a mesma conta em reais: perder um anual pesa menos por mês que um mensal.',
+      'Teste grátis → pagamento olha só quem começou o teste há mais de 14 dias, para dar tempo de decidir.',
+      'Retenção D1, D7 e D30 conta quem abriu o app pela 1ª vez no período (com as estatísticas ligadas) e voltou naquele dia: o dia seguinte, o 7º e o 30º.',
+      'Referências da pesquisa em reports/Tempo até MRR em apps.md (RevenueCat, ChartMogul). Meta do app: o que o ULTRA PLAY precisa para as metas de docs/METAS.md.',
+    ].map(t => el('li', {}, [el('span', { class: 'ck' }, [icon('check')]), el('span', { text: t })])));
+  }
+
+  // ---------- links rastreáveis e tráfego ----------
+  const BASE = (() => { const u = new URL('../', location.href); return u.origin + u.pathname; })();
+  const DEST = { app: '', site: 'site/', beach: 'site/placar-beach-tennis.html', padel: 'site/placar-padel.html', tenis: 'site/placar-tenis.html', peteca: 'site/placar-peteca.html' };
+  const slugify = v => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  const linkUrl = l => BASE + (DEST[l.dest] || '') + '?' + new URLSearchParams({ utm_source: l.source, utm_medium: l.medium, utm_campaign: l.campaign, utm_content: l.slug }).toString();
+  function formLink() {
+    const v = id => $(id).value;
+    return { slug: slugify(v('#lSlug') || v('#lLabel')), label: v('#lLabel').trim(), dest: v('#lDest'), source: slugify(v('#lSource')), medium: slugify(v('#lMedium')), campaign: slugify(v('#lCampaign')) };
+  }
+  function syncPreview() {
+    const l = formLink();
+    if (!$('#lSlug').dataset.touched) $('#lSlug').value = slugify($('#lLabel').value);
+    $('#lPreview').textContent = l.source && l.medium && l.campaign && l.slug ? linkUrl(l) : 'Preencha origem, meio, campanha e código para ver o link.';
+  }
+  async function copyText(t, what) { try { await navigator.clipboard.writeText(t); toast((what || 'Link') + ' copiado', 'copy'); } catch (e) { window.prompt('Copie o link:', t); } }
+  function qrDlg(l) {
+    if (!window.qrcode) { toast('QR Code indisponível', 'alert'); return; }
+    const q = window.qrcode(0, 'M'); q.addData(linkUrl(l)); q.make();
+    const svg = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+    const box = el('div', { class: 'qrbox' }); box.innerHTML = svg;   // gerado aqui pela biblioteca, sem texto de fora
+    openDlg({ icon: 'qr', title: l.label, body: [box, el('p', { class: 'small mono lurl', text: linkUrl(l) }), el('p', { class: 'small muted', text: 'Para cartaz, mesa da arena ou camiseta do torneio: quem aponta a câmera cai no link e conta para esta campanha.' })],
+      actions: [{ label: 'Fechar' }, { label: 'Baixar SVG', kind: 'brand', icon: 'download', act: () => { const a = el('a', { href: URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })), download: 'qr-' + l.slug + '.svg' }); document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); return false; } }] });
+  }
+  function renderLinks() {
+    const L0 = linksData;
+    $('#linkForm').hidden = !can('moderador');
+    if (!L0) { $('#tbLinks').replaceChildren(el('span', { class: 'skel' })); return; }
+    const T = L0.totals || {};
+    const best = (L0.sources || []).filter(x => x.source !== 'direto').sort((a, b) => b.signups - a.signups)[0];
+    const bestC = (L0.campaigns || []).slice().sort((a, b) => b.signups - a.signups)[0];
+    $('#kpiLinks').replaceChildren(
+      kpi('eye', 'Visitas', nf.format(T.visits || 0), { note: 'aparelhos no período' }),
+      kpi('link', 'Com origem marcada', T.visits ? pct(T.tagged, T.visits) + '%' : '—', { note: nf.format(T.tagged || 0) + ' vieram por um link com UTM' }),
+      kpi('flagpin', 'Origem que mais traz contas', best ? best.source : '—', { note: best ? nf.format(best.signups) + ' contas · ' + pct(best.signups, best.visits) + '% das visitas' : 'sem dados' }),
+      kpi('target', 'Melhor campanha', bestC ? bestC.campaign : '—', { note: bestC ? nf.format(bestC.signups) + ' contas · ' + nf.format(bestC.pro) + ' Pro' : 'crie um link para começar' }));
+    // visitas por dia: com origem × direto
+    const byDay = {};
+    (L0.daily || []).forEach(r => { const o = byDay[r.day] || (byDay[r.day] = { day: r.day, tagged: 0, direct: 0 }); if (r.source === 'direto') o.direct += r.visits; else o.tagged += r.visits; });
+    const rows = Object.values(byDay).sort((a, b) => a.day.localeCompare(b.day));
+    const ser = [{ key: 'tagged', label: 'Com origem marcada', color: '--series-1' }, { key: 'direct', label: 'Direto', color: '--series-2' }];
+    $('#lgTraffic').replaceChildren(...ser.map(x => { const i = el('i'); i.style.setProperty('--c', css(x.color)); return el('span', {}, [i, document.createTextNode(x.label)]); }));
+    if (rows.length > 1) lineChart($('#chTraffic'), rows, ser, 'Visitas por dia, com origem marcada e direto'); else $('#chTraffic').replaceChildren(empty('Sem visitas no período.', 'eye'));
+    setCsv('traffic', 'visitas-por-origem', ['Dia', 'Origem', 'Visitas'], (L0.daily || []).map(r => [r.day, r.source, r.visits]));
+    const list = (L0.links || []).filter(l => showArchived || !l.archived);
+    table($('#tbLinks'), [{ text: 'Link', cls: 'l' }, { text: 'Origem · meio · campanha', cls: 'l' }, 'Visitas', 'Contas', '1ª partida', 'Pro', 'Conversão', ''], list.map(l => {
+      const acts = el('div', { class: 'ra' }, [
+        el('button', { class: 'icon-btn sm', type: 'button', 'data-lcopy': l.slug, 'aria-label': 'Copiar ' + l.label, title: 'Copiar link' }, [icon('copy')]),
+        el('button', { class: 'icon-btn sm', type: 'button', 'data-lqr': l.slug, 'aria-label': 'QR Code de ' + l.label, title: 'QR Code' }, [icon('qr')])]);
+      if (can('moderador')) acts.append(el('button', { class: 'icon-btn sm', type: 'button', 'data-larch': l.slug, 'aria-label': (l.archived ? 'Reativar ' : 'Arquivar ') + l.label, title: l.archived ? 'Reativar' : 'Arquivar' }, [icon('archive')]));
+      return [{ text: l.label, sub: l.slug + (l.archived ? ' · arquivado' : ''), cls: 'l' }, { text: l.source + ' · ' + l.medium, sub: l.campaign, cls: 'l' }, nf.format(l.visits), nf.format(l.signups), nf.format(l.played), nf.format(l.pro), l.visits ? pct(l.signups, l.visits) + '%' : '—', acts];
+    }), { caption: 'Links rastreáveis', empty: showArchived ? 'Nenhum link ainda.' : 'Nenhum link ativo. Crie o primeiro ao lado.' });
+    setCsv('links', 'links', ['Nome', 'Código', 'Link', 'Origem', 'Meio', 'Campanha', 'Visitas', 'Contas', '1ª partida', 'Pro'], list.map(l => [l.label, l.slug, linkUrl(l), l.source, l.medium, l.campaign, l.visits, l.signups, l.played, l.pro]));
+    table($('#tbBySource'), [{ text: 'Origem', cls: 'l' }, 'Visitas', 'Contas', 'Conversão', 'Pro'], (L0.sources || []).map(x => [{ text: x.source, cls: 'l' }, nf.format(x.visits), nf.format(x.signups), x.visits ? pct(x.signups, x.visits) + '%' : '—', nf.format(x.pro)]), { caption: 'Por origem', empty: 'Sem visitas no período.' });
+    setCsv('bysource', 'por-origem', ['Origem', 'Visitas', 'Contas', 'Pro'], (L0.sources || []).map(x => [x.source, x.visits, x.signups, x.pro]));
+    table($('#tbByCampaign'), [{ text: 'Campanha', cls: 'l' }, 'Visitas', 'Contas', '1ª partida', 'Pro'], (L0.campaigns || []).map(x => [{ text: x.campaign, sub: x.source, cls: 'l' }, nf.format(x.visits), nf.format(x.signups), nf.format(x.played), nf.format(x.pro)]), { caption: 'Por campanha', empty: 'Nenhuma visita com campanha no período.' });
+    setCsv('bycampaign', 'por-campanha', ['Campanha', 'Origens', 'Visitas', 'Contas', '1ª partida', 'Pro'], (L0.campaigns || []).map(x => [x.campaign, x.source, x.visits, x.signups, x.played, x.pro]));
+  }
+  async function loadLinks() { try { linksData = await api.links(); if (sec === 'links') renderLinks(); } catch (e) { if (e.code === 401) fail(e); else { linksData = { links: [], sources: [], campaigns: [], daily: [], totals: {} }; console.warn('[admin] links indisponíveis', e.message); if (sec === 'links') renderLinks(); } } }
+  const RENDER = { visao: renderVisao, crescimento: renderCresc, uso: renderUso, receita: renderReceita, contas: renderContas, grupos: renderGrupos, moderacao: renderModeracao, ia: renderIA, seguranca: renderSeguranca, eventos: renderEventos, taxas: renderTaxas, links: renderLinks };
   function render() {
     if (!data) return;
     const K = data.kpi, bd = $('#navBadge');
@@ -733,7 +863,9 @@
     bd.setAttribute('aria-label', K.reports_open + ' abertas');
     setCsv('daily', 'por-dia', ['Dia', 'Visitas', 'Pessoas ativas', 'Novas contas', 'Partidas'], (data.daily || []).map(r => [r.day, r.visits, r.active, r.signups, r.matches]));
     RENDER[sec]();
-    $('#stamp').textContent = 'Atualizado às ' + new Date(data.generated_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' · ' + days + ' dias desde ' + (data.from ? dshort(data.from) : dshort(data.daily[0].day));
+    const dd = iso => (days > 90 ? fdate(iso + 'T12:00:00') : dshort(iso));   // período longo: com o ano
+    const fromD = dd(data.from || data.daily[0].day), toD = ate ? dd(ate) : 'hoje';
+    $('#stamp').textContent = 'Atualizado às ' + new Date(data.generated_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' · ' + days + ' dias, de ' + fromD + ' a ' + toD + (ate ? ' · comparado com os ' + days + ' dias antes' : '');
   }
   function show(s) {
     if (!SECS[s] || (NEEDS[s] && !can(NEEDS[s]))) s = 'visao';
@@ -749,6 +881,7 @@
     if (s === 'grupos' && !groups) loadGroups();
     if (s === 'moderacao' && (!reports || !log)) loadMod();
     if (s === 'seguranca') loadSec();
+    if (s === 'links') loadLinks();
   }
   async function loadSec() {
     try { [access, team] = await Promise.all([api.access(), can('dono') ? api.team() : Promise.resolve(null)]); } catch (e) { if (e.code === 401) fail(e); else { access = access || []; console.warn('[admin] acessos indisponíveis', e.message); } if (sec === 'seguranca') renderSeguranca(); return; }
@@ -818,10 +951,43 @@
 
   // ---------- eventos ----------
   document.addEventListener('change', e => {
-    if (e.target.name === 'days') { days = Number(e.target.value); groups = null; load(); }
+    if (e.target.name === 'days') {
+      if (e.target.value === 'custom') { $('#range').hidden = false; const to = new Date(), fr = new Date(Date.now() - (days - 1) * 864e5); $('#rTo').value = $('#rTo').value || to.toISOString().slice(0, 10); $('#rFrom').value = $('#rFrom').value || fr.toISOString().slice(0, 10); $('#rFrom').focus(); return; }
+      $('#range').hidden = true; days = Number(e.target.value); ate = null; groups = null; linksData = null; load(); if (sec === 'links') loadLinks();
+    }
+    if (e.target.id === 'lArchived') { showArchived = e.target.checked; if (DEMO) loadLinks(); else renderLinks(); }
     if (e.target.name === 'rst') { rst = e.target.value; reports = null; renderModeracao(); loadMod(); }
   });
-  $('#refresh').addEventListener('click', () => { load(); if (sec === 'contas') loadUsers(); if (sec === 'moderacao') loadMod(); });
+  $('#range').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = $('#rFrom').value, t = $('#rTo').value; if (!f || !t) return;
+    const a = new Date(f + 'T12:00:00'), b = new Date(t + 'T12:00:00');
+    if (b < a) { toast('A data final vem depois da inicial.', 'alert'); return; }
+    if (b > new Date()) { toast('A data final não pode estar no futuro.', 'alert'); return; }
+    days = Math.min(730, Math.round((b - a) / 864e5) + 1); ate = t; groups = null; linksData = null;
+    load(); if (sec === 'links') loadLinks();
+    toast('Período: ' + dshort(f) + ' a ' + dshort(t) + ' (' + days + ' dias)', 'calendar');
+  });
+  ['#lLabel', '#lSource', '#lMedium', '#lCampaign', '#lSlug', '#lDest'].forEach(id => $(id).addEventListener('input', e => { if (id === '#lSlug') e.target.dataset.touched = '1'; syncPreview(); }));
+  $('#lDest').addEventListener('change', syncPreview);
+  $('#linkForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const l = formLink();
+    if (!l.label || !l.source || !l.medium || !l.campaign || l.slug.length < 2) { $('#lMsg').textContent = 'Preencha nome, origem, meio, campanha e código (2 letras ou mais).'; return; }
+    try { await api.saveLink(l); $('#lMsg').textContent = ''; toast('Link criado: ' + l.slug, 'link'); await copyText(linkUrl(l)); linksData = null; await loadLinks(); }
+    catch (err) { $('#lMsg').textContent = /slug|check/.test(err.message) ? 'Código inválido: use letras minúsculas, números e hífen.' : 'Não deu: ' + err.message; }
+  });
+  $('#lCopy').addEventListener('click', () => { const l = formLink(); if (l.source && l.medium && l.campaign && l.slug) copyText(linkUrl(l)); else $('#lMsg').textContent = 'Preencha o link antes de copiar.'; });
+  $('#lQr').addEventListener('click', () => { const l = formLink(); if (l.source && l.medium && l.campaign && l.slug) qrDlg(Object.assign({ label: l.label || l.slug }, l)); else $('#lMsg').textContent = 'Preencha o link antes de gerar o QR Code.'; });
+  document.addEventListener('click', async e => {
+    const c = e.target.closest('[data-lcopy]'), q = e.target.closest('[data-lqr]'), a = e.target.closest('[data-larch]');
+    const find = slug => ((linksData && linksData.links) || []).find(x => x.slug === slug);
+    if (c) { const l = find(c.dataset.lcopy); if (l) copyText(linkUrl(l)); }
+    if (q) { const l = find(q.dataset.lqr); if (l) qrDlg(l); }
+    if (a) { const l = find(a.dataset.larch); if (!l) return; try { await api.saveLink({ slug: l.slug, label: l.label, dest: l.dest, source: l.source, medium: l.medium, campaign: l.campaign, archive: !l.archived }); toast(l.archived ? 'Link reativado' : 'Link arquivado: os números ficam', 'archive'); linksData = null; loadLinks(); } catch (err) { toast('Não deu: ' + err.message, 'alert'); } }
+  });
+  syncPreview();
+  $('#refresh').addEventListener('click', () => { load(); if (sec === 'contas') loadUsers(); if (sec === 'moderacao') loadMod(); if (sec === 'links') loadLinks(); });
   $('#exportAll').addEventListener('click', () => downloadCsv('daily'));
   window.addEventListener('hashchange', () => show(secFromHash()));
   document.addEventListener('click', e => {

@@ -54,6 +54,9 @@
   <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="7.5" width="10" height="12.5" rx="5"/><path d="M12 7.5V20M7 12.5H3.5M20.5 12.5H17M7.5 9l-2.5-2.5M16.5 9l2.5-2.5M7 16.5l-3 2M17 16.5l3 2M9.5 5.5a2.5 2.5 0 0 1 5 0"/></symbol>
   <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
   <symbol id="i-flagpin" viewBox="0 0 24 24"><path d="M12 21s6.5-5.6 6.5-11a6.5 6.5 0 0 0-13 0c0 5.4 6.5 11 6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 18.5h1.5M18.5 14h2"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.2"/><path d="M5 9v9.5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></symbol>
   <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.5V4h8.5l8.5 8.5-8.5 8.5z"/><circle cx="8" cy="8.5" r="1.3"/></symbol>
 </defs></svg>
 
@@ -83,8 +86,10 @@
     <nav class="nav" id="nav">
       <a class="nav-i" href="#visao" data-sec="visao"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>Visão geral</span></a>
       <a class="nav-i" href="#crescimento" data-sec="crescimento"><svg class="ic" aria-hidden="true"><use href="#i-trend"/></svg><span>Crescimento</span></a>
+      <a class="nav-i" href="#links" data-sec="links"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span>Links e tráfego</span></a>
       <a class="nav-i" href="#uso" data-sec="uso"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg><span>Uso do app</span></a>
       <a class="nav-i" href="#receita" data-sec="receita"><svg class="ic" aria-hidden="true"><use href="#i-wallet"/></svg><span>Receita</span></a>
+      <a class="nav-i" href="#taxas" data-sec="taxas"><svg class="ic" aria-hidden="true"><use href="#i-percent"/></svg><span>Taxas</span></a>
       <a class="nav-i" href="#contas" data-sec="contas"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg><span>Contas</span></a>
       <a class="nav-i" href="#grupos" data-sec="grupos"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg><span>Grupos</span></a>
       <a class="nav-i" href="#moderacao" data-sec="moderacao"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><span>Moderação</span><b class="badge" id="navBadge" hidden></b></a>
@@ -105,7 +110,11 @@
           <label><input type="radio" name="days" value="7"><span>7d</span></label>
           <label><input type="radio" name="days" value="30" checked><span>30d</span></label>
           <label><input type="radio" name="days" value="90"><span>90d</span></label>
+          <label><input type="radio" name="days" value="180"><span>6m</span></label>
+          <label><input type="radio" name="days" value="365"><span>1 ano</span></label>
+          <label><input type="radio" name="days" value="custom"><span>Datas</span></label>
         </div>
+        <form class="range" id="range" hidden><label><span class="sr-only">De</span><input type="date" id="rFrom" required></label><span aria-hidden="true">até</span><label><span class="sr-only">Até</span><input type="date" id="rTo" required></label><button class="btn sm brand" type="submit">Aplicar</button></form>
         <button class="icon-btn" type="button" id="refresh" aria-label="Atualizar agora" title="Atualizar agora"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
         <label class="auto" title="Atualizar sozinho a cada minuto"><input type="checkbox" id="auto"><span class="sw" aria-hidden="true"></span><span>Auto</span></label>
         <label class="auto" title="Borrar nomes, e-mails e IPs (para compartilhar a tela ou gravar)"><input type="checkbox" id="pii"><span class="sw" aria-hidden="true"></span><span>Ocultar dados</span></label>
@@ -144,6 +153,38 @@
         </div>
       </section>
 
+      <!-- LINKS E TRÁFEGO -->
+      <section class="sec" data-page="links" hidden>
+        <div class="kpis k4" id="kpiLinks"></div>
+        <div class="grid two-one">
+          <article class="card"><header class="card-h"><h2>Visitas por dia: com origem marcada × direto</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="traffic" aria-label="Baixar visitas por origem em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div class="legend" id="lgTraffic"></div><div class="chart short" id="chTraffic"></div></article>
+          <article class="card"><header class="card-h"><h2>Criar link rastreável</h2><div class="card-a"></div></header>
+            <form class="lform" id="linkForm" autocomplete="off">
+              <label class="field"><span>Nome (só para você)</span><input id="lLabel" maxlength="60" required placeholder="Bio do Instagram"></label>
+              <label class="field"><span>Leva para</span><select id="lDest"><option value="app">App</option><option value="site">Site (página inicial)</option><option value="beach">Site · beach tennis</option><option value="padel">Site · padel</option><option value="tenis">Site · tênis</option><option value="peteca">Site · peteca</option></select></label>
+              <div class="lrow">
+                <label class="field"><span>Origem</span><input id="lSource" list="srcList" maxlength="40" required placeholder="instagram"></label>
+                <label class="field"><span>Meio</span><input id="lMedium" list="medList" maxlength="40" required placeholder="bio"></label>
+              </div>
+              <div class="lrow">
+                <label class="field"><span>Campanha</span><input id="lCampaign" maxlength="40" required placeholder="lancamento-out26"></label>
+                <label class="field"><span>Código do link</span><input id="lSlug" maxlength="40" required placeholder="bio-insta"></label>
+              </div>
+              <datalist id="srcList"><option value="instagram"><option value="tiktok"><option value="whatsapp"><option value="youtube"><option value="google"><option value="facebook"><option value="cartaz"><option value="email"><option value="parceiro"><option value="influencer"><option value="arena"><option value="federacao"></datalist>
+              <datalist id="medList"><option value="bio"><option value="story"><option value="post"><option value="reels"><option value="anuncio"><option value="grupo"><option value="qr"><option value="mensagem"><option value="video"><option value="torneio"></datalist>
+              <p class="lurl mono small" id="lPreview" aria-live="polite"></p>
+              <div class="lact"><button class="btn brand" type="submit"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg>Criar link</button><button class="btn" type="button" id="lCopy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg>Copiar</button><button class="btn" type="button" id="lQr"><svg class="ic" aria-hidden="true"><use href="#i-qr"/></svg>QR Code</button></div>
+              <p class="msg small" id="lMsg" role="status"></p>
+            </form>
+          </article>
+        </div>
+        <article class="card"><header class="card-h"><h2>Seus links</h2><div class="card-a"><label class="auto sm" title="Mostrar também os arquivados"><input type="checkbox" id="lArchived"><span class="sw" aria-hidden="true"></span><span>Arquivados</span></label><button class="icon-btn sm" type="button" data-csv="links" aria-label="Baixar links em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><p class="muted small">Visitas, contas, 1ª partida e Pro de quem chegou por cada link no período. Quem veio por um link continua contando para ele por 30 dias.</p><div class="tbl" id="tbLinks"></div></article>
+        <div class="grid two">
+          <article class="card"><header class="card-h"><h2>Por origem</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="bysource" aria-label="Baixar Por origem em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div class="tbl" id="tbBySource"></div></article>
+          <article class="card"><header class="card-h"><h2>Por campanha</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="bycampaign" aria-label="Baixar Por campanha em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div class="tbl" id="tbByCampaign"></div></article>
+        </div>
+      </section>
+
       <!-- USO -->
       <section class="sec" data-page="uso" hidden>
         <div class="kpis" id="kpiUso"></div>
@@ -169,6 +210,12 @@
           <article class="card"><header class="card-h"><h2>Assinantes por plano</h2><div class="card-a"><button class="icon-btn sm" type="button" data-csv="plans" aria-label="Baixar Assinantes por plano em CSV" title="Baixar CSV"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></button></div></header><div id="chPlans"></div></article>
           <article class="card"><header class="card-h"><h2>Projeção</h2><div class="card-a"></div></header><div class="proj" id="proj"></div></article>
         </div>
+      </section>
+
+      <!-- TAXAS -->
+      <section class="sec" data-page="taxas" hidden>
+        <div class="rates" id="rates"></div>
+        <article class="card"><header class="card-h"><h2>Como ler</h2><div class="card-a"></div></header><ul class="checks plain" id="ratesHelp"></ul></article>
       </section>
 
       <!-- CONTAS -->
@@ -239,6 +286,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 <script src="../config.js"></script>
+<script src="../vendor/qrcode.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>

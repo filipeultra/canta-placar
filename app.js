@@ -2263,7 +2263,13 @@
     const meTeam = a.teams.findIndex(t => t.players.some(p => p.userId === a.ownerId));
     const sp = SPORT_SHORT[a.sport] || sportLabel(a.sport);
     const h = new Date(a.playedAt).getHours();
-    const when = h < 5 ? 'de madrugada' : h < 12 ? 'de manhã' : h < 18 ? 'à tarde' : 'à noite';
+    const k = h < 5 ? 0 : h < 12 ? 1 : h < 18 ? 2 : 3;
+    if (EN) {   // "Evening beach win": no inglês o horário vem antes
+      const w = ['Late-night', 'Morning', 'Afternoon', 'Evening'][k], spe = (window.CantaI18n.t(sp) || sp).toLowerCase();
+      if (r.winner != null && meTeam >= 0) return w + ' ' + spe + ' ' + (r.winner === meTeam ? 'win' : 'loss');
+      return w + ' ' + window.CantaI18n.t(sportLabel(a.sport));
+    }
+    const when = ['de madrugada', 'de manhã', 'à tarde', 'à noite'][k];
     if (r.winner != null && meTeam >= 0) return (r.winner === meTeam ? 'Vitória' : 'Derrota') + ' no ' + sp.toLowerCase() + ' ' + when;
     return sportLabel(a.sport) + ' ' + when;
   }
@@ -3790,6 +3796,9 @@
   // Cada número abre o gráfico de evolução. A análise do dia sai uma vez por dia, por esporte, só com partida nova.
   const F = window.CantaFull;
   const EN = !!(window.CantaI18n && window.CantaI18n.lang === 'en');
+  // nome padrão do time (cor) no idioma da tela; nome escolhido pela pessoa fica como está
+  const TEAM_EN = { Verde: 'Green', Laranja: 'Orange', Azul: 'Blue', Amarelo: 'Yellow', Roxo: 'Purple', Vermelho: 'Red', Rosa: 'Pink', Preto: 'Black', Branco: 'White' };
+  const tnameEn = n => (EN && TEAM_EN[n]) || n;
   const L = (pt, en) => (EN ? en : pt); // frase montada com números e nomes: sai pronta no idioma (e com translate="no")
   const SHOT_EN = { voleio: 'volley', ataque: 'attack', bloqueio: 'block', saque: 'serve' };
   const oppTxt = o => (EN ? String(o).replace(/ e /g, ' and ') : o);
@@ -6657,7 +6666,7 @@
         '<p><b>' + esc(L('Isto apaga a partida de tudo:', 'This deletes the match from everywhere:')) + '</b></p><ul class="del-list">' +
         [L('histórico e timeline', 'history and timeline'), L('estatísticas, recordes e conquistas', 'stats, records and achievements'), L('vídeo e lances gravados neste aparelho', 'video and clips recorded on this device'), L('quem foi marcado e ainda não confirmou deixa de ver', 'tagged people who haven\'t confirmed stop seeing it')].map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
         '<p class="hint">' + esc(L('Não dá para desfazer. Para confirmar, digite ', 'This cannot be undone. To confirm, type ')) + '<b translate="no">' + DEL_WORD + '</b>.</p>' +
-        '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type excluir de vez')) + '">' +
+        '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type delete for good')) + '">' +
         '<button class="btn btn-danger" type="button" id="delGo" data-delmid="' + esc(id) + '" disabled>' + ic('i-trash') + esc(L('Excluir de vez', 'Delete for good')) + '</button></div>');
       setTimeout(() => { const i = $('#delWord'); if (i) i.focus(); }, 80);
       return;
@@ -6677,7 +6686,7 @@
       '<label class="del-opt"><input type="radio" name="delMode" value="me" checked><span><b>' + ic('i-user') + esc(L('Excluir para mim', 'Delete for me')) + '</b><small>' + esc(L('Some do seu histórico, perfil, estatísticas e conquistas. Para ' + who + ', ela continua nas estatísticas gerais e o seu nome continua nela (você confirmou que ela aconteceu); só sai dos confrontos e parcerias com você.', 'It leaves your history, profile, stats and achievements. For ' + who + ', it stays in their overall stats and your name stays on it (you confirmed it happened); it only leaves their head-to-head and partnership stats with you.')) + '</small></span></label>' +
       '<label class="del-opt"><input type="radio" name="delMode" value="all"><span><b>' + ic('i-users') + esc(L('Pedir exclusão para todos', 'Ask everyone to delete')) + '</b><small>' + esc(L('Para partida com erro (placar errado, duplicada). ' + who + (others.length === 1 ? ' precisa' : ' precisam') + ' aceitar; aí ela some de todos os lugares.', 'For a match with a mistake (wrong score, duplicate). ' + who + ' must accept; then it disappears everywhere.')) + '</small></span></label></div>' +
       '<div id="delMe"><p class="hint">' + esc(L('Não dá para desfazer. Para confirmar, digite ', 'This cannot be undone. To confirm, type ')) + '<b translate="no">' + DEL_WORD + '</b>.</p>' +
-      '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type excluir de vez')) + '">' +
+      '<input type="text" id="delWord" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="' + DEL_WORD + '" aria-label="' + esc(L('Digite excluir de vez', 'Type delete for good')) + '">' +
       '<button class="btn btn-danger" type="button" id="delGo" data-delmid="' + esc(id) + '" disabled>' + ic('i-trash') + esc(L('Excluir para mim', 'Delete for me')) + '</button></div>' +
       '<div id="delAll" hidden><label class="del-why"><span>' + esc(L('Motivo', 'Reason')) + '</span><select id="delWhy">' + DEL_REASONS.map(([v, l]) => '<option value="' + v + '">' + esc(L.apply(null, l)) + '</option>').join('') + '</select></label>' +
       '<button class="btn btn-warn" type="button" data-delask="' + esc(id) + '">' + ic('i-send') + esc(L('Enviar o pedido', 'Send the request')) + '</button></div></div>');
@@ -6713,8 +6722,8 @@
   }
   function fixRowHTML(i, s, names) {
     return '<div class="fix-row" data-fixrow="' + i + '"><span class="fix-lbl">' + esc(L('Set ' + (i + 1), 'Set ' + (i + 1))) + '</span>' +
-      '<input type="number" inputmode="numeric" min="0" max="99" value="' + (s[0] || 0) + '" data-fixv="0" aria-label="' + esc(names[0] + ', set ' + (i + 1)) + '"><b>×</b>' +
-      '<input type="number" inputmode="numeric" min="0" max="99" value="' + (s[1] || 0) + '" data-fixv="1" aria-label="' + esc(names[1] + ', set ' + (i + 1)) + '">' +
+      '<input type="number" inputmode="numeric" min="0" max="99" value="' + (s[0] || 0) + '" data-fixv="0" aria-label="' + esc(tnameEn(names[0]) + ', set ' + (i + 1)) + '"><b>×</b>' +
+      '<input type="number" inputmode="numeric" min="0" max="99" value="' + (s[1] || 0) + '" data-fixv="1" aria-label="' + esc(tnameEn(names[1]) + ', set ' + (i + 1)) + '">' +
       '<button class="icon-btn sm" type="button" data-fixdel="' + i + '" aria-label="' + esc(L('Tirar set', 'Remove set')) + '">' + ic('i-x') + '</button></div>';
   }
   function openFix(id) {

@@ -341,7 +341,7 @@
       if (!a || tagStatus(a, 'me') !== 'aceito') return [];
       const t = a.playedAt + 26 * HOUR;
       if (t > now()) return [];
-      return [{ id: a.id, activity: a, actor: a.ownerId, t, result: { sets: [[5, 7]], final: null, winner: 1 }, reason: 'o set foi 5-7', status: fz().votes[a.id] || 'pendente' }];
+      return [{ id: a.id, activity: a, actor: a.ownerId, t, result: { sets: [[5, 7]], final: null, winner: 1 }, reason: (window.CantaI18n && window.CantaI18n.lang === 'en') ? 'the set was 5-7' : 'o set foi 5-7', status: fz().votes[a.id] || 'pendente' }];
     }
     function voteFix(id, yes) {
       fz().votes[id] = yes ? 'sim' : 'nao';

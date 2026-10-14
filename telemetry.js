@@ -10,10 +10,18 @@
   const rnd = n => { const A = 'abcdefghijklmnopqrstuvwxyz0123456789', r = new Uint8Array(n); crypto.getRandomValues(r); return Array.from(r, x => A[x % 36]).join(''); };
   let opts = { consent: () => false, deviceId: () => null, version: '' };
   function sessionId() { try { let s = sessionStorage.getItem('canta.sid'); if (!s) { s = rnd(16); sessionStorage.setItem('canta.sid', s); } return s; } catch (e) { return rnd(16); } }
+  // de onde a pessoa veio: o link (utm_*) da 1ª visita fica guardado por 30 dias e vai junto em cada evento,
+  // assim a conta criada dias depois ainda conta para o link certo. Só a campanha, nada da pessoa.
+  const AKEY = 'canta.attr.v1', ATTR_DAYS = 30;
   function attribution() {
-    const q = new URLSearchParams(location.search), clip = v => (v && /^[\w.-]{1,40}$/.test(v) ? v : null);
+    const q = new URLSearchParams(location.search), clip = v => (v && /^[\w.-]{1,40}$/.test(v) ? v.toLowerCase() : null);
     const ref = q.get('ref');
-    return { source: clip(q.get('utm_source')), medium: clip(q.get('utm_medium')), campaign: clip(q.get('utm_campaign')), ref: ref && /^UP-[A-Z0-9]{6}$/i.test(ref) ? ref.toUpperCase() : null };
+    const now = { source: clip(q.get('utm_source')), medium: clip(q.get('utm_medium')), campaign: clip(q.get('utm_campaign')), content: clip(q.get('utm_content')), ref: ref && /^UP-[A-Z0-9]{6}$/i.test(ref) ? ref.toUpperCase() : null };
+    let kept = null; try { kept = JSON.parse(localStorage.getItem(AKEY) || 'null'); } catch (e) { kept = null; }
+    if (kept && !(Date.now() - kept.at < ATTR_DAYS * 864e5)) kept = null;
+    if (!kept && (now.source || now.campaign || now.content || now.ref)) { kept = Object.assign({ at: Date.now() }, now); try { localStorage.setItem(AKEY, JSON.stringify(kept)); } catch (e) { /* sem storage: vale só esta visita */ } }
+    const a = kept || now;
+    return { source: a.source || null, medium: a.medium || null, campaign: a.campaign || null, content: a.content || null, ref: now.ref || a.ref || null };
   }
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
   const store = q => { try { localStorage.setItem(KEY, JSON.stringify(q.slice(-MAX))); } catch (e) { /* cota cheia: perde estatística, nunca partida */ } };
@@ -34,7 +42,7 @@
     const ok = !!opts.consent();
     if (!ok && !FREE.includes(name)) return;
     const a = attribution();
-    const e = { device_id: ok ? opts.deviceId() : sessionId(), session: !ok, name, props: clean(props), path: location.pathname.slice(-120), source: a.source, medium: a.medium, campaign: a.campaign, ref: a.ref, app_version: opts.version || null, created_at: new Date().toISOString() };
+    const e = { device_id: ok ? opts.deviceId() : sessionId(), session: !ok, name, props: clean(props), path: location.pathname.slice(-120), source: a.source, medium: a.medium, campaign: a.campaign, content: a.content, ref: a.ref, app_version: opts.version || null, created_at: new Date().toISOString() };
     if (!e.device_id) return;
     const q = load(); q.push(e); store(q);
     clearTimeout(timer); timer = setTimeout(flush, 3000);

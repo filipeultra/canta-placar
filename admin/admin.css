@@ -315,3 +315,35 @@ td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, mon
 .pii-blur .pii { filter: blur(6px); user-select: none; }
 .pii-blur .pii:hover { filter: blur(6px); }
 @media (prefers-reduced-motion: reduce) { .gbar i { transition: none; } }
+
+/* ===== v4 · taxas, links rastreáveis e período por datas ===== */
+.range { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--hair); }
+.range input[type="date"] { padding: 6px 8px; border-radius: 9px; border: 1px solid var(--hair-2); background: var(--surface-2); color: var(--fg); font: 600 13px/1.2 var(--font); }
+.range > span { color: var(--fg-2); font-size: 13px; }
+.rates { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.rate { position: relative; display: grid; gap: 6px; align-content: start; padding: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--hair); box-shadow: var(--shadow); min-width: 0; }
+.rate .k { display: flex; align-items: center; gap: 8px; color: var(--fg-2); font-size: 13px; padding-right: 62px; }
+.rate .k .ic { width: 16px; height: 16px; flex: none; }
+.rate .v { font: 800 26px/1.1 var(--font); font-variant-numeric: tabular-nums; }
+.rate p { margin: 0; }
+.rate .ref { color: var(--fg-2); line-height: 1.4; }
+.rate .ref b { color: var(--fg); }
+.rate .tag { position: absolute; top: 14px; right: 14px; padding: 2px 8px; border-radius: 999px; font: 700 11.5px/1.5 var(--font); border: 1px solid var(--hair); color: var(--fg-2); }
+.rate .tag.good { color: var(--fg); border-color: color-mix(in srgb, var(--good) 55%, transparent); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.rate .tag.warn { color: var(--fg); border-color: color-mix(in srgb, var(--warning) 55%, transparent); background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.rate .tag.bad { color: var(--fg); border-color: color-mix(in srgb, var(--critical) 55%, transparent); background: color-mix(in srgb, var(--critical) 13%, transparent); }
+.rate.bad { border-color: color-mix(in srgb, var(--critical) 35%, var(--hair)); }
+.checks.plain .ck { background: var(--surface-2); color: var(--fg-3); }
+.lform { display: grid; gap: 10px; margin-top: 10px; }
+.lform .field { display: grid; gap: 4px; min-width: 0; }
+.lform .field span { color: var(--fg-2); font-size: 12.5px; font-weight: 600; }
+.lform input, .lform select { width: 100%; min-width: 0; padding: 9px 11px; border-radius: 11px; border: 1px solid var(--hair-2); background: var(--surface-2); color: var(--fg); font: 500 14px/1.3 var(--font); }
+.lform input:focus-visible, .lform select:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+.lrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lurl { margin: 2px 0 0; padding: 9px 11px; border-radius: 11px; background: var(--surface-2); border: 1px dashed var(--hair-2); color: var(--fg-2); overflow-wrap: anywhere; word-break: break-all; }
+.lact { display: flex; flex-wrap: wrap; gap: 8px; }
+.lform .msg { margin: 0; min-height: 1em; color: var(--critical); }
+.qrbox { width: min(260px, 70vw); margin: 4px auto 10px; padding: 10px; border-radius: 14px; background: #fff; }
+.qrbox svg { display: block; width: 100%; height: auto; }
+label.auto.sm { font-size: 12.5px; }
+@media (max-width: 560px) { .lrow { grid-template-columns: 1fr; } .rates { grid-template-columns: 1fr; } }
