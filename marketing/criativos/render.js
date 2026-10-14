@@ -52,9 +52,11 @@ function audio(c, dur, auto) {
     p.on('pageerror', e => errs.push(e.message)); p.on('response', r => { if (r.status() >= 400) errs.push(r.status() + ' ' + r.url()); });
     await p.goto('http://localhost:8765/marketing/criativos/criativo.html?c=' + c + (TESTE ? '&teste' : '')); await p.evaluate(() => document.fonts.ready); await p.waitForTimeout(500);
     const dur = await p.evaluate(() => window.DUR), auto = await p.evaluate(() => window.AUTO_CUES || []), n = Math.ceil(dur * FPS), fd = path.join(W, 'frames', c);
-    fs.rmSync(fd, { recursive: true, force: true }); fs.mkdirSync(fd, { recursive: true });
+    // SO_FIM=1: refaz só a tela final e reaproveita os quadros de antes (precisam existir em work/frames)
+    const ini = process.env.SO_FIM && fs.existsSync(fd) ? Math.max(0, Math.floor((await p.evaluate(() => window.FIM_EM) - 0.3) * FPS)) : 0;
+    if (!ini) { fs.rmSync(fd, { recursive: true, force: true }); fs.mkdirSync(fd, { recursive: true }); }
     const t0 = Date.now();
-    for (let i = 0; i < n; i++) { await p.evaluate(t => window.R(t), i / FPS); await p.screenshot({ path: path.join(fd, 'f' + String(i).padStart(4, '0') + '.png') }); }
+    for (let i = ini; i < n; i++) { await p.evaluate(t => window.R(t), i / FPS); await p.screenshot({ path: path.join(fd, 'f' + String(i).padStart(4, '0') + '.png') }); }
     if (errs.length) { console.error(c, 'erros', errs.slice(0, 5)); process.exitCode = 1; }
     await p.close();
     const wav = audio(c, (n / FPS).toFixed(3), auto), out = path.join(TESTE ? W : DIR, `criativo-${c}.mp4`);

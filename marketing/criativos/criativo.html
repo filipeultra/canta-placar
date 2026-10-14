@@ -97,7 +97,7 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
 #end { background: var(--lime); color: var(--ink); text-align: center; opacity: 0; }
 #end .logo { position: absolute; left: 50%; top: 300px; width: 640px; height: 162px; margin-left: -320px; color: var(--ink); }
 #end h2 { position: absolute; left: 50px; right: 50px; top: 560px; font: 900 168px/0.88 "Archivo Condensed", sans-serif; text-transform: uppercase; letter-spacing: -.005em; }
-#end .sub { position: absolute; left: 90px; right: 90px; top: 1040px; font: 700 50px/1.2 "Bricolage Grotesque", sans-serif; }
+#end .sub { position: absolute; left: 90px; right: 90px; top: 1040px; font: 700 50px/1.2 "Bricolage Grotesque", sans-serif; text-wrap: balance; }
 #end .badge { position: absolute; left: 50%; top: 940px; transform: translateX(-50%); padding: 12px 30px; border-radius: 16px; background: var(--ink); color: var(--lime); font: 900 54px/1 "Archivo Condensed", sans-serif; text-transform: uppercase; white-space: nowrap; }
 #end .btn { position: absolute; left: 50%; top: 1200px; width: 760px; height: 160px; margin-left: -380px; border-radius: 80px; background: var(--ink); color: #fff;
   font: 900 92px/160px "Archivo Condensed", sans-serif; text-transform: uppercase; box-shadow: 0 18px 0 rgba(16,21,0,.25); will-change: transform; }
@@ -335,7 +335,7 @@ window.R = async function (t) {
   $('flash').style.opacity = fl * .35;
   await Promise.all(jobs);
 };
-window.DUR = T(S.dur);
+window.DUR = T(S.dur); window.FIM_EM = T(S.endAt);
 </script>
 </body>
 </html>

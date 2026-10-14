@@ -42,7 +42,7 @@ window.ROTEIROS = {
       { k: 'stk', t0: 16.4, t1: 17.3, src: 'src/img/b3-trofeu.png', x: 690, y: 600, w: 360, rot: 10 }
     ],
     chunks: [[0, 3], [4, 7], [8, 11], [12, 15], [16, 20], [21, 23], [24, 26], [27, 29], [36, 41], [42, 45]],
-    endAt: 17.3, end: { size: 132, h: 'Seus números<br>de atleta.', badge: 'Beach · padel · tênis · peteca', sub: 'Pontos de saque, bolas vencedoras, erros<br>e a sua evolução.', btn: 'Baixe agora →' }
+    endAt: 17.3, end: { size: 132, h: 'Seus números<br>de atleta.', badge: 'Beach · padel · tênis · peteca', sub: 'Pontos de saque, bolas vencedoras,<br>erros e a sua evolução.', btn: 'Baixe agora →' }
   },
   c: {
     titulo: 'Quem é o melhor da turma?', dur: 12.7,
@@ -112,7 +112,7 @@ window.ROTEIROS = {
       { k: 'pill', t0: 12.36, t1: 13.35, text: 'Imbatível', cls: 'orange', x: 40, y: 1100, rot: -5, s: .8 }
     ],
     chunks: [[13, 16], [17, 22], [23, 27], [28, 32], [33, 37]],
-    endAt: 13.35, end: { h: 'Sua dupla<br>imbatível.', badge: 'Beach tennis · padel', sub: 'Com quem você mais ganha, partida a partida.', btn: 'Chama o parceiro →' }
+    endAt: 13.35, end: { h: 'Sua dupla<br>imbatível.', badge: 'Beach tennis · padel', sub: 'Com quem você mais ganha, partida a partida.', btn: 'Chama a dupla →' }
   },
   d4: {
     titulo: 'O que você mais erra no padel?', dur: 15.9, accent: 'orange',
@@ -161,7 +161,7 @@ window.ROTEIROS = {
       { k: 'pill', t0: 11.63, t1: 12.7, text: 'O que treinar', cls: 'white', x: 60, y: 1060, rot: -4, s: .8 }
     ],
     chunks: [[4, 11], [12, 19], [20, 24], [25, 28], [37, 42]],
-    endAt: 14.95, end: { h: 'Leve os números<br>pra aula.', size: 124, badge: 'Tênis', sub: 'Mostre ao seu professor o que aconteceu<br>em cada partida.', btn: 'Baixe agora →' }
+    endAt: 14.95, end: { h: 'Leve os números<br>pra aula.', size: 124, badge: 'Tênis', sub: 'Mostre ao professor o que<br>aconteceu em cada partida.', btn: 'Baixe agora →' }
   },
   d7: {
     titulo: 'Qual foi a sua maior virada no tênis?', dur: 16.2, accent: 'lime',
