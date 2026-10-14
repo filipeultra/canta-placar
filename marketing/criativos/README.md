@@ -31,7 +31,21 @@ Cada um termina na mesma tela verde com o logo e o botão **Baixe grátis**. Ass
 - **Som e legenda:** feito para ouvir com som, mas legendado para quem assiste mudo. [adsmurai.com](https://www.adsmurai.com/en/articles/meta-reels-ads)
 - **Duração:** guias recomendam de 6 a 30 s, sem consenso. Os três ficaram entre 16 e 20 s. Se o vídeo segurar até o fim, vale testar um corte de 9 s (gancho + app + CTA).
 
-**Vídeo de referência do amigo (TikTok):** não consegui assistir. A rede deste ambiente bloqueia o TikTok. Com `*.tiktok.com`, `*.tiktokcdn.com` e `*.tiktokv.com` liberados nos domínios permitidos, ou com o .mp4 enviado aqui, a skill `claude-video-vision` analisa quadros, cortes, ritmo e narração.
+**Vídeo de referência do amigo** (@eagora.ze, "Elevador ou escada durante um terremoto?", ep. 2/6, 55 s), assistido por quadros e transcrição:
+- **Formato:** série educativa com cliffhanger, não anúncio. Termina numa pergunta aberta ("e se você estivesse no 6º andar, a um passo do elevador?") para levar ao próximo episódio.
+- **Imagem:** 8 imagens paradas, uma a cada 5 a 7 s (cortes aos 5, 12, 18, 27, 31, 37, 43 e 50 s).
+  - O personagem é o mesmo em todas (o Zé, camisa florida), em estilo cartoon de livro ilustrado, com luz noturna quente.
+  - O movimento é só zoom lento e um leve tremor (o terremoto). Não há vídeo gerado.
+- **Texto:** uma palavra por vez no centro da tela, em letras brancas com contorno preto (o estilo "uma palavra" das legendas automáticas).
+- **Som:** narração calma (voz sintética, terceira pessoa: "11 da noite. O Zé está na cozinha…") e trilha de suspense (piano e caixinha de música, da biblioteca do TikTok).
+- **O que levamos dele:**
+  1. imagem parada com movimento basta, sem gerar vídeo;
+  2. personagem fixo cria série e reconhecimento: vale um mascote do ULTRA PLAY para conteúdo orgânico;
+  3. uma história com começo, problema e saída prende mais que lista de recursos.
+- **O que muda num anúncio pago:**
+  - cortes bem mais rápidos (1,5 a 3 s em vez de 5 a 7 s);
+  - o produto aparece antes da metade;
+  - CTA claro no fim, em vez de cliffhanger. O cliffhanger fica para a série orgânica.
 
 ## 2. Direção de arte
 
