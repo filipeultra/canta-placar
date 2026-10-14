@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Criativos ULTRA PLAY</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
+<style>
+:root{
+  --bg:#F1F2EC; --surface:#FFFFFF; --sunk:#E7E9E0; --fg:#15180F; --muted:#5B6152; --faint:#8A8F80;
+  --line:rgba(21,24,15,.12); --line-strong:rgba(21,24,15,.22);
+  --brand:#AFFB48; --brand-ink:#3D6A00; --brand-soft:#E9F8CF; --on-brand:#101500;
+  --orange:#FC4C02; --orange-ink:#B33600; --orange-soft:#FFE6DA;
+  --chip:#ECEEE6; --shadow:0 1px 2px rgba(16,21,0,.05),0 10px 30px rgba(16,21,0,.07);
+  --font:"Bricolage Grotesque",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"Archivo","Arial Narrow",ui-sans-serif,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E100B; --surface:#171A12; --sunk:#0A0B08; --fg:#EEF1E6; --muted:#A3AA96; --faint:#737A68;
+  --line:rgba(238,241,230,.10); --line-strong:rgba(238,241,230,.2);
+  --brand:#AFFB48; --brand-ink:#C4FF72; --brand-soft:#26321A; --on-brand:#101500;
+  --orange:#FF6A2B; --orange-ink:#FF9D73; --orange-soft:#3A1E12;
+  --chip:#22261B; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E100B; --surface:#171A12; --sunk:#0A0B08; --fg:#EEF1E6; --muted:#A3AA96; --faint:#737A68;
+  --line:rgba(238,241,230,.10); --line-strong:rgba(238,241,230,.2);
+  --brand:#AFFB48; --brand-ink:#C4FF72; --brand-soft:#26321A; --on-brand:#101500;
+  --orange:#FF6A2B; --orange-ink:#FF9D73; --orange-soft:#3A1E12;
+  --chip:#22261B; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.08}
+.cond{font-family:var(--cond);font-stretch:68%;letter-spacing:-.005em}
+.lab{font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+header{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:28px;align-items:end}
+header h1{font-family:var(--cond);font-stretch:68%;font-weight:800;font-size:clamp(44px,7vw,78px);text-transform:uppercase;letter-spacing:-.01em}
+header h1 em{font-style:normal;background:var(--brand);color:var(--on-brand);padding:0 .12em;border-radius:6px}
+header p{margin:10px 0 0;color:var(--muted);max-width:58ch}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.kpi b{display:block;font-family:var(--cond);font-stretch:68%;font-weight:800;font-size:34px;line-height:1}
+.kpi span{font-size:12.5px;color:var(--muted)}
+/* filtros */
+.bar{padding-block:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px;margin-inline:-4px;padding-inline:4px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.row .lab{min-width:62px}
+.chip{appearance:none;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);font:600 13.5px/1 var(--font);
+  padding:8px 12px;border-radius:999px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip .n{font-family:var(--cond);font-stretch:68%;font-weight:700;opacity:.6}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+.seg button{appearance:none;border:0;background:var(--surface);color:var(--fg);font:600 13px/1 var(--font);padding:8px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--brand);color:var(--on-brand)}
+.count{font-size:13px;color:var(--muted)}
+/* cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.card.pick{outline:3px solid var(--brand);outline-offset:-1px}
+.media{display:grid;grid-template-columns:132px minmax(0,1fr);gap:14px;padding:14px}
+.vid{position:relative;aspect-ratio:9/16;max-width:100%;border-radius:12px;overflow:hidden;background:var(--sunk)}
+.vid video{width:100%;height:100%;object-fit:cover;display:block}
+.vid .dur{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.66);color:#fff;font:700 11px/1 var(--cond);font-stretch:75%;padding:4px 6px;border-radius:6px;pointer-events:none}
+.head{display:flex;flex-direction:column;gap:8px;min-width:0}
+.id{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.code{font:800 13px/1 var(--cond);font-stretch:75%;background:var(--fg);color:var(--bg);padding:5px 7px;border-radius:6px;letter-spacing:.03em}
+.tag{font-size:12px;font-weight:600;padding:4px 8px;border-radius:999px;background:var(--chip);color:var(--fg)}
+.tag.sport{background:var(--brand-soft);color:var(--brand-ink)}
+.tag.type{background:var(--orange-soft);color:var(--orange-ink)}
+.card h3{font-size:19px;font-weight:700}
+.hook{font-family:var(--cond);font-stretch:70%;font-weight:700;font-size:21px;line-height:1.12;border-left:4px solid var(--brand);padding-left:10px}
+.hook small{display:block;font:500 12.5px/1.4 var(--font);color:var(--muted);margin-top:4px}
+dl{margin:0;padding:0 14px 6px;display:grid;grid-template-columns:86px minmax(0,1fr);gap:7px 12px;font-size:13.5px}
+dt{color:var(--muted);font-weight:600}
+dd{margin:0;min-width:0}
+.trig{display:flex;flex-wrap:wrap;gap:5px}
+.trig span{font-size:12px;border:1px solid var(--line-strong);border-radius:6px;padding:1px 6px}
+details{border-top:1px solid var(--line);padding:10px 14px}
+summary{cursor:pointer;font-weight:600;font-size:13.5px}
+details p{margin:8px 0 0;font-size:13.5px;color:var(--muted);white-space:pre-line}
+.foot{margin-top:auto;border-top:1px solid var(--line);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{appearance:none;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);font:600 13px/1 var(--font);padding:9px 11px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--fg)}
+.btn.pickb[aria-pressed="true"]{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+.btn.ok{background:var(--fg);color:var(--bg)}
+.foot .sp{flex:1}
+/* campanha */
+section.plan{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.box h2{font-size:24px}
+.box ol,.box ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td b.cond{font-size:16px}
+.shortlist{display:flex;flex-direction:column;gap:8px}
+.shortlist .empty{color:var(--muted);font-size:13.5px}
+.sl{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13.5px}
+.sl .code{flex:none}
+.sl span{min-width:0;flex:1}
+.note{font-size:13px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);opacity:0;transition:.2s;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;font-weight:600;font-size:13.5px;pointer-events:none;z-index:9}
+.toast.on{opacity:1;transform:translateX(-50%)}
+@media (max-width:820px){header,section.plan{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:820px){.bar .row:not(.tools .row){flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+  .bar .row::-webkit-scrollbar{display:none}.bar .row .chip{flex:none}.bar .row>.lab{flex:none;min-width:58px}}
+@media (max-width:430px){.kpi b{font-size:26px}.kpi{padding:10px 12px}.media{grid-template-columns:104px minmax(0,1fr)}.hook{font-size:19px}dl{grid-template-columns:74px minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="lab">ULTRA PLAY · tráfego pago · lote 1 + lote 2</div>
+      <h1>Criativos <em>9:16</em></h1>
+      <p>Os 13 vídeos verticais (1080×1920) para Reels, TikTok e Shorts. Filtre por esporte, tipo ou ângulo, marque os favoritos e copie a legenda e o link rastreável de cada um.</p>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><b id="kN">13</b><span>vídeos</span></div>
+      <div class="kpi"><b>12–21s</b><span>duração</span></div>
+      <div class="kpi"><b>4</b><span>esportes</span></div>
+    </div>
+  </header>
+
+  <div class="bar" id="bar">
+    <div class="row" id="fSport"><span class="lab">Esporte</span></div>
+    <div class="row" id="fType"><span class="lab">Tipo</span></div>
+    <div class="row" id="fAngle"><span class="lab">Ângulo</span></div>
+    <div class="tools">
+      <span class="count" id="count"></span>
+      <div class="row">
+        <span class="lab" style="min-width:0">Link para</span>
+        <div class="seg" id="src"><button data-v="meta" aria-pressed="true">Meta</button><button data-v="tiktok">TikTok</button><button data-v="youtube">YouTube</button></div>
+        <button class="chip" id="onlyPick" aria-pressed="false">★ Só os escolhidos</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <section class="plan">
+    <div class="box">
+      <div class="lab">Sugestão</div>
+      <h2>Como montar as campanhas</h2>
+      <ol>
+        <li><b>Uma campanha por esporte</b> (beach, padel, tênis, peteca). O público e a página de destino mudam por esporte. Os vídeos multi-esporte (B, C, A, D2) entram na campanha <b>geral</b>.</li>
+        <li><b>Um conjunto por ângulo</b> dentro da campanha (ex.: padel → “erros” × “pontos decisivos”). Mesmo público, mesmo orçamento.</li>
+        <li><b>Rode 3 a 5 dias sem mexer</b>, com R$ 30 a 50 por dia em cada conjunto.</li>
+        <li><b>Leia nesta ordem:</b> taxa de gancho (3 s ÷ impressões) → retenção 50% e 100% → CTR → custo por conta criada.</li>
+        <li><b>O vencedor vira modelo</b>: mesmo ângulo com outro gancho, outra voz, ou a versão de 9 s.</li>
+      </ol>
+      <p class="note">Antes de subir, crie no painel (Links e tráfego) um link com o mesmo <code>utm_content</code> de cada vídeo, para ver visitas, contas e 1ª partida por criativo.</p>
+    </div>
+    <div class="box">
+      <div class="lab">Plano por esporte</div>
+      <h2>Conjuntos sugeridos</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Campanha</th><th>Conjuntos (ângulo → vídeo)</th><th>Destino</th></tr></thead>
+        <tbody id="plan"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="box">
+    <div class="tools"><div><div class="lab">Sua seleção</div><h2>Escolhidos para rodar</h2></div>
+      <button class="btn ok" id="copyPick">Copiar lista</button></div>
+    <div class="shortlist" id="shortlist"></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const SITE = 'https://filipeultra.github.io/canta-placar/';
+const DEST = { beach:'site/placar-beach-tennis.html', padel:'site/placar-padel.html', tenis:'site/placar-tenis.html', peteca:'site/placar-peteca.html', geral:'' };
+const SPORT = { beach:'Beach tennis', padel:'Padel', tenis:'Tênis', peteca:'Peteca', geral:'Multi-esporte' };
+const TYPE = { ilu:'Ilustrado + app', app:'App ao vivo', motion:'Motion de dados' };
+
+const V = [
+ { id:'d1', lote:2, titulo:'Ficou fácil marcar o placar', sport:'beach', type:'app', angle:'Placar fácil', dur:13.4,
+   hook:'Ficou fácil demais marcar o placar do seu beach.', hookTela:'Placar ao vivo na tela, já com toques no celular',
+   cta:'Baixe o Ultra Play e jogue no modo Ultra!', end:'Placar fácil. Jogo de atleta.',
+   trig:['Facilidade','Demonstração','Recompensa'], pub:'Quem joga beach e ainda marca de cabeça ou no papel',
+   fala:'Ficou fácil demais marcar o placar do seu beach. Um toque no time que fez o ponto... e pronto. Terminou o jogo? Sai tudo pronto: estatística, replay e o post pra turma. Baixe o Ultra Play e jogue no modo Ultra!',
+   legenda:'Um toque por ponto e acabou a discussão do placar 🎾 No fim sai estatística, replay e o post pra turma. Baixe grátis e jogue no modo Ultra.',
+   obs:'Fluxo completo: lança pontos → encerra → publica. Bom para quem nunca viu o app.' },
+ { id:'d2', lote:2, titulo:'Quantas vezes você ganhou daquele amigo?', sport:'geral', type:'motion', angle:'Rivalidade', dur:15.9,
+   hook:'Quantas vezes você já ganhou daquele seu amigo?', hookTela:'Pergunta em letras grandes + “Sem chutar”',
+   cta:'Baixe agora!', end:'Quem manda no confronto?',
+   trig:['Pergunta','Rivalidade','Ego'], pub:'Duplas e grupos fixos de qualquer esporte de raquete',
+   fala:'Quantas vezes você já ganhou daquele seu amigo? Sem chutar. No Ultra Play, cada partida fica salva: quantas vitórias, quantos pontos, quem manda no confronto. Depois é só mandar o print pra ele. Baixe agora!',
+   legenda:'Marca aquele amigo que jura que ganha mais de você 👀 No Ultra Play o confronto fica salvo: vitórias, pontos e quem manda.',
+   obs:'Dados reais do app: Você × Brenda 6V 1D. Pede marcação nos comentários.' },
+ { id:'d3', lote:2, titulo:'O parceiro que mais te deu vitórias', sport:'beach', type:'motion', angle:'Dupla', dur:16.2,
+   hook:'Quem foi o parceiro de dupla que mais te deu vitórias até hoje?', hookTela:'Pergunta + cartão “Seu melhor parceiro”',
+   cta:'Chama o parceiro e baixe agora!', end:'Sua dupla imbatível.',
+   trig:['Pergunta','Curiosidade','Pertencimento'], pub:'Beach tennis e padel em dupla (serve para os dois)',
+   fala:'Quem foi o parceiro de dupla que mais te deu vitórias até hoje? Você acha que sabe... mas o Ultra Play te mostra: com quem você mais ganha, com quem rende mais pontos e qual dupla é imbatível. Chama o parceiro e baixe agora!',
+   legenda:'Você acha que sabe quem é a sua melhor dupla… mas sabe mesmo? 🤝 Marca o parceiro.',
+   obs:'Mari Teles 67% de vitórias (dado do app). Funciona também na campanha de padel.' },
+ { id:'d4', lote:2, titulo:'O que você mais erra no padel?', sport:'padel', type:'motion', angle:'Diagnóstico de erros', dur:15.9,
+   hook:'O que você mais erra no padel? Na rede? Pra fora? No saque?', hookTela:'3 perguntas carimbadas em sequência',
+   cta:'Pare de adivinhar. Baixe agora!', end:'Pare de adivinhar.',
+   trig:['Dor','Pergunta','Autoconhecimento'], pub:'Padel intermediário que quer subir de categoria',
+   fala:'O que você mais erra no padel? Na rede? Pra fora? No saque? O Ultra Play conta cada ponto da partida e mostra onde o jogo foi decidido... com uma dica pro próximo. Pare de adivinhar. Baixe agora!',
+   legenda:'Rede, fora ou saque: onde você entrega mais pontos? 🎯 O Ultra Play mostra onde o jogo foi decidido.',
+   obs:'Gráfico de barras com dados reais: 11 na rede, 9 pra fora.' },
+ { id:'d5', lote:2, titulo:'Ganha quem vence os pontos decisivos', sport:'padel', type:'motion', angle:'Pontos decisivos', dur:13.7,
+   hook:'No padel, quem vence os pontos decisivos vence o jogo. E você?', hookTela:'Afirmação forte + medidor de break points',
+   cta:'Jogue no modo Ultra. Baixe agora.', end:'Jogue no modo Ultra.',
+   trig:['Autoridade','Desafio','Números'], pub:'Padel competitivo, quem joga torneio de clube',
+   fala:'No padel, quem vence os pontos decisivos vence o jogo. E você? Converte quantos? No Ultra Play, cada ponto fica registrado: os pontos decisivos, as viradas e a maior sequência. Jogue no modo Ultra. Baixe agora.',
+   legenda:'Break point é onde o jogo vira. Você converte quantos? 📊',
+   obs:'Medidor 5/8 × 5/16, 11 viradas, sequência de 6 (dados do app).' },
+ { id:'d6', lote:2, titulo:'Faz aula e não evolui no jogo?', sport:'tenis', type:'ilu', angle:'Professor / aula', dur:16.4,
+   hook:'Você faz aula particular… mas chega no jogo e não consegue evoluir?', hookTela:'Ilustração aluno + professor, depois o app',
+   cta:'Leve os números pra próxima aula. Baixe agora.', end:'Leve os números pra aula.',
+   trig:['Dor','Identificação','Solução'], pub:'Alunos de tênis com aula particular; também professores',
+   fala:'Você faz aula particular... mas chega no jogo e não consegue evoluir? Com o Ultra Play, você marca a partida e mostra pro seu professor exatamente o que aconteceu: onde errou, onde ganhou e o que treinar. Leve os números pra próxima aula. Baixe agora.',
+   legenda:'Aula boa, jogo ruim? Leve os números da partida pro seu professor 🎾',
+   obs:'Também dá para mirar em professores e academias (interesse “aula de tênis”).' },
+ { id:'d7', lote:2, titulo:'Qual foi a sua maior virada?', sport:'tenis', type:'motion', angle:'Virada', dur:16.2,
+   hook:'Qual foi a maior virada que você já deu no tênis?', hookTela:'Pergunta + selo “19 pontos atrás → vitória”',
+   cta:'A próxima vai ficar registrada. Baixe agora!', end:'A próxima fica registrada.',
+   trig:['Pergunta','Memória','Orgulho'], pub:'Tenistas amadores que jogam ranking ou torneio',
+   fala:'Qual foi a maior virada que você já deu no tênis? Você lembra... mas tem como provar? No Ultra Play, cada ponto fica salvo: a virada, a sequência e o momento exato em que o jogo mudou. A próxima vai ficar registrada. Baixe agora!',
+   legenda:'Conta nos comentários a sua maior virada 👇 A próxima fica registrada ponto a ponto.',
+   obs:'Gráfico de linha da partida 2-6 6-4 6-4 (dado real). Puxa comentário.' },
+ { id:'d8', lote:2, titulo:'Treina, joga e perde sem saber por quê', sport:'beach', type:'ilu', angle:'Diagnóstico de erros', dur:15.9,
+   hook:'Você treina a semana toda… chega no jogo e perde. E não sabe por quê.', hookTela:'Ilustração da derrota com tremida no “perde”',
+   cta:'Baixe agora e descubra.', end:'Descubra por que perdeu.',
+   trig:['Dor','Frustração','Curiosidade'], pub:'Beach tennis que treina com frequência',
+   fala:'Você treina a semana toda... chega no jogo e perde. E não sabe por quê. Com o Ultra Play, você enxerga a partida inteira: quantos pontos entregou em erro, como foi no saque e o que mudar no próximo jogo. Baixe agora e descubra.',
+   legenda:'Treino em dia e mesmo assim perdeu? Os números mostram por quê 🏖️',
+   obs:'Barras de erro com dados do app (10 / 5 / 2).' },
+ { id:'d9', lote:2, titulo:'Ô, petequeiro!', sport:'peteca', type:'ilu', angle:'Identidade do esporte', dur:17.3,
+   hook:'Ô, petequeiro! Quantos pontos de saque você fez esse mês?', hookTela:'Clipe da peteca no ar + chamado direto',
+   cta:'Baixe o Ultra Play e jogue no modo Ultra!', end:'Peteca no modo Ultra.',
+   trig:['Chamado direto','Identidade','Novidade'], pub:'Jogadores de peteca (MG, DF, clubes e parques)',
+   fala:'Ô, petequeiro! Quantos pontos de saque você fez esse mês? Agora a peteca tem placar e estatística de verdade: cada ponto, cada partida e o ranking da sua turma. Baixe o Ultra Play e jogue no modo Ultra!',
+   legenda:'Peteca agora tem placar e estatística de verdade 🪶 Chama a turma do parque.',
+   obs:'Nicho com pouca concorrência nos anúncios: tende a sair mais barato. Trilha de viola.' },
+ { id:'d10', lote:2, titulo:'Seu campeonato em nível profissional', sport:'geral', type:'ilu', angle:'Torneio / organizador', dur:17.9,
+   hook:'Organiza torneio de beach, padel ou peteca?', hookTela:'Arena cheia + carimbo “Nível profissional”',
+   cta:'Leve o seu torneio pro modo Ultra. Baixe agora.', end:'Seu torneio no modo Ultra.',
+   trig:['Chamado direto','Status','Prova social'], pub:'Organizadores, arenas e professores que montam torneio',
+   fala:'Organiza torneio de beach, padel ou peteca? Agora o seu campeonato pode ser nível profissional. Com o Ultra Play, cada quadra tem placar ao vivo, a galera acompanha de fora e as estatísticas saem na hora, partida a partida. Leve o seu torneio pro modo Ultra. Baixe agora.',
+   legenda:'Seu torneio com placar ao vivo e estatística de cada partida 🏆',
+   obs:'Público B2B pequeno: use interesse em arenas e torneios, orçamento menor. Um organizador traz dezenas de jogadores.' },
+ { id:'b', lote:1, titulo:'Seus números de atleta', sport:'geral', type:'ilu', angle:'Números de atleta', dur:20.6,
+   hook:'Você joga toda semana… e não sabe quantos pontos de saque fez?', hookTela:'Clipe ilustrado do smash',
+   cta:'Baixe agora e jogue no modo Ultra.', end:'Seus números de atleta.',
+   trig:['Pergunta','Memória','Recompensa'], pub:'Amadores de beach, padel, tênis e peteca',
+   fala:'Você joga toda semana... e não sabe quantos pontos de saque fez? O seu melhor jogo já está sumindo da memória. No Ultra Play, cada partida vira número de atleta: pontos de saque, bolas vencedoras, erros... e a sua evolução no mês. E ainda vira conquista! Baixe agora e jogue no modo Ultra.',
+   legenda:'Seu melhor jogo não pode sumir da memória 💪 Cada partida vira número de atleta.',
+   obs:'Refeito no lote 2: tirada a palavra “ace” e o selo de plano.' },
+ { id:'c', lote:1, titulo:'Quem é o melhor da turma?', sport:'geral', type:'ilu', angle:'Ranking da turma', dur:12.7,
+   hook:'Quem é o melhor da sua turma?', hookTela:'Todo mundo levantando a mão: “Eu!”',
+   cta:'Chama a turma e baixa o Ultra Play!', end:'Chama a turma.',
+   trig:['Pergunta','Rivalidade','Prova'], pub:'Grupos e turmas de qualquer esporte',
+   fala:'Quem é o melhor da sua turma? Todo mundo acha que é ele. Agora tem prova: ranking do mês, replay dos lances e a resenha no grupo. Chama a turma e baixa o Ultra Play!',
+   legenda:'Todo mundo acha que é o melhor da turma 😂 Agora tem ranking do mês. Marca a turma.',
+   obs:'O mais curto. Refeito no lote 2 sem falar de plano.' },
+ { id:'a', lote:1, titulo:'Tava 5-4 ou 4-5?', sport:'geral', type:'ilu', angle:'Placar fácil', dur:17.6,
+   hook:'Tava cinco a quatro… ou quatro a cinco?', hookTela:'Briga ilustrada pelo placar',
+   cta:'Baixe grátis e jogue no modo Ultra!', end:'Jogue no modo Ultra.',
+   trig:['Humor','Identificação','Solução'], pub:'Qualquer amador que marca o placar de cabeça',
+   fala:'Tava cinco a quatro... ou quatro a cinco? Toda partida termina na mesma discussão. Com o Ultra Play, um toque e o ponto fica registrado. Ponto a ponto, com horário. Sem discussão. Baixe grátis e jogue no modo Ultra!',
+   legenda:'Toda partida termina na mesma discussão 😅 Um toque e o ponto fica registrado.',
+   obs:'Selo final trocado (sem plano). A voz é a original do lote 1.' },
+];
+// rótulos curtos (para a lista e o plano)
+const short = v => v.id.toUpperCase();
+
+const $ = s => document.querySelector(s);
+const store = { get(k,d){ try{ const v = localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} } };
+const st = { sport:'todos', type:'todos', angle:'todos', src:store.get('cr.src','meta'), only:false, picks:new Set(store.get('cr.picks',[])) };
+
+const campaign = v => 'lote' + v.lote + '-' + v.sport;
+const link = v => SITE + (DEST[v.sport]||'') + '?' + new URLSearchParams({ utm_source:st.src, utm_medium:'pago', utm_campaign:campaign(v), utm_content:'criativo-'+v.id });
+
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.h); toast.h=setTimeout(()=>el.classList.remove('on'),1600); }
+async function copy(text, label){
+  try{ await navigator.clipboard.writeText(text); toast(label+' copiado'); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=text; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0'; document.body.append(ta); ta.select();
+    let ok=false; try{ ok=document.execCommand('copy'); }catch(_){} ta.remove(); toast(ok? label+' copiado' : 'Selecione e copie à mão'); }
+}
+
+function chips(box, key, opts){
+  const counts = k => k==='todos' ? V.length : V.filter(v=>v[key]===k).length;
+  box.querySelectorAll('.chip').forEach(c=>c.remove());
+  for(const [k,label] of opts){
+    const b=document.createElement('button'); b.className='chip'; b.setAttribute('aria-pressed', String(st[key]===k));
+    b.innerHTML = label + ' <span class="n">'+counts(k)+'</span>';
+    b.onclick=()=>{ st[key]=k; render(); }; box.append(b);
+  }
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function card(v){
+  const el=document.createElement('article'); el.className='card'+(st.picks.has(v.id)?' pick':''); el.id='v-'+v.id;
+  const mp4='criativo-'+v.id+'.mp4', capa='criativo-'+v.id+'-capa.jpg';
+  el.innerHTML = `
+    <div class="media">
+      <div class="vid"><video src="${mp4}" poster="${capa}" preload="none" playsinline controls muted loop></video><span class="dur">${v.dur.toFixed(1).replace('.',',')}s</span></div>
+      <div class="head">
+        <div class="id"><span class="code">${short(v)}</span><span class="tag sport">${SPORT[v.sport]}</span><span class="tag type">${TYPE[v.type]}</span></div>
+        <h3>${esc(v.titulo)}</h3>
+        <div class="hook">“${esc(v.hook)}”<small>Tela nos 3 s: ${esc(v.hookTela)}</small></div>
+      </div>
+    </div>
+    <dl>
+      <dt>Ângulo</dt><dd>${esc(v.angle)}</dd>
+      <dt>Gatilhos</dt><dd class="trig">${v.trig.map(t=>'<span>'+esc(t)+'</span>').join('')}</dd>
+      <dt>Público</dt><dd>${esc(v.pub)}</dd>
+      <dt>CTA</dt><dd><b>${esc(v.cta)}</b><br><span class="note">Tela final: ${esc(v.end)}</span></dd>
+      <dt>utm</dt><dd><code>criativo-${v.id}</code> · <code>${campaign(v)}</code></dd>
+    </dl>
+    <details><summary>Narração e legenda do post</summary><p><b>Narração:</b> ${esc(v.fala)}
+
+<b>Legenda:</b> ${esc(v.legenda)}
+
+<b>Obs.:</b> ${esc(v.obs)}</p></details>
+    <div class="foot">
+      <button class="btn pickb" aria-pressed="${st.picks.has(v.id)}">${st.picks.has(v.id)?'★ Escolhido':'☆ Escolher'}</button>
+      <span class="sp"></span>
+      <button class="btn" data-c="leg">Copiar legenda</button>
+      <button class="btn" data-c="link">Copiar link</button>
+      <a class="btn" href="${mp4}" target="_blank" rel="noopener">Abrir MP4</a>
+    </div>`;
+  el.querySelector('.pickb').onclick=()=>{ st.picks.has(v.id)?st.picks.delete(v.id):st.picks.add(v.id); store.set('cr.picks',[...st.picks]); render(); };
+  el.querySelector('[data-c="leg"]').onclick=()=>copy(v.legenda,'Legenda');
+  el.querySelector('[data-c="link"]').onclick=()=>copy(link(v),'Link');
+  const vid=el.querySelector('video');
+  el.querySelector('.vid').addEventListener('mouseenter',()=>{ vid.play().catch(()=>{}); });
+  el.querySelector('.vid').addEventListener('mouseleave',()=>{ if(vid.muted) vid.pause(); });
+  return el;
+}
+
+function render(){
+  const angles=[...new Set(V.map(v=>v.angle))];
+  chips($('#fSport'),'sport',[['todos','Todos'],...Object.entries(SPORT)]);
+  chips($('#fType'),'type',[['todos','Todos'],...Object.entries(TYPE)]);
+  chips($('#fAngle'),'angle',[['todos','Todos'],...angles.map(a=>[a,a])]);
+  $('#onlyPick').setAttribute('aria-pressed',String(st.only));
+  $('#src').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===st.src)));
+  const list=V.filter(v=>(st.sport==='todos'||v.sport===st.sport)&&(st.type==='todos'||v.type===st.type)&&(st.angle==='todos'||v.angle===st.angle)&&(!st.only||st.picks.has(v.id)));
+  const g=$('#grid'); g.replaceChildren(...list.map(card));
+  if(!list.length){ const p=document.createElement('p'); p.className='note'; p.textContent='Nenhum vídeo com esses filtros.'; g.append(p); }
+  $('#count').textContent = list.length + (list.length===1?' vídeo':' vídeos') + ' · ' + st.picks.size + ' escolhido' + (st.picks.size===1?'':'s');
+  // seleção
+  const sl=$('#shortlist'); const picked=V.filter(v=>st.picks.has(v.id));
+  sl.replaceChildren(...(picked.length? picked.map(v=>{ const d=document.createElement('div'); d.className='sl';
+    d.innerHTML=`<span class="code">${short(v)}</span><span><b>${esc(v.titulo)}</b> · ${SPORT[v.sport]} · ${esc(v.angle)}</span>`;
+    const b=document.createElement('button'); b.className='btn'; b.textContent='Link'; b.onclick=()=>copy(link(v),'Link'); d.append(b); return d; })
+    : [Object.assign(document.createElement('p'),{className:'empty',textContent:'Toque em “Escolher” nos vídeos que você quer rodar. A seleção fica salva neste navegador.'})]));
+}
+function plan(){
+  const rows=[['beach','Beach tennis'],['padel','Padel'],['tenis','Tênis'],['peteca','Peteca'],['geral','Geral (todos os esportes)']];
+  $('#plan').innerHTML = rows.map(([k,label])=>{
+    const vs=V.filter(v=>v.sport===k);
+    const extra = k==='padel' ? ' <span class="note">(+ D3 dupla)</span>' : '';
+    return `<tr><td><b class="cond">${label}</b><br><span class="note">${[...new Set(vs.map(campaign))].join(' · ')}</span></td><td>${vs.map(v=>`${esc(v.angle)} → <b>${short(v)}</b>`).join('<br>')}${extra}</td><td><code>/${DEST[k]||''}</code></td></tr>`;
+  }).join('');
+}
+$('#src').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; st.src=b.dataset.v; store.set('cr.src',st.src); render(); });
+$('#onlyPick').onclick=()=>{ st.only=!st.only; render(); };
+$('#copyPick').onclick=()=>{ const p=V.filter(v=>st.picks.has(v.id)); if(!p.length) return toast('Nenhum escolhido ainda');
+  copy(p.map(v=>`${short(v)} · ${v.titulo} · ${SPORT[v.sport]} · ${v.angle}\nGancho: ${v.hook}\nCTA: ${v.cta}\nLegenda: ${v.legenda}\nLink: ${link(v)}`).join('\n\n'),'Lista'); };
+$('#kN').textContent=V.length;
+plan(); render();
+</script>

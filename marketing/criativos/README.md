@@ -1,16 +1,18 @@
 # ULTRA PLAY · criativos de teste para tráfego pago (14/10/2026)
 
-Três anúncios verticais (1080×1920, 30 fps, 16 a 20 s) para testar ângulos de mensagem no TikTok e no Instagram/Facebook (Reels e Stories). Feitos com IA (Magnific) e com as telas reais do app, montados em código.
+Treze anúncios verticais (1080×1920, 30 fps, 12 a 21 s) para testar ângulos de mensagem no TikTok e no Instagram/Facebook (Reels e Stories): 3 do lote 1 (A, B, C) e 10 do lote 2 (D1 a D10, por esporte). Feitos com IA (Magnific) e com as telas reais do app, montados em código.
+
+**Catálogo para escolher e subir:** [`index.html`](index.html) (no site: `/marketing/criativos/`). Filtra por esporte, tipo e ângulo, mostra gancho, CTA, público e legenda de cada vídeo, copia o link com UTM e guarda os escolhidos.
+
+> **Regras de texto (desde o lote 2):** não usar "ace" (no beach e no padel quase não existe; falamos "ponto de saque"), não falar "sem cartão" nem de plano pago ou preço de Fundador. O anúncio só traz a galera para o app grátis. B, C e o selo final do A foram refeitos assim.
 
 | Criativo | Ângulo | Voz | Duração | Gatilhos |
 |---|---|---|---|---|
 | **A · "Tava 5-4 ou 4-5?"** | dor com humor | João Félix (jovem, descontraído) | 17,6 s | dor reconhecível, lacuna de curiosidade, humor, prova (o app na tela), grátis |
-| **B · "Seus números de atleta"** | identidade e desejo | Catarina Cordeiro (energética) | 19,5 s | curiosidade ("quantos aces?"), aversão à perda (a memória some), identidade de atleta, risco zero (14 dias sem cartão) |
-| **C · "Quem é o melhor da turma?"** | turma e competição | Larissa Melo (jeito de amiga) | 16,1 s | comparação social, pertencimento, prova, escassez real (Fundador para os 1.000 primeiros) |
+| **B · "Seus números de atleta"** | identidade e desejo | Catarina Cordeiro (energética) | 20,6 s | curiosidade ("quantos pontos de saque?"), aversão à perda (a memória some), identidade de atleta, conquista |
+| **C · "Quem é o melhor da turma?"** | turma e competição | Larissa Melo (jeito de amiga) | 12,7 s | comparação social, pertencimento, prova (ranking, replay e resenha) |
 
-Cada um termina na mesma tela verde com o logo e o botão **Baixe grátis**. Assim, a diferença de resultado vem do ângulo, não do fim.
-
-> **Aviso sobre o C:** o preço de Fundador (R$ 119,90/ano, travado, para os 1.000 primeiros ou nos 60 dias do lançamento, como está em `docs/PRECOS.md`) só pode ir ao ar enquanto a oferta existir de verdade. Escassez falsa é proibida pelas plataformas e pelo CDC. Depois do lançamento, troque o cartão por "Grátis para começar".
+Cada um termina na mesma tela verde com o logo e o botão de baixar. Assim, a diferença de resultado vem do ângulo, não do fim.
 
 ## 1. Pesquisa: criar e editar vídeo com IA (e com o Claude)
 
@@ -82,31 +84,30 @@ Cada um termina na mesma tela verde com o logo e o botão **Baixe grátis**. Ass
 | 4,3–6,9 s | A briga em zoom, tremendo + "ooh" | "Toda partida termina na mesma discussão." |
 | 6,9–10,7 s | Celular entra: **placar real** marcando pontos, com som de bola em cada um | "Com o Ultra Play, um toque e o ponto fica registrado." |
 | 10,7–14,1 s | **Momento ponto a ponto real** + apito | "Ponto a ponto, com horário. Sem discussão." |
-| 14,1–17,6 s | Tela final: **Jogue no modo Ultra.** · Grátis, sem cartão · **Baixe grátis →** | "Baixe grátis e jogue no modo Ultra!" |
+| 14,1–17,6 s | Tela final: **Jogue no modo Ultra.** · Placar · estatísticas · replay · **Baixe grátis →** | "Baixe grátis e jogue no modo Ultra!" |
 
-### B · "Seus números de atleta" (19,5 s)
+### B · "Seus números de atleta" (20,6 s, refeito no lote 2)
 | Tempo | Imagem | Fala / texto |
 |---|---|---|
-| 0–3,7 s | Clipe animado: smash à noite, estilo game. Selo **ACES: ??** girando | "Você joga toda semana… e não sabe quantos aces fez?" |
-| 3,7–6,7 s | Jogador no banco; o balão da lembrança vai borrando e perdendo a cor | "O seu melhor jogo já está sumindo da memória." |
-| 6,7–14 s | Celular: **estatísticas reais** (barras, evolução, análise do dia). Stickers **ACES**, **WINNERS** e **ERROS** pulando na fala | "No Ultra Play, cada partida vira número de atleta: aces, winners, erros… e a sua evolução no mês." |
-| 14–15,6 s | **Troféu real de conquista** + sticker de troféu + som de conquista | "E ainda vira conquista!" |
-| 15,6–19,5 s | Tela final: **Seus números de atleta.** · Pro 14 dias grátis, sem cartão · **Baixe grátis →** | "Teste o Pro catorze dias grátis, sem cartão." |
+| 0–3,9 s | Clipe animado: smash à noite, estilo game. Selo **SAQUES: ??** girando | "Você joga toda semana… e não sabe quantos pontos de saque fez?" |
+| 3,9–7,3 s | Jogador no banco; o balão da lembrança vai borrando e perdendo a cor | "O seu melhor jogo já está sumindo da memória." |
+| 7,3–15,5 s | Celular: **estatísticas reais**. Selos **Pontos de saque**, **Bolas vencedoras** e **Erros** na fala | "No Ultra Play, cada partida vira número de atleta: pontos de saque, bolas vencedoras, erros… e a sua evolução no mês." |
+| 15,5–17,3 s | **Troféu real de conquista** + som de conquista | "E ainda vira conquista!" |
+| 17,3–20,6 s | Tela final: **Seus números de atleta.** · Beach · padel · tênis · peteca · **Baixe agora →** | "Baixe agora e jogue no modo Ultra." |
 
-### C · "Quem é o melhor da turma?" (16,1 s)
+### C · "Quem é o melhor da turma?" (12,7 s, refeito no lote 2)
 | Tempo | Imagem | Fala / texto |
 |---|---|---|
-| 0–1,7 s | Clipe animado: os 4 amigos apontando para si mesmos. Quatro balões **EU!** | "Quem é o melhor da sua turma?" |
-| 1,7–4 s | A turma em zoom | (risada) "Todo mundo acha que é ele." |
-| 4–5,7 s | Pódio com coroa. Carimbo **AGORA TEM PROVA** + torcida | "Agora tem prova:" |
-| 5,7–9,3 s | Celular: **ranking real do grupo** → **replay real** → **timeline real** | "ranking do mês, replay dos lances e a resenha no grupo." |
-| 9,3–12,9 s | Cartão **Preço de Fundador** · R$ 119,90/ano travado · **Só para os 1.000 primeiros** + medalha | "E pros primeiros mil, preço de Fundador travado." |
-| 12,9–16,1 s | Tela final: **Chama a turma.** · Grátis para começar · **Baixe grátis →** | "Chama a turma e baixa o Ultra Play!" |
+| 0–1,9 s | Clipe animado: os 4 amigos apontando para si mesmos. Quatro balões **EU!** | "Quem é o melhor da sua turma?" |
+| 1,9–4,8 s | A turma em zoom | (risada) "Todo mundo acha que é ele." |
+| 4,8–6 s | Pódio com coroa. Carimbo **AGORA TEM PROVA** + torcida | "Agora tem prova:" |
+| 6–9,6 s | Celular: **ranking real do grupo** → **replay real** → **timeline real** | "ranking do mês, replay dos lances e a resenha no grupo." |
+| 9,6–12,7 s | Tela final: **Chama a turma.** · Beach · padel · tênis · peteca · **Baixe agora →** | "Chama a turma e baixa o Ultra Play!" |
 
 **Texto do anúncio (legenda do post), sugestão:**
 - A: "Tava 5-4 ou 4-5? 😅 Marca o placar num toque e acaba a discussão. Grátis."
-- B: "Quantos aces você fez no último jogo? Seus números de atleta, partida a partida. Teste o Pro 14 dias grátis."
-- C: "Quem é o melhor da turma? Ranking do mês, replay e resenha no grupo. Chama a galera."
+- B: "Seu melhor jogo não pode sumir da memória 💪 Cada partida vira número de atleta."
+- C: "Todo mundo acha que é o melhor da turma 😂 Agora tem ranking do mês. Marca a turma."
 
 ## 4. Custo no Magnific (projeto separado "ULTRA PLAY · Criativos de teste (tráfego)")
 | Item | Quantidade | Créditos |
@@ -117,7 +118,8 @@ Cada um termina na mesma tela verde com o logo e o botão **Baixe grátis**. Ass
 | Trilha (Lyria 3, 30 s) | 3 | 240 |
 | Efeitos sonoros | 8 | 60 |
 | Recorte de fundo dos stickers | 4 | 12 |
-| **Total** | | **≈ 2.000** (de 72 mil disponíveis) |
+| **Total do lote 1** | | **≈ 2.000** (de 72 mil disponíveis) |
+| **Lote 2:** 4 imagens, 2 clipes Kling, 12 narrações (10 novas + B e C refeitas), 4 trilhas, 6 efeitos, análise dos clipes | | **≈ 1.900** (estimativa) |
 
 Gerar o vídeo inteiro por IA custaria muito mais. Só o Seedance Fast sai 1.175 créditos por 5 s, e o app não pode ser inventado. Por isso a IA fica no gancho (3 s de clipe) e nas cenas de humor. O resto é imagem parada com movimento e o app real.
 
@@ -140,11 +142,51 @@ Gerar o vídeo inteiro por IA custaria muito mais. Só o Seedance Fast sai 1.175
    - pegue os links atuais com `creations_get` (eles expiram);
    - rode `python3 marketing/criativos/baixar.py links.json`.
 2. Na raiz do repositório, suba o servidor: `python3 -m http.server 8765`.
-3. Rode `node marketing/criativos/render.js a b c`. Ele gera `criativo-a.mp4` (e B e C) e as capas `criativo-*-capa.jpg`, em uns 5 minutos por vídeo.
-4. Para conferir o layout sem os arquivos do Magnific, use `TESTE=1 node marketing/criativos/render.js a`. Ele usa marcadores e sons de teste e salva em `work/`.
+3. Se mexeu numa narração, rode `python3 marketing/criativos/prep_voz.py` (corta as pausas longas e gera `src/audio/<id>-voz-ed.wav` e `src/falas.js`).
+4. Rode `node marketing/criativos/render.js` (todos) ou `render.js d1 d4 b` (só esses). Ele gera `criativo-<id>.mp4` e a capa `criativo-<id>-capa.jpg`. Cada vídeo leva de 8 a 12 minutos; dá para rodar 3 processos ao mesmo tempo.
+5. Para conferir o layout sem os arquivos do Magnific, use `TESTE=1 node marketing/criativos/render.js a`. Ele usa marcadores e sons de teste e salva em `work/`.
 
 **Onde mexer:**
-- **textos, tempos, cenas e stickers:** objeto `S` em `criativo.html`;
-- **tempos das palavras:** `src/falas.js`;
-- **sons:** `src/sons.json`;
-- **telas do app:** gravadas do app em modo demonstração, em `src/app/*.mp4`.
+- **textos, tempos, cenas, celular e motion graphics:** `src/roteiros.js` (um objeto por vídeo; `criativo.html` é só o motor);
+- **tempos das palavras:** `src/falas-brutas.json` (tempos da IA) → `prep_voz.py` → `src/falas.js`;
+- **sons:** `src/sons.json` (trilha, volume e efeitos; os toques no celular entram sozinhos);
+- **toques na tela:** `src/toques.js` (gravados junto com as telas);
+- **telas do app:** gravadas do app em modo demonstração, em `src/app/*.mp4`;
+- **catálogo:** a lista `V` em `index.html`.
+
+## 7. Lote 2 · 10 criativos por esporte (D1 a D10)
+
+**O pedido:** mais 10 vídeos, alguns sem desenho (só o app funcionando e gráficos animados), um ângulo próprio para cada esporte, perguntas que o jogador não sabe responder, e o app lançando pontos ao vivo, encerrando, publicando e mostrando as estatísticas.
+
+**O que a pesquisa de gancho diz** (blogs de ferramentas e agências; os números são indicativos, não estudos):
+- **Taxa de gancho** = visualizações de 3 s ÷ impressões. Referência de 15% a 35%. É a 1ª métrica do teste. [kickbite.io](https://www.kickbite.io/en/blog/hook-rate)
+- **Laço aberto:** o gancho que mais prende promete uma resposta que a pessoa ainda não tem. Por isso quase todos abrem com uma pergunta sobre o próprio jogo dela ("Quantas vezes você já ganhou daquele seu amigo?"). [tlinky.com](https://tlinky.com/3-second-hook/)
+- **Três camadas juntas:** imagem, fala e texto na tela dizem a mesma coisa nos 3 primeiros segundos. [tlinky.com](https://tlinky.com/3-second-hook/)
+- **Curiosidade, tensão, surpresa ou relevância** são os quatro motores das fórmulas de gancho; a afirmação contrária ("quem vence os pontos decisivos vence o jogo") gera tensão. [sideshift.app](https://sideshift.app/blog/ugc-hook-formulas), [go-viral.app](https://www.go-viral.app/blog/hook-first-3-seconds/), [eliro.pro](https://eliro.pro/blog/short-form-video-hooks-script-guide-2026)
+- **Uma campanha por modalidade:** o Strava separa campanhas por atividade (corrida, bike, natação), e os anúncios dele têm cara de vídeo gravado pelo próprio usuário, com cortes rápidos. [Apple Ads · Strava](https://ads.apple.com/app-store/success-stories/strava), [motionapp.com](https://motionapp.com/library/strava)
+- **Mercado:** padel com mais de 600 mil praticantes no Brasil (Cobrapa) e beach tennis com cerca de 1,1 milhão (CBT); os números variam conforme a fonte. [gazetasp.com.br](https://www.gazetasp.com.br/esportes/mais-de-600-mil-praticantes-padel-dispara-no-brasil-e-e-o-esporte-que/), [lance.com.br](https://www.lance.com.br/tenis/modalidades-esportivas-como-beach-tennis-e-o-futevolei-arrastam-adeptos-e-abrem-espacos-para-novos-mercados-no-brasil.html)
+
+**Como ficou cada esporte:**
+| Vídeo | Esporte | Tipo | Gancho (0–3 s) | Por que nesse esporte |
+|---|---|---|---|---|
+| **D1** Ficou fácil marcar o placar | Beach | App ao vivo | "Ficou fácil demais marcar o placar do seu beach." | lança pontos, encerra, replay e post: mostra o app inteiro |
+| **D2** Quantas vezes você ganhou daquele amigo? | Todos | Motion de dados | a pergunta + "Sem chutar" | rivalidade entre amigos existe em todos |
+| **D3** O parceiro que mais te deu vitórias | Beach (e padel) | Motion de dados | "Quem foi o parceiro de dupla que mais te deu vitórias?" | os dois são jogados em dupla |
+| **D4** O que você mais erra no padel? | Padel | Motion de dados | "Na rede? Pra fora? No saque?" | a parede e a rede decidem o padel |
+| **D5** Ganha quem vence os pontos decisivos | Padel | Motion de dados | afirmação + "E você?" | ponto de ouro e break points |
+| **D6** Faz aula e não evolui no jogo? | Tênis | Ilustrado + app | "Você faz aula particular… mas não consegue evoluir?" | tênis é o esporte da aula particular |
+| **D7** Qual foi a sua maior virada? | Tênis | Motion de dados | "Qual foi a maior virada que você já deu no tênis?" | jogo longo, sets, viradas de 19 pontos |
+| **D8** Treina, joga e perde sem saber por quê | Beach | Ilustrado + app | "Você treina a semana toda… chega no jogo e perde." | muita gente treina com professor no beach |
+| **D9** Ô, petequeiro! | Peteca | Ilustrado + app | chamado direto + "pontos de saque esse mês?" | nicho com identidade forte e pouco anúncio |
+| **D10** Seu campeonato em nível profissional | Todos (organizador) | Ilustrado + app | "Organiza torneio de beach, padel ou peteca?" | um organizador traz dezenas de jogadores |
+
+**Números na tela:** todos vêm de partidas reais do modo demonstração do app (por exemplo, Você × Brenda 6V 1D, Mari Teles 67%, padel com 11 erros na rede e 9 pra fora, virada 2-6 6-4 6-4 depois de 19 pontos atrás).
+
+**O que mudou no motor (`criativo.html`):**
+- os roteiros saíram para `src/roteiros.js`, e o motor ganhou motion graphics: palavra a palavra grande (`kin`), pílulas, carimbos, contadores, barras, medidor e gráfico de linha, sobre fundo animado;
+- o celular mostra o toque do dedo onde o ponto foi lançado (círculo + som de toque), com os toques gravados junto com a tela;
+- o texto grande encolhe sozinho para caber em 1000 px;
+- a narração passa por `prep_voz.py`: pausas acima de 0,3 s ficam curtas, o fim de palavra arrastado é cortado e os tempos das palavras são refeitos. O vídeo fica 10% a 20% mais curto sem acelerar a voz.
+
+**Antes de subir:** ouça cada um com fone. A voz da IA pode errar a pronúncia de um nome ou número. No roteiro da voz, o nome está escrito "Ultra Plei" para sair certo em português.
+

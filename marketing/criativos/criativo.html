@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1080">
-<title>ULTRA PLAY · criativos de teste</title>
-<!-- Anúncios 1080×1920 para tráfego pago. criativo.html?c=a|b|c ; cada quadro é desenhado por await R(t).
+<title>ULTRA PLAY · criativos</title>
+<!-- Anúncios 1080×1920 para tráfego pago: criativo.html?c=<id> (ids em src/roteiros.js). Cada quadro é desenhado por await R(t).
      Imagens, clipes, narração, trilha e efeitos: Magnific (src/). Telas do app: gravadas do próprio app (src/app/). Ver README.md -->
 <style>
 @font-face { font-family: "Archivo Condensed"; src: url("../../fonts/archivo-condensed-latin.woff2") format("woff2"); font-weight: 600 900; }
 @font-face { font-family: "Bricolage Grotesque"; src: url("../../fonts/bricolage-grotesque-latin.woff2") format("woff2"); font-weight: 400 800; }
-:root { --bg: #060708; --lime: #AFFB48; --orange: #FF5A1F; --ink: #101500; --fg: #F4F6F2; }
+:root { --bg: #060708; --lime: #AFFB48; --orange: #FF5A1F; --ink: #101500; --fg: #F4F6F2; --acc: #AFFB48; }
 * { box-sizing: border-box; margin: 0; }
 html, body { width: 1080px; height: 1920px; background: var(--bg); overflow: hidden; }
 body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--fg); -webkit-font-smoothing: antialiased; }
@@ -17,25 +17,75 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
 .layer { position: absolute; inset: 0; }
 #bg { overflow: hidden; }
 #bgimg { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; transform-origin: 50% 50%; will-change: transform, filter; }
+/* fundo animado (sem desenho): gradiente, quadra em perspectiva, brilhos e partículas */
+#mbg { opacity: 0; background: radial-gradient(1200px 900px at 50% 30%, #12161a 0%, #07090a 60%, #040505 100%); overflow: hidden; }
+#mbg .orb { position: absolute; width: 900px; height: 900px; border-radius: 50%; filter: blur(140px); opacity: .32; will-change: transform; }
+#mbg .o1 { background: var(--acc); left: -300px; top: 80px; } #mbg .o2 { background: #FF5A1F; right: -360px; bottom: 60px; opacity: .22; }
+#mbg svg { position: absolute; left: -10%; width: 120%; bottom: -6%; height: 70%; opacity: .5; will-change: transform; }
+#mbg svg path { fill: none; stroke: rgba(255,255,255,.09); stroke-width: 4; }
+#mbg .dots { position: absolute; inset: -200px 0; background-image: radial-gradient(rgba(255,255,255,.10) 2px, transparent 2.5px); background-size: 46px 46px; opacity: .5; will-change: transform; }
 #shade { background: linear-gradient(180deg, rgba(6,7,8,.55) 0%, rgba(6,7,8,0) 22%, rgba(6,7,8,0) 60%, rgba(6,7,8,.7) 100%); }
 #dim { background: #060708; opacity: 0; }
 /* celular com a tela real do app */
 #phone { position: absolute; left: 50%; top: 520px; width: 580px; height: 1230px; margin-left: -290px; border-radius: 78px; background: #0b0c0d; padding: 15px;
-  box-shadow: 0 0 0 4px #2a2d30, 0 40px 120px rgba(0,0,0,.65), 0 0 90px rgba(175,251,72,.18); will-change: transform; }
+  box-shadow: 0 0 0 4px #2a2d30, 0 40px 120px rgba(0,0,0,.65), 0 0 90px rgba(175,251,72,.18); will-change: transform; opacity: 0; }
 #screen { width: 550px; height: 1200px; border-radius: 64px; overflow: hidden; position: relative; background: #000; }
-#scr { width: 550px; height: 1190px; display: block; transform-origin: 50% 0; }
+#scrw { position: absolute; left: 0; top: 0; width: 550px; height: 1190px; transform-origin: 50% 0; will-change: transform; }
+#scr { width: 550px; height: 1190px; display: block; }
+#taps { position: absolute; inset: 0; pointer-events: none; }
+#taps i { position: absolute; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; border: 8px solid rgba(255,255,255,.9); background: rgba(255,255,255,.18); }
 #island { position: absolute; left: 50%; top: 14px; width: 150px; height: 42px; margin-left: -75px; border-radius: 22px; background: #000; z-index: 2; }
-/* stickers e balões */
+/* stickers, balões, selos */
 .stk { position: absolute; will-change: transform; filter: drop-shadow(0 14px 22px rgba(0,0,0,.45)); transform-origin: 50% 70%; }
 .bub { position: absolute; padding: 18px 40px 22px; border-radius: 60px; background: #fff; border: 8px solid #0b0c0d; font: 900 120px/0.95 "Archivo Condensed", sans-serif;
-  text-transform: uppercase; color: #0b0c0d; white-space: nowrap; will-change: transform; box-shadow: 10px 12px 0 #0b0c0d; }
+  text-transform: uppercase; color: #0b0c0d; white-space: nowrap; will-change: transform; box-shadow: 10px 12px 0 #0b0c0d; transform-origin: 50% 100%; }
 .bub::after { content: ""; position: absolute; bottom: -46px; width: 0; height: 0; border-style: solid; }
 .bub.tl::after { left: 52px; border-width: 46px 12px 0 46px; border-color: #0b0c0d transparent transparent transparent; }
 .bub.tr::after { right: 52px; border-width: 46px 46px 0 12px; border-color: #0b0c0d transparent transparent transparent; }
 .bub.lime { background: var(--lime); } .bub.orange { background: var(--orange); color: #fff; }
 .pill { position: absolute; padding: 14px 34px 18px; border-radius: 26px; font: 900 96px/1 "Archivo Condensed", sans-serif; text-transform: uppercase; letter-spacing: .01em;
-  border: 7px solid #0b0c0d; box-shadow: 9px 10px 0 #0b0c0d; white-space: nowrap; will-change: transform; }
+  border: 7px solid #0b0c0d; box-shadow: 9px 10px 0 #0b0c0d; white-space: nowrap; will-change: transform; transform-origin: 0 50%; }
 .pill.lime { background: var(--lime); color: var(--ink); } .pill.orange { background: var(--orange); color: #fff; } .pill.white { background: #fff; color: #0b0c0d; }
+.stamp { position: absolute; left: 50%; top: 760px; width: 920px; margin-left: -460px; padding: 26px 0 34px; text-align: center; border: 14px solid var(--lime); border-radius: 28px;
+  font: 900 150px/0.9 "Archivo Condensed", sans-serif; text-transform: uppercase; color: var(--lime); background: rgba(6,7,8,.86); will-change: transform; }
+.card { position: absolute; left: 70px; right: 70px; top: 300px; height: 940px; border-radius: 60px; background: #0d0f10; border: 6px solid rgba(175,251,72,.5);
+  box-shadow: 0 30px 120px rgba(0,0,0,.6), 0 0 120px rgba(175,251,72,.16); text-align: center; padding-top: 420px; will-change: transform; }
+/* texto que bate na tela */
+.kin { position: absolute; left: 40px; right: 40px; text-align: center; }
+.kin .kl { display: block; white-space: nowrap; font: 900 150px/0.92 "Archivo Condensed", sans-serif; text-transform: uppercase; letter-spacing: -.005em; color: #fff;
+  -webkit-text-stroke: 16px #060708; paint-order: stroke fill; text-shadow: 0 14px 40px rgba(0,0,0,.55); will-change: transform; transform-origin: 50% 70%; }
+.kin .kl b { color: var(--lime); font-weight: 900; }
+.kin .kl.sm { font-size: 76px; -webkit-text-stroke: 10px #060708; color: #cfd5d1; margin-top: 14px; letter-spacing: .04em; }
+/* painéis de dados (vidro escuro) */
+.panel { position: absolute; left: 70px; right: 70px; border-radius: 48px; background: rgba(14,16,18,.86); border: 3px solid rgba(255,255,255,.1);
+  box-shadow: 0 30px 90px rgba(0,0,0,.55); padding: 40px 50px 46px; will-change: transform; backdrop-filter: blur(6px); }
+.panel h4 { font: 800 44px/1.1 "Bricolage Grotesque", sans-serif; color: #c9cfcb; margin-bottom: 26px; letter-spacing: -.01em; }
+.bar { display: grid; grid-template-columns: 280px 1fr 120px; align-items: center; gap: 24px; margin: 18px 0; }
+.bar span { font: 800 50px/1 "Bricolage Grotesque", sans-serif; }
+.bar i { display: block; height: 54px; border-radius: 27px; background: rgba(255,255,255,.08); overflow: hidden; }
+.bar i u { display: block; height: 100%; width: 0; border-radius: 27px; }
+.bar b { font: 900 92px/1 "Archivo Condensed", sans-serif; text-align: right; }
+.cnt { position: absolute; left: 40px; right: 40px; text-align: center; will-change: transform; }
+.cnt .ct { font: 800 54px/1.1 "Bricolage Grotesque", sans-serif; color: #e8ece9; margin-bottom: 8px; -webkit-text-stroke: 8px #060708; paint-order: stroke fill; }
+.cnt .cv { display: flex; justify-content: center; align-items: center; gap: 46px; }
+.cnt .cn { display: grid; justify-items: center; }
+.cnt .cn b { font: 900 300px/0.86 "Archivo Condensed", sans-serif; color: var(--lime); -webkit-text-stroke: 16px #060708; paint-order: stroke fill; text-shadow: 0 0 80px rgba(175,251,72,.35); }
+.cnt .cn.o b { color: var(--orange); text-shadow: 0 0 80px rgba(255,90,31,.35); }
+.cnt .cn small { font: 900 56px/1 "Archivo Condensed", sans-serif; text-transform: uppercase; color: #fff; -webkit-text-stroke: 8px #060708; paint-order: stroke fill; letter-spacing: .03em; }
+.cnt .x { font: 900 150px/1 "Archivo Condensed", sans-serif; color: #fff; -webkit-text-stroke: 12px #060708; paint-order: stroke fill; }
+.meters { display: flex; justify-content: space-around; }
+.mt { display: grid; justify-items: center; gap: 12px; }
+.mt svg { width: 300px; height: 300px; }
+.mt circle { fill: none; stroke-width: 30; }
+.mt .bk { stroke: rgba(255,255,255,.1); }
+.mt .fr { stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.mt .vl { font: 900 110px/1 "Archivo Condensed", sans-serif; fill: #fff; text-anchor: middle; }
+.mt span { font: 800 46px/1 "Bricolage Grotesque", sans-serif; }
+.lineP svg { width: 100%; height: 520px; overflow: visible; }
+.lineP .zero { stroke: rgba(255,255,255,.35); stroke-width: 4; stroke-dasharray: 12 14; }
+.lineP .ln { fill: none; stroke: #fff; stroke-width: 12; stroke-linejoin: round; stroke-linecap: round; }
+.lineP .mk { font: 900 84px/1 "Archivo Condensed", sans-serif; text-transform: uppercase; }
+.lineP .tags { display: flex; justify-content: space-between; font: 800 40px/1 "Bricolage Grotesque", sans-serif; margin-top: 14px; }
 /* legenda palavra por palavra */
 #cap { position: absolute; left: 60px; right: 60px; top: 1040px; text-align: center; }
 #cap.top { top: 290px; }
@@ -43,16 +93,6 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
   -webkit-text-stroke: 14px #060708; paint-order: stroke fill; text-shadow: 0 10px 30px rgba(0,0,0,.6); will-change: transform; }
 #cap .w { display: inline-block; margin: 0 .12em; }
 #cap .w.on { color: var(--lime); }
-#cap .w.off { opacity: 0; }
-/* carimbo e cartões */
-.stamp { position: absolute; left: 50%; top: 760px; width: 900px; margin-left: -450px; padding: 26px 0 34px; text-align: center; border: 14px solid var(--lime); border-radius: 28px;
-  font: 900 150px/0.9 "Archivo Condensed", sans-serif; text-transform: uppercase; color: var(--lime); background: rgba(6,7,8,.82); will-change: transform; }
-.card { position: absolute; left: 70px; right: 70px; top: 300px; height: 940px; border-radius: 60px; background: #0d0f10; border: 6px solid rgba(175,251,72,.5);
-  box-shadow: 0 30px 120px rgba(0,0,0,.6), 0 0 120px rgba(175,251,72,.16); text-align: center; padding-top: 420px; will-change: transform; }
-.card h3 { font: 900 128px/0.92 "Archivo Condensed", sans-serif; text-transform: uppercase; color: var(--lime); }
-.card .price { font: 800 74px/1.1 "Bricolage Grotesque", sans-serif; margin-top: 26px; color: #fff; }
-.card .price small { font-size: 46px; color: #A3A9A6; font-weight: 600; }
-.card .lim { display: inline-block; margin-top: 34px; padding: 14px 30px; border-radius: 18px; background: var(--orange); color: #fff; font: 900 58px/1 "Archivo Condensed", sans-serif; text-transform: uppercase; }
 /* tela final */
 #end { background: var(--lime); color: var(--ink); text-align: center; opacity: 0; }
 #end .logo { position: absolute; left: 50%; top: 300px; width: 640px; height: 162px; margin-left: -320px; color: var(--ink); }
@@ -64,7 +104,6 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
 #end .btn b { color: var(--lime); }
 #end .sports { position: absolute; left: 0; right: 0; top: 1400px; font: 600 36px/1.3 "Bricolage Grotesque", sans-serif; opacity: .75; }
 #flash { background: #fff; opacity: 0; }
-.ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 </style>
 </head>
 <body>
@@ -73,9 +112,12 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
 </defs></svg>
 <div id="stage">
   <div class="layer" id="bg"><img id="bgimg" alt=""></div>
+  <div class="layer" id="mbg"><div class="dots"></div><div class="orb o1"></div><div class="orb o2"></div>
+    <svg viewBox="0 0 1200 700" preserveAspectRatio="none"><path d="M330 20 L870 20 L1180 690 L20 690 Z"/><path d="M600 20 L600 690"/><path d="M250 190 L950 190"/><path d="M110 500 L1090 500"/><path d="M415 20 L250 690"/><path d="M785 20 L950 690"/></svg>
+  </div>
   <div class="layer" id="shade"></div>
   <div class="layer" id="dim"></div>
-  <div id="phone"><div id="screen"><div id="island"></div><img id="scr" alt=""></div></div>
+  <div id="phone"><div id="screen"><div id="island"></div><div id="scrw"><img id="scr" alt=""><div id="taps"></div></div></div></div>
   <div class="layer" id="fx"></div>
   <div id="cap"></div>
   <div class="layer" id="end">
@@ -87,151 +129,196 @@ body { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: var(--f
   <div class="layer" id="flash"></div>
 </div>
 <script src="src/falas.js"></script>
+<script src="src/roteiros.js"></script>
+<script src="src/toques.js"></script>
 <script>
 // ---------- utilitários ----------
 const $ = id => document.getElementById(id);
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
-const p = (t, a, b) => clamp((t - a) / (b - a));                  // progresso de a até b
-const eo = x => 1 - Math.pow(1 - x, 3);                             // ease-out
+const p = (t, a, b) => clamp((t - a) / (b - a));
+const eo = x => 1 - Math.pow(1 - x, 3);
 const eio = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 const back = x => { const c = 1.9; return x <= 0 ? 0 : x >= 1 ? 1 : 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 const lerp = (a, b, x) => a + (b - a) * x;
 const pad = n => String(n).padStart(4, '0');
+const COL = { lime: '#AFFB48', orange: '#FF5A1F', white: '#F4F6F2' };
 const C = new URLSearchParams(location.search).get('c') || 'a';
-const F = window.FALAS[C], K = F.K;
-const T = x => x / K;                                               // tempo da fala original -> tempo do vídeo
+const TEST = new URLSearchParams(location.search).has('teste');
+const F = window.FALAS[C], S = window.ROTEIROS[C];
+const K = F.legado ? F.K : 1;
+const T = x => x / K;                                            // tempo da narração -> tempo do vídeo
+if (S.accent === 'orange') document.documentElement.style.setProperty('--acc', COL.orange);
 
-// ---------- roteiro de cada criativo (tempos na fala original; T() converte) ----------
-// bg: imagem parada (img) com zoom (kb: [escala inicial, final, x0, x1, y0, y1] em px) ou clipe (seq + início + velocidade)
-// phone: tela do app (seq, início no clipe em s, zoom do topo)
-const S = {
-  a: {
-    dur: 19.0,
-    scenes: [
-      { t0: 0, t1: 1.95, img: 'src/img/a1-briga.png', kb: [1.06, 1.12, 0, 0, 10, 30], shake: .45 },
-      { t0: 1.95, t1: 3.3, seq: 'work/clips/a', from: 2.65, speed: 1, n: 151, kb: [1.08, 1.12, 0, 0, 20, 30] },
-      { t0: 3.3, t1: 4.68, img: 'src/img/a1-briga.png', kb: [1.12, 1.12, 0, 0, 30, 30], gray: 1, shake: 1 },
-      { t0: 4.68, t1: 7.45, img: 'src/img/a1-briga.png', kb: [1.16, 1.0, 0, 0, 20, -10], shake: .35 },
-      { t0: 7.45, t1: 15.2, img: 'src/img/a1-briga.png', kb: [1.25, 1.35, 0, 0, 0, 0], blur: 26, dim: .55 }
-    ],
-    phone: [ { t0: 7.45, t1: 11.6, seq: 'work/app/placar', from: 0.35, n: 240 }, { t0: 11.6, t1: 15.2, seq: 'work/app/momento', from: 1.0, n: 180 } ],
-    fx: [
-      { k: 'bub', t0: 0.36, t1: 3.3, text: '5-4!', cls: 'lime tl', x: 80, y: 360, rot: -8 },
-      { k: 'bub', t0: 2.2, t1: 3.3, text: '4-5!', cls: 'orange tr', x: 560, y: 520, rot: 7 },
-      { k: 'stk', t0: 3.3, t1: 4.75, src: 'src/img/a2-confuso.png', x: 190, y: 560, w: 700, rot: -4 },
-      { k: 'stk', t0: 12.85, t1: 15.2, src: 'src/img/bola.png', x: 800, y: 470, w: 250, rot: 12 }
-    ],
-    chunks: [[0, 3], [4, 7], [8, 10], [11, 13], [14, 17], [18, 19], [20, 24], [25, 27], [28, 29], [30, 31]],
-    endAt: 15.2, end: { h: 'Jogue no<br>modo Ultra.', badge: 'Grátis · sem cartão', sub: 'Placar fácil e cada ponto registrado,<br>com horário.', btn: 'Baixe <b>grátis</b> →' }
-  },
-  b: {
-    dur: 21.8,
-    scenes: [
-      { t0: 0, t1: 4.1, seq: 'work/clips/b', from: 0, speed: 0.8, n: 150, kb: [1.05, 1.12, 0, 0, 0, 20] },
-      { t0: 4.1, t1: 7.5, img: 'src/img/b2-memoria.png', kb: [1.0, 1.28, 0, 0, 0, 180], fade: [5.6, 7.4] },
-      { t0: 7.5, t1: 17.5, img: 'src/img/b1-smash.png', kb: [1.3, 1.4, 0, 0, 0, 0], blur: 26, dim: .55 }
-    ],
-    phone: [ { t0: 7.5, t1: 15.7, seq: 'work/app/stats', from: 0.5, n: 180, hold: 5.9 }, { t0: 15.7, t1: 17.5, seq: 'work/app/conquista', from: 1.5, n: 135 } ],
-    fx: [
-      { k: 'pill', t0: 3.08, t1: 4.1, text: 'Aces: ??', cls: 'white', x: 300, y: 330, rot: -5, spin: 1 },
-      { k: 'pill', t0: 11.56, t1: 14.0, text: 'Aces', cls: 'lime', x: 40, y: 560, rot: -7 },
-      { k: 'pill', t0: 12.39, t1: 14.0, text: 'Winners', cls: 'white', x: 560, y: 760, rot: 6 },
-      { k: 'pill', t0: 13.23, t1: 14.0, text: 'Erros', cls: 'orange', x: 90, y: 960, rot: -4 },
-      { k: 'stk', t0: 16.6, t1: 17.5, src: 'src/img/b3-trofeu.png', x: 690, y: 600, w: 360, rot: 10 }
-    ],
-    chunks: [[0, 3], [4, 9], [10, 13], [14, 18], [19, 21], [22, 24], [25, 27], [31, 36], [37, 40]],
-    endAt: 17.5, end: { size: 132, h: 'Seus números<br>de atleta.', badge: 'Pro 14 dias grátis · sem cartão', sub: 'Aces, winners, erros e a sua evolução,<br>partida a partida.', btn: 'Baixe <b>grátis</b> →' }
-  },
-  c: {
-    dur: 17.4,
-    scenes: [
-      { t0: 0, t1: 1.85, seq: 'work/clips/c', from: 0, speed: 0.9, n: 150, kb: [1.03, 1.08, 0, 0, 0, 10] },
-      { t0: 1.85, t1: 4.3, img: 'src/img/c1-turma.png', kb: [1.08, 1.2, 0, 0, 0, 40] },
-      { t0: 4.3, t1: 6.2, img: 'src/img/c2-podio.png', kb: [1.0, 1.14, 0, 0, 0, 60] },
-      { t0: 6.2, t1: 10.0, img: 'src/img/c2-podio.png', kb: [1.25, 1.35, 0, 0, 0, 0], blur: 26, dim: .55 },
-      { t0: 10.0, t1: 13.95, img: 'src/img/c2-podio.png', kb: [1.35, 1.45, 0, 0, 0, 0], blur: 30, dim: .7 }
-    ],
-    phone: [ { t0: 6.2, t1: 7.3, seq: 'work/app/grupo', from: 2.6, n: 150 }, { t0: 7.3, t1: 8.45, seq: 'work/app/replay', from: 1.6, n: 210 }, { t0: 8.45, t1: 10.0, seq: 'work/app/feed', from: 1.2, n: 120 } ],
-    fx: [
-      { k: 'bub', t0: 0.25, t1: 1.85, text: 'Eu!', cls: 'lime tl', x: 40, y: 330, rot: -9, s: .62 },
-      { k: 'bub', t0: 0.55, t1: 1.85, text: 'Eu!', cls: 'orange tl', x: 290, y: 250, rot: 6, s: .62 },
-      { k: 'bub', t0: 0.85, t1: 1.85, text: 'Eu!', cls: 'lime tr', x: 560, y: 320, rot: -5, s: .62 },
-      { k: 'bub', t0: 1.15, t1: 1.85, text: 'Eu!', cls: 'orange tr', x: 790, y: 410, rot: 8, s: .62 },
-      { k: 'stamp', t0: 5.29, t1: 6.2, text: 'Agora<br>tem prova' },
-      { k: 'card', t0: 10.0, t1: 13.95, html: '<h3>Preço de<br>Fundador</h3><div class="price">R$ 119,90<small>/ano · travado</small></div><div class="lim">Só para os 1.000 primeiros</div>' },
-      { k: 'stk', t0: 10.25, t1: 13.95, src: 'src/img/c3-medalha.png', x: 360, y: 320, w: 360, rot: -6 }
-    ],
-    chunks: [[0, 3], [4, 6], [7, 12], [16, 18], [19, 21], [22, 26]],
-    endAt: 13.95, end: { h: 'Chama a<br>turma.', badge: 'Grátis para começar', sub: 'Ranking do mês, replay dos lances<br>e a resenha do grupo.', btn: 'Baixe <b>grátis</b> →' }
-  }
-}[C];
-
-// ---------- montagem dos elementos fixos ----------
-const TEST = new URLSearchParams(location.search).has('teste');   // marcadores no lugar dos arquivos do Magnific, só para conferir o layout
+// ---------- elementos ----------
+const kinHTML = s => s.replace(/\[(.+?)\]/g, '<b>$1</b>');
 const fxEls = S.fx.map(f => {
   let e;
-  if (f.k === 'stk') { e = document.createElement('img'); e.className = 'stk'; e.src = TEST ? f.src.replace('src/img/', 'work/marcador/') : f.src; e.style.width = f.w + 'px'; }
-  else { e = document.createElement('div'); e.className = f.k === 'bub' ? 'bub ' + f.cls : f.k === 'pill' ? 'pill ' + f.cls : f.k; e.innerHTML = f.html || f.text; }
+  if (f.k === 'stk') { e = document.createElement('img'); e.className = 'stk'; e.src = f.src; e.style.width = f.w + 'px'; }
+  else {
+    e = document.createElement('div');
+    if (f.k === 'bub') { e.className = 'bub ' + f.cls; e.innerHTML = f.text; }
+    else if (f.k === 'pill') { e.className = 'pill ' + f.cls; e.innerHTML = f.text; }
+    else if (f.k === 'stamp') { e.className = 'stamp'; e.innerHTML = f.text; if (f.y) e.style.top = f.y + 'px'; }
+    else if (f.k === 'card') { e.className = 'card'; e.innerHTML = f.html; }
+    else if (f.k === 'kin') { e.className = 'kin'; e.style.top = (f.y || 300) + 'px'; e.innerHTML = f.lines.map((l, i) => '<span class="kl' + (/·/.test(l) ? ' sm' : '') + '">' + kinHTML(l) + '</span>').join(''); }
+    else if (f.k === 'count') {
+      e.className = 'cnt'; e.style.top = f.y + 'px';
+      const n = (v, l, o) => '<div class="cn' + (o ? ' o' : '') + '"><b data-v="' + v + '">' + v + (f.suf || '') + '</b>' + (l ? '<small>' + l + '</small>' : '') + '</div>';
+      e.innerHTML = (f.title ? '<div class="ct">' + f.title + '</div>' : '') + '<div class="cv">' + n(f.a, f.la) + (f.b !== undefined ? '<span class="x">×</span>' + n(f.b, f.lb, 1) : '') + '</div>';
+    }
+    else if (f.k === 'bars') {
+      e.className = 'panel'; e.style.top = f.y + 'px';
+      e.innerHTML = '<h4>' + f.title + '</h4>' + f.items.map(([l, v, c]) => '<div class="bar"><span>' + l + '</span><i><u style="background:' + COL[c] + '"></u></i><b style="color:' + COL[c] + '">0</b></div>').join('');
+    }
+    else if (f.k === 'meter') {
+      e.className = 'panel'; e.style.top = f.y + 'px';
+      const R = 120, L = 2 * Math.PI * R;
+      e.innerHTML = (f.title ? '<h4>' + f.title + '</h4>' : '') + '<div class="meters">' + f.items.map(([l, a, b, c]) => '<div class="mt"><svg viewBox="0 0 300 300"><circle class="bk" cx="150" cy="150" r="' + R + '"/><circle class="fr" cx="150" cy="150" r="' + R + '" style="stroke:' + COL[c] + ';stroke-dasharray:' + L + ';stroke-dashoffset:' + L + '"/><text class="vl" x="150" y="186">' + a + '/' + b + '</text></svg><span style="color:' + COL[c] + '">' + l + '</span></div>').join('') + '</div>';
+      e.dataset.L = L;
+    }
+    else if (f.k === 'line') {
+      e.className = 'panel lineP'; e.style.top = f.y + 'px';
+      const W = 840, H = 520, pts = f.pts, mn = Math.min(...pts), mx = Math.max(...pts), sy = v => 30 + (mx - v) / (mx - mn) * (H - 60), sx = i => i / (pts.length - 1) * W;
+      const d = pts.map((v, i) => (i ? 'L' : 'M') + sx(i).toFixed(1) + ' ' + sy(v).toFixed(1)).join(' ');
+      const z = sy(0).toFixed(1);
+      e.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '"><defs><clipPath id="clipL"><rect id="clipR" x="0" y="-100" width="0" height="' + (H + 200) + '"/></clipPath>' +
+        '<clipPath id="above"><rect x="0" y="-100" width="' + W + '" height="' + (+z + 100) + '"/></clipPath><clipPath id="below"><rect x="0" y="' + z + '" width="' + W + '" height="' + H + '"/></clipPath></defs>' +
+        '<g clip-path="url(#clipL)"><path d="' + d + ' L' + W + ' ' + z + ' L0 ' + z + ' Z" fill="rgba(175,251,72,.38)" clip-path="url(#above)"/><path d="' + d + ' L' + W + ' ' + z + ' L0 ' + z + ' Z" fill="rgba(255,90,31,.38)" clip-path="url(#below)"/>' +
+        '<path class="ln" d="' + d + '"/></g><line class="zero" x1="0" x2="' + W + '" y1="' + z + '" y2="' + z + '"/>' +
+        '<g id="mkG" opacity="0" transform="translate(' + sx(f.mark) + ' ' + sy(pts[f.mark]) + ')"><circle r="26" fill="#AFFB48" stroke="#060708" stroke-width="8"/><text class="mk" x="0" y="-60" text-anchor="middle" fill="#AFFB48" stroke="#060708" stroke-width="12" paint-order="stroke">' + f.label + '</text></g></svg>' +
+        '<div class="tags"><span style="color:#AFFB48">▲ você na frente</span><span style="color:#FF5A1F">▼ adversário na frente</span></div>';
+    }
+  }
   if (f.x != null) { e.style.left = f.x + 'px'; e.style.top = f.y + 'px'; }
   e.style.opacity = 0; $('fx').appendChild(e); return e;
 });
-$('endH').innerHTML = S.end.h; if (S.end.size) $('endH').style.fontSize = S.end.size + 'px'; $('endBadge').textContent = S.end.badge; $('endSub').innerHTML = S.end.sub; $('endBtn').innerHTML = S.end.btn;
+$('endH').innerHTML = S.end.h; $('endBadge').textContent = S.end.badge; $('endSub').innerHTML = S.end.sub; $('endBtn').innerHTML = S.end.btn;
+if (S.end.size) $('endH').style.fontSize = S.end.size + 'px';
 const W = F.words.map(w => ({ txt: w[0], a: T(w[1]), b: T(w[2]) }));
 const CH = S.chunks.map(([i, j]) => ({ i, j, a: W[i].a, words: W.slice(i, j + 1) }));
-CH.forEach((c, k) => { c.b = k + 1 < CH.length ? Math.min(CH[k + 1].a, c.words[c.words.length - 1].b + 0.45) : c.words[c.words.length - 1].b + 0.45; });
+CH.forEach((c, k) => { const last = c.words[c.words.length - 1].b + 0.45; c.b = k + 1 < CH.length ? Math.min(CH[k + 1].a, last) : last; });
 
-const loadImg = (el, src) => { if (TEST) src = src.replace('src/img/', 'work/marcador/').replace(/work\/clips\/[abc]\/f\d+\.jpg/, 'work/marcador/clipe.png'); if (el.dataset.src === src) return Promise.resolve(); el.dataset.src = src; el.src = src; return el.decode().catch(() => {}); };
+// toques gravados (para o círculo do dedo e o som de toque)
+const TAPS = window.TOQUES || {};
+window.AUTO_CUES = [];
+S.phone.forEach(q => { const sp = q.speed || 1; (TAPS[q.taps] || []).forEach(([tt]) => { const vt = T(q.t0) + (tt - q.from) / sp; if (vt >= T(q.t0) && vt < T(q.t1)) window.AUTO_CUES.push(['toque', +vt.toFixed(3), 0.55]); }); });
+
+const loadImg = (el, src) => {
+  if (TEST) src = src.replace('src/img/', 'work/marcador/').replace(/work\/clips\/[a-z0-9]+\/f\d+\.jpg/, 'work/marcador/clipe.png');
+  if (el.dataset.src === src) return Promise.resolve(); el.dataset.src = src; el.src = src; return el.decode().catch(() => {});
+};
 const seqSrc = (sq, local, n) => sq + '/f' + pad(clamp(Math.round(local * 30), 0, n - 1)) + '.jpg';
+const TOPFX = f => ['kin', 'bars', 'meter', 'count', 'line', 'stamp', 'card'].includes(f.k) || (f.k === 'pill' && f.y < 520);
 
 // ---------- um quadro ----------
+let fitted = false;
+function fit() {   // cada linha do texto grande cabe na largura (sem quebrar em linhas demais)
+  document.querySelectorAll('.kin .kl, .pill').forEach(el => { const max = el.classList.contains('pill') ? 1000 : 1000; let fs = parseFloat(getComputedStyle(el).fontSize), g = 0;
+    while (el.scrollWidth > max && fs > 40 && g++ < 60) { fs -= 4; el.style.fontSize = fs + 'px'; } });
+  fitted = true;
+}
 window.R = async function (t) {
+  if (!fitted) fit();
   const jobs = [];
   // fundo
   const sc = S.scenes.find(s => t >= T(s.t0) && t < T(s.t1)) || S.scenes[S.scenes.length - 1];
-  const a0 = T(sc.t0), a1 = T(sc.t1), x = eio(p(t, a0, a1)), bg = $('bgimg');
-  jobs.push(loadImg(bg, sc.seq ? seqSrc(sc.seq, sc.from + (t - a0) * sc.speed, sc.n) : sc.img));
-  const [s0, s1, x0, x1, y0, y1] = sc.kb; let sh = 0, shy = 0;
-  if (sc.shake) { const k = sc.shake * Math.max(0, 1 - (t - a0) * 2.2); sh = Math.sin(t * 90) * 22 * k; shy = Math.cos(t * 77) * 14 * k; }
-  bg.style.transform = `translate(${lerp(x0, x1, x) + sh}px, ${lerp(y0, y1, x) + shy}px) scale(${lerp(s0, s1, x)})`;
-  let filt = '';
-  if (sc.blur) filt += `blur(${sc.blur}px) `;
-  if (sc.gray) filt += 'grayscale(1) contrast(1.1) ';
-  if (sc.fade) { const f = p(t, T(sc.fade[0]), T(sc.fade[1])); filt += `blur(${f * 14}px) grayscale(${f}) brightness(${1 - f * .35}) `; }
-  bg.style.filter = filt || 'none';
+  const a0 = T(sc.t0), a1 = Math.min(T(sc.t1), window.DUR), x = eio(p(t, a0, a1)), bg = $('bgimg');
+  const mb = $('mbg');
+  if (sc.mbg) {
+    mb.style.opacity = 1; bg.style.opacity = 0;
+    mb.querySelector('.o1').style.transform = `translate(${Math.sin(t * .5) * 120}px, ${Math.cos(t * .4) * 160}px)`;
+    mb.querySelector('.o2').style.transform = `translate(${Math.cos(t * .45) * 140}px, ${Math.sin(t * .35) * 120}px)`;
+    mb.querySelector('svg').style.transform = `translateY(${Math.sin(t * .6) * 18}px) scale(${1.02 + .03 * Math.sin(t * .3)})`;
+    mb.querySelector('.dots').style.transform = `translateY(${-(t * 40) % 46}px)`;
+  } else {
+    mb.style.opacity = 0; bg.style.opacity = 1;
+    jobs.push(loadImg(bg, sc.seq ? seqSrc(sc.seq, sc.from + (t - a0) * sc.speed, sc.n) : sc.img));
+    const [s0, s1, x0, x1, y0, y1] = sc.kb; let sh = 0, shy = 0;
+    const shk = sc.shake ? sc.shake * Math.max(0, 1 - (t - a0) * 2.2) : sc.shakeAt ? Math.max(0, 1 - Math.abs(t - T(sc.shakeAt)) * 3) : 0;
+    if (shk) { sh = Math.sin(t * 90) * 22 * shk; shy = Math.cos(t * 77) * 14 * shk; }
+    bg.style.transform = `translate(${lerp(x0, x1, x) + sh}px, ${lerp(y0, y1, x) + shy}px) scale(${lerp(s0, s1, x)})`;
+    let filt = '';
+    if (sc.blur) filt += `blur(${sc.blur}px) `;
+    if (sc.gray) filt += 'grayscale(1) contrast(1.1) ';
+    if (sc.fade) { const f = p(t, T(sc.fade[0]), T(sc.fade[1])); filt += `blur(${f * 14}px) grayscale(${f}) brightness(${1 - f * .35}) `; }
+    bg.style.filter = filt || 'none';
+  }
   $('dim').style.opacity = sc.dim || 0;
   // celular
   const ph = S.phone.find(q => t >= T(q.t0) - 0.001 && t < T(q.t1));
   const phEl = $('phone');
   if (ph) {
     const first = S.phone[0], last = S.phone[S.phone.length - 1];
-    const enter = back(p(t, T(first.t0), T(first.t0) + 0.5)), leave = eo(p(t, T(last.t1) - 0.3, T(last.t1)));
-    const swap = S.phone.indexOf(ph) > 0 ? back(p(t, T(ph.t0), T(ph.t0) + 0.35)) : 1;
+    const enter = first.t0 <= 0.01 ? 1 : back(p(t, T(first.t0), T(first.t0) + 0.5)), leave = eo(p(t, T(last.t1) - 0.3, T(last.t1)));
+    const swap = S.phone.indexOf(ph) > 0 && ph.seq !== S.phone[S.phone.indexOf(ph) - 1].seq ? back(p(t, T(ph.t0), T(ph.t0) + 0.35)) : 1;
     phEl.style.opacity = 1;
     phEl.style.transform = `translateY(${(1 - enter) * 1500 + leave * 1500}px) rotate(${lerp(-9, -2.5, enter) + Math.sin(t * 1.3) * .6}deg) scale(${(0.94 + 0.06 * swap) * (1 + 0.012 * Math.sin(t * 2))})`;
-    let local = ph.from + (t - T(ph.t0)); if (ph.hold) local = Math.min(local, ph.hold);
+    const sp = ph.speed || 1;
+    let local = ph.from + (t - T(ph.t0)) * sp; if (ph.hold) local = Math.min(local, ph.hold);
     jobs.push(loadImg($('scr'), seqSrc(ph.seq, local, ph.n)));
+    const z = ph.z ? lerp(ph.z[0], ph.z[1], eio(p(t, T(ph.t0), T(ph.t1)))) : 1;
+    $('scrw').style.transform = `scale(${z})`;
+    // círculo do dedo
+    const tp = $('taps'); const act = (TAPS[ph.taps] || []).filter(([tt]) => local - tt >= 0 && local - tt < 0.45);
+    tp.innerHTML = act.map(([tt, x, y]) => { const q = (local - tt) / 0.45; return '<i style="left:' + (x * 550 / 390).toFixed(0) + 'px;top:' + (y * 550 / 390).toFixed(0) + 'px;transform:scale(' + (0.5 + q * 0.9).toFixed(2) + ');opacity:' + (1 - q).toFixed(2) + '"></i>'; }).join('');
   } else phEl.style.opacity = 0;
-  $('cap').classList.toggle('top', !!ph);
-  // stickers, balões, carimbo e cartões
+  // efeitos
+  let topBusy = false;
   S.fx.forEach((f, k) => {
     const e = fxEls[k], a = T(f.t0), b = T(f.t1);
     if (t < a || t >= b) { e.style.opacity = 0; return; }
-    const pin = back(p(t, a, a + 0.32)), out = p(t, b - 0.12, b), base = f.s || 1;
+    if (TOPFX(f)) topBusy = true;
+    const pin = back(p(t, a, a + 0.32)), out = p(t, b - 0.14, b), base = f.s || 1;
     e.style.opacity = 1 - out;
-    if (f.k === 'stamp') { const z = p(t, a, a + 0.18); e.style.transform = `rotate(-6deg) scale(${lerp(2.4, 1, eo(z))})`; e.style.opacity = z * (1 - out); return; }
+    if (f.k === 'stamp') { const zz = p(t, a, a + 0.18); e.style.transform = `rotate(-6deg) scale(${lerp(2.4, 1, eo(zz))})`; e.style.opacity = zz * (1 - out); return; }
     if (f.k === 'card') { e.style.transform = `translateY(${(1 - back(p(t, a, a + 0.45))) * 1300}px)`; return; }
+    if (f.k === 'kin') {
+      [...e.children].forEach((l, i) => { const q = back(p(t, a + i * 0.17, a + i * 0.17 + 0.3)); l.style.opacity = p(t, a + i * 0.17, a + i * 0.17 + 0.08); l.style.transform = `scale(${lerp(1.8, 1, q) * (1 + out * .08)}) rotate(${(i % 2 ? 1.5 : -1.5) * (1 - q)}deg)`; });
+      return;
+    }
+    if (f.k === 'count') {
+      e.style.transform = `scale(${0.6 + 0.4 * pin})`;
+      e.querySelectorAll('.cn b').forEach(bb => { const v = bb.dataset.v; const q = p(t, a + 0.1, a + 0.8);
+        if (isNaN(+v)) bb.textContent = f.spin ? String(Math.floor((t * 23 + v.length * 7) % 10)) + (Math.floor(t * 9) % 2 ? '' : '') : v;
+        else bb.textContent = Math.round(+v * eo(q)) + (f.suf || ''); });
+      if (f.spin && f.a === '?') e.querySelectorAll('.cn b').forEach(bb => { bb.textContent = (t - a) % 0.5 < 0.25 ? '?' : String(Math.floor((t * 31) % 10)); });
+      return;
+    }
+    if (f.k === 'bars') {
+      e.style.transform = `translateY(${(1 - pin) * -60}px) scale(${0.92 + 0.08 * pin})`;
+      e.querySelectorAll('.bar').forEach((r, i) => { const q = eo(p(t, a + 0.25 + i * 0.18, a + 0.85 + i * 0.18)); const [l, v] = f.items[i]; r.querySelector('u').style.width = (v / f.max * 100 * q).toFixed(1) + '%'; r.querySelector('b').textContent = Math.round(v * q); });
+      return;
+    }
+    if (f.k === 'meter') {
+      e.style.transform = `translateY(${(1 - pin) * -60}px) scale(${0.92 + 0.08 * pin})`;
+      e.querySelectorAll('.mt').forEach((m, i) => { const [l, va, vb] = f.items[i]; const fr = m.querySelector('.fr'); const L = +e.dataset.L;
+        const q = eo(p(t, a + 0.25 + i * 0.2, a + 1.0 + i * 0.2));
+        if (isNaN(+va)) { fr.style.strokeDashoffset = L * (1 - (0.5 + 0.5 * Math.sin(t * 6))); m.querySelector('.vl').textContent = (t * 4 % 2 < 1) ? '?/?' : Math.floor(t * 17 % 9) + '/' + Math.floor(t * 13 % 9 + 1); }
+        else { fr.style.strokeDashoffset = L * (1 - va / vb * q); m.querySelector('.vl').textContent = Math.round(va * q) + '/' + vb; } });
+      return;
+    }
+    if (f.k === 'line') {
+      e.style.transform = `translateY(${(1 - pin) * 80}px) scale(${0.9 + 0.1 * pin})`;
+      const q = eio(p(t, a + 0.2, a + 0.2 + (f.draw || 2.5)));
+      e.querySelector('#clipR').setAttribute('width', (840 * q).toFixed(1));
+      const mq = (f.mark / (f.pts.length - 1));
+      const mg = e.querySelector('#mkG'); const mo = q >= mq ? back(p(q, mq, Math.min(1, mq + 0.12))) : 0;
+      mg.setAttribute('opacity', mo > 0 ? 1 : 0);
+      const tr = mg.getAttribute('transform').replace(/ scale\([^)]*\)/, ''); mg.setAttribute('transform', tr + ' scale(' + Math.max(0.01, mo).toFixed(3) + ')');
+      return;
+    }
     const wob = Math.sin((t - a) * 7 + k) * 2.4;
     e.style.transform = `rotate(${(f.rot || 0) + wob}deg) scale(${base * pin * (1 - out * .4)})`;
-    if (f.spin) e.textContent = 'Aces: ' + (t - a < 0.6 ? String(Math.floor((t * 37) % 99)).padStart(2, '0') : '??');
+    if (f.spin) e.textContent = f.spin + (t - a < 0.6 ? String(Math.floor((t * 37) % 99)).padStart(2, '0') : '??');
   });
   // legenda
   const ch = CH.find(c => t >= c.a - 0.04 && t < c.b);
-  const cap = $('cap');
-  if (ch && t < T(S.endAt)) {
+  const cap = $('cap'); cap.classList.toggle('top', !!ph);
+  if (ch && t < T(S.endAt) && !topBusy) {
     const key = ch.i + '-' + ch.j;
     if (cap.dataset.k !== key) { cap.dataset.k = key; cap.innerHTML = '<span class="ln">' + ch.words.map(w => '<span class="w">' + w.txt.replace(/\.\.\.$/, '…') + '</span>').join(' ') + '</span>'; }
-    const ln = cap.firstChild, z = back(p(t, ch.a - 0.04, ch.a + 0.16));
-    ln.style.transform = `scale(${0.82 + 0.18 * z}) rotate(${Math.sin(ch.i) * 1.6}deg)`;
+    const ln = cap.firstChild, zz = back(p(t, ch.a - 0.04, ch.a + 0.16));
+    ln.style.transform = `scale(${0.82 + 0.18 * zz}) rotate(${Math.sin(ch.i) * 1.6}deg)`;
     [...ln.children].forEach((el, i) => { const w = ch.words[i]; el.className = 'w' + (t >= w.a - 0.03 && t < (ch.words[i + 1] ? ch.words[i + 1].a : ch.b) ? ' on' : ''); });
     cap.style.opacity = 1;
   } else cap.style.opacity = 0;
