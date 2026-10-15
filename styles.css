@@ -1720,13 +1720,14 @@ body {
 .me-counts button span { color: var(--fg-2); font-size: 12px; }
 
 /* notificações */
-.notif { display: flex; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid var(--hair); background: linear-gradient(180deg, var(--surface-hi), var(--surface)); }
+#notifBody { grid-template-columns: minmax(0, 1fr); }
+.notif { display: flex; min-width: 0; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid var(--hair); background: linear-gradient(180deg, var(--surface-hi), var(--surface)); }
 .notif.new { border-color: color-mix(in srgb, var(--brand) 35%, transparent); box-shadow: inset 3px 0 0 var(--brand); }
 .notif-txt { display: grid; gap: 6px; flex: 1; min-width: 0; }
 .notif-txt p { margin: 0; font-size: 14px; line-height: 1.4; }
 .notif-txt b { font-weight: 700; cursor: pointer; }
 .notif-txt small { color: var(--fg-3); font-size: 11.5px; }
-.notif-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface-2); color: inherit; font: 600 13px/1.2 var(--font-display); text-align: left; }
+.notif-card { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface-2); color: inherit; font: 600 13px/1.2 var(--font-display); text-align: left; }
 .notif-card em { font-style: normal; color: var(--fg-3); }
 .notif-card b { font: 800 17px/1 var(--font-cond); }
 .notif-act { display: flex; gap: 8px; }

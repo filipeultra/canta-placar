@@ -4,6 +4,8 @@
    pelo mesmo caminho (addPoint/undo/redo), entao as tres entradas se comportam igual. */
 (function () {
   'use strict';
+  // dentro de um iframe de outro site, não abre (clique enganado sobre "Excluir", "Assinar"…); o GitHub Pages não manda frame-ancestors
+  try { if (window.top !== window.self && window.top.location.origin !== location.origin) throw 0; } catch (e) { document.documentElement.replaceChildren(); return; }
   const E = window.CantaEngine, G = window.CantaGrammar, CV = window.CantaVoice;
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -1046,10 +1048,11 @@
   function plSync() { [0, 1].forEach(t => { $('#t' + t + 'players').value = pl[t].map(p => p.name).join(', '); }); }
   // você joga sempre no 1º time; só na partida do grupo dá para registrar sem jogar ("Estou jogando" desligado)
   let newPlaying = true;
-  const meLocked = () => !!prefs.myName && !(newGroupId && !newPlaying);
+  // (sem nome — "Explorar sem conta" — você também fica no 1º time: o formulário pede o nome antes de começar)
+  const meLocked = () => !(newGroupId && !newPlaying);
   function plEnsureMe() {
     const has = t => pl[t].findIndex(p => p.userId === 'me');
-    if (!prefs.myName) return;
+    const box = $('#newMeBox'); if (box) box.hidden = !!prefs.myName || !meLocked();
     if (!meLocked()) { [0, 1].forEach(t => { const i = has(t); if (i >= 0) pl[t].splice(i, 1); }); return; }
     if (has(1) >= 0) { const tmp = pl[0]; pl[0] = pl[1]; pl[1] = tmp; } // você no 2º time: troca os jogadores dos times
     if (has(0) < 0) { if (pl[0].length >= MAX_PER_TEAM) pl[0].pop(); pl[0].unshift({ name: myName(), userId: 'me', handle: myUid() }); }
@@ -1057,9 +1060,9 @@
   }
   function plChipHTML(t, p, i) {
     const me = p.userId === 'me';
-    const col = me ? 'var(--brand)' : p.color || nameColor(p.name);
+    const col = me ? 'var(--brand)' : okColor(p.color) || nameColor(p.name);
     const sub = me ? (p.handle ? p.handle + ' · ' : '') + L('você joga no 1º time', 'you play on team 1') : p.handle || (p.userId ? '' : L('convidado', 'guest'));
-    return '<span class="pl-chip' + (me ? ' me' : '') + '" translate="no"><span class="mini-av' + avCls(me) + '" style="--av:' + col + '">' + avIn(me, p.name) + '</span><span class="pl-txt"><b>' + esc(p.name) + (me ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
+    return '<span class="pl-chip' + (me ? ' me' : '') + '" translate="no"><span class="mini-av' + avCls(me) + '" style="--av:' + col + '">' + avIn(me, p.name) + '</span><span class="pl-txt"><b>' + esc(p.name) + (me && prefs.myName ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
       (me && meLocked() ? '<span class="pl-lock" title="' + esc(L('Você sempre joga. Para registrar sem jogar, use a partida de grupo.', 'You always play. To log without playing, use a group match.')) + '">' + ic('i-lock') + '</span>'
         : '<button class="icon-btn sm" type="button" data-plrm="' + t + '|' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + p.name) + '">' + ic('i-x') + '</button>') + '</span>';
   }
@@ -1125,7 +1128,7 @@
       const can = p.userId ? SO.canTag(p.userId, newGroupId) : { ok: true };
       const why = !can.ok ? (can.why === 'bloqueado' ? L('Bloqueado', 'Blocked') : can.why === 'sigo' ? L('Só aceita convite de quem ele(a) segue: entra como convidado', 'Only accepts invites from people they follow: joins as a guest') : L('Só aceita convite de conexões: entra como convidado', 'Only accepts invites from connections: joins as a guest')) : '';
       const sub = why || [p.handle, p.grp ? L('do grupo', 'in the group') : '', p.follow ? L('você segue', 'you follow') : '', p.guest ? (p.n ? L(p.n + (p.n === 1 ? ' partida com você' : ' partidas com você'), p.n + (p.n === 1 ? ' match with you' : ' matches with you')) : L('convidado', 'guest')) : ''].filter(Boolean).join(' · ');
-      h += '<button class="pl-opt' + (can.ok ? '' : ' limited') + '" type="button" role="option" data-plppick="' + i + '"' + (can.why === 'bloqueado' ? ' disabled' : '') + '><span class="mini-av" style="--av:' + (p.color || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + '</b><small>' + esc(sub) + '</small></span></button>';
+      h += '<button class="pl-opt' + (can.ok ? '' : ' limited') + '" type="button" role="option" data-plppick="' + i + '"' + (can.why === 'bloqueado' ? ' disabled' : '') + '><span class="mini-av" style="--av:' + (okColor(p.color) || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + '</b><small>' + esc(sub) + '</small></span></button>';
     });
     if (list.length && guest) h += '<p class="plp-sec">' + esc(L('Não achou?', 'Not found?')) + '</p>' + guest;
     if (!h) h = '<p class="plp-empty">' + esc(f ? L('Ninguém com esse nome. Digite o nome completo para adicionar como convidado.', 'No one with that name. Type the full name to add as a guest.') : L('Digite o nome de quem vai jogar. Quem tem perfil aparece aqui; quem não tem entra como convidado.', 'Type the name of who will play. People with a profile show up here; others join as guests.')) + '</p>';
@@ -1187,7 +1190,7 @@
   function renderDupBox(groups) {
     const box = $('#dupBox');
     box.innerHTML = '<div class="dup-head">' + ic('i-users') + '<div><b>' + esc(L('Dois jogadores com o mesmo nome', 'Two players with the same name')) + '</b><span>' + esc(L('Dê um apelido para um deles nesta partida. É ele que aparece no placar e vale para a voz; o perfil continua o mesmo.', 'Give one of them a nickname for this match. It shows on the scoreboard and works with voice; the profile stays the same.')) + '</span></div></div>' +
-      groups.map(g => g.map((x, j) => '<div class="dup-row"><span class="mini-av' + avCls(x.p.userId === 'me') + '" style="--av:' + (x.p.userId === 'me' ? 'var(--brand)' : x.p.color || nameColor(x.p.name)) + '">' + avIn(x.p.userId === 'me', x.p.name) + '</span><span class="dup-who"><b>' + esc(x.p.name) + '</b><small>' + esc((x.p.handle || L('convidado', 'guest')) + ' · ' + L('time ', 'team ') + match_teamName(x.t)) + '</small></span><input type="text" maxlength="24" data-dup="' + x.t + '|' + x.i + '" placeholder="' + esc(j === 0 ? L('Manter o nome', 'Keep the name') : L('Apelido, ex.: ' + x.p.name.split(' ')[0] + ' Baixinho', 'Nickname, e.g. ' + x.p.name.split(' ')[0] + ' Jr')) + '" aria-label="' + esc(L('Apelido de ', 'Nickname for ') + x.p.name) + '"></div>').join('')).join('') +
+      groups.map(g => g.map((x, j) => '<div class="dup-row"><span class="mini-av' + avCls(x.p.userId === 'me') + '" style="--av:' + (x.p.userId === 'me' ? 'var(--brand)' : x.okColor(p.color) || nameColor(x.p.name)) + '">' + avIn(x.p.userId === 'me', x.p.name) + '</span><span class="dup-who"><b>' + esc(x.p.name) + '</b><small>' + esc((x.p.handle || L('convidado', 'guest')) + ' · ' + L('time ', 'team ') + match_teamName(x.t)) + '</small></span><input type="text" maxlength="24" data-dup="' + x.t + '|' + x.i + '" placeholder="' + esc(j === 0 ? L('Manter o nome', 'Keep the name') : L('Apelido, ex.: ' + x.p.name.split(' ')[0] + ' Baixinho', 'Nickname, e.g. ' + x.p.name.split(' ')[0] + ' Jr')) + '" aria-label="' + esc(L('Apelido de ', 'Nickname for ') + x.p.name) + '"></div>').join('')).join('') +
       '<button class="btn btn-brand" type="button" data-dupok>' + ic('i-check') + esc(L('Usar apelido e começar', 'Use nickname and start')) + '</button>';
     box.hidden = false;
     const inp = box.querySelector('[data-dup]:not([placeholder^="' + L('Manter', 'Keep') + '"])') || box.querySelector('[data-dup]'); if (inp) inp.focus();
@@ -2009,6 +2012,8 @@
   const VIS_ICON = { todos: 'i-globe', seguidores: 'i-users', 'so-eu': 'i-lock' };
 
   // Seu nome na rede: o dos Ajustes; sem ele, o jogador mais frequente do histórico.
+  // código de convite sorteado com crypto (sem letras que confundem); o servidor confere e conta as vagas
+  const rndCode = n => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', v = crypto.getRandomValues(new Uint8Array(n)); return Array.from(v, x => A[x % 32]).join(''); };
   function myName() {
     if (prefs.myName) return prefs.myName;
     const k = S.knownPlayers(history());
@@ -2031,12 +2036,14 @@
   function syncMe() { SO.setMe({ name: myName(), city: prefs.city || SO.CITY, uid: myUid(), privacy: myPrivacy() }); }
 
   const firstName = n => String(n || '').trim().split(/\s+/)[0];
-  const userColor = id => { const u = SO.user(id); return u && u.color ? u.color : '#AFFB48'; };
+  // cor que vai para style="--av:…": só #hex (com o servidor, a cor vem do perfil de outra pessoa e não pode fechar o atributo)
+  const okColor = c => (typeof c === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : '');
+  const userColor = id => { const u = SO.user(id); return (u && okColor(u.color)) || '#AFFB48'; };
   // cor de quem só aparece pelo nome (parceiros, adversários): a da pessoa na rede, ou uma fixa tirada do nome
   const NAME_COLORS = ['#7C8CFF', '#FF7A59', '#3DD9C1', '#FFC94D', '#E57CFF', '#7BD88F'];
   const nameColor = n => {
     const u = SO.users().find(x => S.fold(x.name) === S.fold(n || ''));
-    if (u && u.color) return u.color;
+    if (u && okColor(u.color)) return u.color;
     let h = 0; for (const ch of String(n || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return NAME_COLORS[h % NAME_COLORS.length];
   };
@@ -3259,9 +3266,13 @@
   const KEY_LINKS = 'canta.links.v1';
   const b64url = bytes => { let s = ''; bytes.forEach(x => { s += String.fromCharCode(x); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   const unb64url = str => { const s = atob(str.replace(/-/g, '+').replace(/_/g, '/')); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
+  const LINK_MAX_CODE = 65536, LINK_MAX_RAW = 2 * 1024 * 1024; // link de partida: no máximo 64 KB, e 2 MB depois de abrir (contra "bomba" de compressão)
   async function zip(bytes, on) {
     const st = new Blob([bytes]).stream().pipeThrough(on ? new CompressionStream('deflate-raw') : new DecompressionStream('deflate-raw'));
-    return new Uint8Array(await new Response(st).arrayBuffer());
+    if (on) return new Uint8Array(await new Response(st).arrayBuffer());
+    const rd = st.getReader(), parts = []; let n = 0;
+    for (;;) { const { done, value } = await rd.read(); if (done) break; n += value.length; if (n > LINK_MAX_RAW) { rd.cancel().catch(() => {}); throw new Error('link grande demais'); } parts.push(value); }
+    const out = new Uint8Array(n); let o = 0; parts.forEach(pt => { out.set(pt, o); o += pt.length; }); return out;
   }
   async function packMatch(m) {
     const t0 = m.events.length && typeof m.events[0].t === 'number' ? m.events[0].t : (m.createdAt || 0);
@@ -3279,6 +3290,7 @@
     return 'j' + b64url(raw);
   }
   async function unpackMatch(code) {
+    if (typeof code !== 'string' || code.length > LINK_MAX_CODE) throw new Error('link grande demais');
     const raw = code[0] === 'z' ? await zip(unb64url(code.slice(1)), false) : unb64url(code.slice(1));
     const d = JSON.parse(new TextDecoder().decode(raw));
     if (!d || d.v !== 1) throw new Error('link de outra versão');
@@ -3362,10 +3374,11 @@
     copy.id = uid(); copy.vid = videoKey(m); delete copy.fromLink; delete copy.sharedBy;
     copy.teams.forEach(t => { t.players = (t.players || []).map(ren); });
     copy.events.forEach(ev => { if (ev.player) ev.player = ren(ev.player); if (ev.assist) ev.assist = ren(ev.assist); });
-    copy.post = Object.assign({}, copy.post, { status: 'publicada', linkId: m.id, fromLinkBy: m.sharedBy || '', claimed: who || undefined, visibility: 'seguidores' });
+    // "Só assisti": fica guardada só para você (não vai para o seu perfil nem para o feed: você não jogou)
+    copy.post = Object.assign({}, copy.post, { status: 'publicada', linkId: m.id, fromLinkBy: m.sharedBy || '', claimed: who || undefined, visibility: who ? 'seguidores' : 'so-eu', watched: who ? undefined : true });
     if (!writeHist([copy].concat(readHist()))) return;
     syncMe(); refreshSocial();
-    toast(who ? 'Salva. Seus números de “' + who + '” agora são seus' : 'Partida salva nas suas partidas');
+    toast(who ? 'Salva. Seus números de “' + who + '” agora são seus' : 'Salva só para você: você não jogou esta partida');
     go('partida', copy.id);
   }
   function wireLinks() {
@@ -4497,7 +4510,7 @@
     if (s.members.length >= AMIGOS_MAX) { toast(L('O plano já tem 5 pessoas', 'The plan already has 5 people')); return; }
     if (p.userId === 'me') { toast(L('Você já está no plano', "You're already on the plan")); return; }
     if (s.members.some(m => (p.userId && m.userId === p.userId) || (!p.userId && S.fold(m.name) === S.fold(p.name)))) { toast(L('Essa pessoa já foi convidada', 'This person was already invited')); return; }
-    const code = 'AMG-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    const code = 'AMG-' + rndCode(8);
     s.members.push({ name: String(p.name).slice(0, 40), userId: p.userId || null, handle: p.handle || '', color: p.color || '', status: 'pendente', invitedAt: Date.now(), code });
     savePrefs(); trk('amigos_invite', {});
     toast(p.userId ? L('Convite enviado para ' + firstName(p.name), 'Invite sent to ' + firstName(p.name)) : L('Convite criado: mande o link para ' + firstName(p.name), 'Invite created: send the link to ' + firstName(p.name)));
@@ -4505,7 +4518,7 @@
   }
   function amigosLink() {
     const s = sub(); const pend = (s.members || []).find(m => m.status === 'pendente' && !m.userId);
-    const code = pend ? pend.code : 'AMG-' + myUid().slice(3);
+    const code = pend ? pend.code : (prefs.amgLink || (prefs.amgLink = 'AMG-' + rndCode(8), savePrefs(), prefs.amgLink)); // sorteado, não derivado do seu ID público
     const url = location.origin + location.pathname + '?amigos=' + encodeURIComponent(code);
     const text = L('Te coloquei no meu plano ULTRA PLAY Pro Amigos: estatísticas completas, vídeo dos lances e muito mais, de graça para você. Entra por aqui:', "I added you to my ULTRA PLAY Pro Friends plan: full stats, point videos and more, free for you. Join here:");
     if (navigator.share) navigator.share({ title: 'ULTRA PLAY Pro Amigos', text, url }).catch(() => {}); else copyText(url);
@@ -4559,7 +4572,7 @@
       const s = sub(), taken = new Set(((s && s.members) || []).map(m => m.userId).filter(Boolean));
       const list = peopleForPicker().filter(p => p.userId && p.userId !== 'me' && !taken.has(p.userId)).filter(p => !f || S.fold(p.name).includes(f) || S.fold(p.handle || '').includes(f)).slice(0, 6);
       sug.dataset.list = JSON.stringify(list.map(p => ({ name: p.name, userId: p.userId, handle: p.handle || '', color: p.color || '' })));
-      sug.innerHTML = list.map((p, i) => '<button class="pl-opt" type="button" role="option" data-amgpick="' + i + '"><span class="mini-av" style="--av:' + (p.color || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + '</b><small>' + esc(p.handle || '') + '</small></span></button>').join('') +
+      sug.innerHTML = list.map((p, i) => '<button class="pl-opt" type="button" role="option" data-amgpick="' + i + '"><span class="mini-av" style="--av:' + (okColor(p.color) || nameColor(p.name)) + '">' + esc(initials(p.name)) + '</span><span><b>' + esc(p.name) + '</b><small>' + esc(p.handle || '') + '</small></span></button>').join('') +
         (q.trim() ? '<button class="pl-opt guest" type="button" role="option" data-amgguest>' + ic('i-share') + '<span><b>' + esc(L('Convidar “' + q.trim() + '” por link', 'Invite “' + q.trim() + '” by link')) + '</b><small>' + esc(L('para quem ainda não tem conta', "for someone who doesn't have an account yet")) + '</small></span></button>' : '');
       sug.hidden = !sug.innerHTML;
     });
@@ -6242,7 +6255,7 @@
   // Contato da equipe: preencha um dos dois para as sugestões chegarem direto (sem isso, o app abre o compartilhar/copia o texto).
   const FEEDBACK_WHATSAPP = ''; // só números, com DDI e DDD: '5538999999999'
   const FEEDBACK_EMAIL = '';
-  const APP_VERSION = '2026.10.13';
+  const APP_VERSION = '2026.10.15';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
     { id: '2026-10-14a', date: '14/10/2026', title: 'Revisão geral: telas pequenas, bateria e segurança', items: [
@@ -7058,10 +7071,11 @@
       if (e.target.closest('#endRematch')) {
         closeSheet('#sheetEnd');
         const ci = Object.assign({}, match.cfgInput, { firstServer: 1 - E.makeConfig(match.cfgInput).firstServer });
-        const teams = match.teams.map(t => Object.assign({}, t));
+        const teams = match.teams.map(t => Object.assign({}, t)), gid = match.groupId && SO.group(match.groupId) ? match.groupId : null;
         if (!finalize({ quiet: true })) return;
         closeAllSheets();
         startMatch(ci, teams);
+        if (gid) { match.groupId = gid; save(); } // revanche da partida do grupo continua do grupo (quem só registrou segue sem jogar)
       }
     });
 
@@ -7131,11 +7145,19 @@
     $('#formNew').addEventListener('input', e => { if (e.target.matches('input[type="text"]')) updateTeamForm(); });
     $('#formNew').addEventListener('submit', e => {
       e.preventDefault();
+      const box = $('#newError');
+      // você joga sempre (só a partida do grupo pode ser registrada sem você): sem nome, pede antes de começar
+      if (meLocked() && !prefs.myName) {
+        const n = ($('#newMe') ? $('#newMe').value : '').replace(/\s+/g, ' ').trim();
+        if (n.split(' ').length < 2) { box.textContent = L('Diga seu nome e sobrenome: você joga no 1º time e a partida entra no seu perfil.', 'Tell us your first and last name: you play on team 1 and the match goes to your profile.'); box.hidden = false; const f = $('#newMe'); if (f) f.focus(); return; }
+        prefs.myName = n.slice(0, 24); if (!prefs.privacy) prefs.privacy = { level: 'aberto' }; savePrefs(); myUid(); syncMe();
+        pl.forEach(ps => ps.forEach(p => { if (p.userId === 'me') { p.name = myName(); p.handle = myUid(); } }));
+      }
+      if (meLocked() && !pl[0].some(p => p.userId === 'me')) { plEnsureMe(); plSync(); renderPlSlots(0); renderPlSlots(1); }
       const dups = plDuplicates();
       if (dups.length) { renderDupBox(dups); return; }
       const { ci, teams } = readNewForm();
       const err = validateTeams(teams);
-      const box = $('#newError');
       if (err) { box.textContent = err; box.hidden = false; return; }
       box.hidden = true;
       const gid = newGroupId;
@@ -7271,12 +7293,13 @@
     bind();
     if (params.get('demo')) save();
     // Link direto para uma folha (ex.: QR code na quadra apontando para ?abrir=comandos).
-    const open = {
+    const OPEN = {
       nova: () => openNew(), ajustes: openPrefs, lances: () => { renderLog(); openSheet('#sheetLog'); },
       estatisticas: () => { renderStats(); openSheet('#sheetStats'); }, comandos: () => { renderHelp(); openSheet('#sheetHelp'); },
       fim: () => openEnd(), tv: () => { go('jogar'); toggleTv(true); }, finalizar: () => { go('jogar'); openFinish(false); },
       compartilhar: () => { const h = history(); if (h[0]) { go('partida', h[0].id); openShare(h[0].id); } },
-    }[params.get('abrir')];
+    };
+    const ab = params.get('abrir'); const open = ab && Object.hasOwn(OPEN, ab) ? OPEN[ab] : null; // ?abrir=valueOf etc. não quebra a abertura
     const hadHash = !!location.hash;
     routeFromHash();
     warmProfile();

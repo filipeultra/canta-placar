@@ -9,8 +9,10 @@ psql -d "$DB" -q -At >/dev/null <<'SQL'
 insert into auth.users (id, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000a1','{"name":"A"}'),('00000000-0000-0000-0000-0000000000b1','{"name":"B"}'),('00000000-0000-0000-0000-0000000000c1','{"name":"C"}');
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false);
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('x1', auth.uid(), 'beach', now(), '{"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id) values ('x1',0,0,auth.uid()),('x1',1,0,'00000000-0000-0000-0000-0000000000b1'),('x1',1,1,'00000000-0000-0000-0000-0000000000c1');
+commit;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000b1',false);
 update public.match_players set tag_status='aceito' where match_id='x1' and user_id=auth.uid();
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000c1',false);

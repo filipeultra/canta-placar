@@ -16,6 +16,8 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 | `tests/admin-links.sql` | 19 verificações dos links e taxas: período de/até, 1ª origem de cada aparelho, contas, partidas e Pro por link, só moderador cria link, código e campanha validados, churn, teste → pago, ativação e retenção. |
 | `tests/admin.sql` | 21 verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê nem age; busca, cortesia, denúncias (tirar do ar) e registro de ações. |
 | `tests/arquivos.sql` | Regras de arquivos (com `tests/storage-stub.sql`): foto só na própria pasta, vídeo na nuvem só para Pro, quem deixou de ser Pro ainda vê e apaga o que subiu. |
+| `tests/ataques.sql` | Pentest do banco (15/10/2026): 250 verificações de fraude no Pro e no Amigos, abuso do grátis, virar admin, ler ou mexer no que é dos outros, duplo clique e corrida entre sessões, entrada absurda, arquivos e higiene de permissões. Todas passando (antes da correção, 73 passavam). Ver `reports/QA e segurança 2026-10-15.md`. |
+| `tests/rodar.sh` | Roda todas as suítes, cada uma numa base nova: `sh supabase/tests/rodar.sh`. |
 | `tests/supabase-stub.sql` | Simula o que o Supabase já traz (`auth.users`, `auth.uid()`), para rodar os testes fora dele. |
 
 ## O que as regras garantem (testado)
@@ -26,6 +28,16 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 - **Bloqueio:** some o perfil, as partidas, o seguir e o zap nos dois sentidos.
 - **Ninguém se dá Pro**, troca de time numa partida, cria notificação falsa ou dá zap em nome de outra pessoa. O campo do Pro só muda pelo servidor de pagamento.
 - **Ranking do grupo** (`group_ranking`): só membros, só partidas aceitas, com período.
+- **Quem lança joga:** fora da partida de grupo, o dono está sempre entre os jogadores. A conferência fica para o fim da transação.
+- **Placar, datas e tamanhos válidos:** placar de 0 a 999 com vencedor 0 ou 1, data entre 2000 e amanhã, e limite de tamanho em todo texto e JSON. Nomes sem caracteres de controle nem invisíveis.
+- **Colunas do servidor:** código P-/G-, selo "placar corrigido", datas de criação e de exclusão. Data de nascimento e consentimento do responsável não saem para ninguém além da própria pessoa.
+
+**O que o app precisa usar ao ligar a nuvem (mudou em 15/10/2026):**
+- lançar partida por `save_match(partida, jogadores)`: grava tudo numa transação e não duplica se a fila offline mandar de novo. Um insert só da partida, sem os jogadores, é recusado;
+- ler `profiles` com as colunas listadas (`select=*` é recusado); a própria data de nascimento sai por `my_private_profile()`;
+- tirar post e grupo do ar por `remove_group_post(id)` e `remove_group(id)`;
+- não mandar `code`, `created_at`, `corrected_at`, `deleted_at` nem `owner_left_at` no insert;
+- evento de telemetria com algo parecido com e-mail é recusado, e o lote inteiro falha.
 
 ## Painel de admin (`admin/`)
 
@@ -89,7 +101,7 @@ Testes em `tests/formato.sql` (11 verificações).
 - **`match_players.nickname`:** apelido só naquela partida, quando dois jogadores têm o mesmo nome (o `user_id` continua o mesmo, então as estatísticas vão para a pessoa certa).
 - **`format_presets`:** formato salvo com nome no padrão `BT1-Amigos de Segunda` (prefixo do esporte + número + até 18 letras). Cada um só vê e grava as suas; o servidor confere o prefixo e o limite do plano (grátis 1 por esporte, Pro 3).
 
-## Carga e sobrecarga (13/10/2026, Postgres 16, 4 CPUs)
+## Carga e sobrecarga (13/10/2026, refeita em 15/10/2026, Postgres 16, 4 CPUs)
 
 Com 100 mil partidas na base, cada tela ou ação, medida como a pessoa logada (com as regras por linha ligadas):
 
@@ -102,6 +114,8 @@ Com 100 mil partidas na base, cada tela ou ação, medida como a pessoa logada (
 | Apagar conta com centenas de partidas | 18 ms |
 
 **50 pessoas ao mesmo tempo** (`pgbench`, 30 s): 513 operações por segundo, nenhuma falha. A leitura (4 consultas) leva 111 ms em média e lançar e marcar leva 44 ms. Antes da `feed_following()`, eram 104 por segundo, com leitura de 583 ms.
+
+**Depois do pentest (15/10/2026)**, com as regras novas: 620 operações por segundo em 20 s, nenhuma falha, leitura em 86 ms e lançar e marcar em 59 ms. É mais rápido que antes, porque `feed_following` e `can_see_match` passaram a ler bloqueio, grupo e seguir direto. Lançar pelo `save_match` leva 3 a 4 ms.
 
 Para ter uma ideia: 10 mil pessoas ativas no dia, abrindo o app 5 vezes cada, dão cerca de 1 operação por segundo, ou 10 no horário de pico. A margem é de dezenas de vezes.
 
@@ -136,9 +150,17 @@ Para ter uma ideia: 10 mil pessoas ativas no dia, abrindo o app 5 vezes cada, d�
    5. vídeo na nuvem (Pro).
 7. **Placar ↔ câmera:** trocar o ntfy.sh por um canal do Supabase Realtime (`match:<id>`), sem tabela. Só muda o `relay.js`.
 8. **Prazos:** agendar `select public.expire_open_requests();` uma vez por dia (Database → Cron). Ela fecha pedidos de exclusão e correções vencidos.
-9. **Pagamento:** um webhook (Edge Function) do Mercado Pago ou do Stripe grava em `subscriptions` e `profiles.pro_until` com a service role.
+9. **Pagamento:** um webhook (Edge Function) do Mercado Pago ou do Stripe grava em `subscriptions` com a service role. Antes de gravar, ele confere a assinatura do aviso (no Mercado Pago, o HMAC-SHA256 do cabeçalho `x-signature` com a chave secreta, recusando `ts` antigo) e grava uma vez só por id de pagamento. Quem decide se a pessoa é Pro é sempre `has_pro()`, nunca o aparelho.
 
 ## Para rodar os testes num Postgres local
+
+Tudo de uma vez, cada suíte numa base nova:
+
+```sh
+sh supabase/tests/rodar.sh
+```
+
+Ou uma a uma:
 
 ```sh
 createdb ultraplay_teste

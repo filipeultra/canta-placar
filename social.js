@@ -491,9 +491,12 @@
     // Tudo o que você muda num grupo fica em store.g; os grupos de exemplo vêm da semente. No servidor, cada coisa daqui
     // vira uma tabela (groups, group_members, group_posts; ver supabase/schema.sql).
     function gs() {
-      if (!store.g) store.g = { created: [], state: {}, reqAt: {}, roles: {}, removed: {}, added: {}, wall: {} };
-      if (!store.g.photos) store.g.photos = {};
+      // dado do aparelho pode vir estragado (ex.: g = 5): cada parte volta ao formato certo em vez de quebrar a tela
+      const obj = v => v && typeof v === 'object' && !Array.isArray(v);
+      if (!obj(store.g)) store.g = {};
       const g = store.g;
+      if (!Array.isArray(g.created)) g.created = [];
+      ['state', 'reqAt', 'roles', 'removed', 'added', 'wall', 'photos'].forEach(k => { if (!obj(g[k])) g[k] = {}; });
       return g;
     }
     const groupBase = id => (demoOn() ? GROUPS : []).find(x => x.id === id) || gs().created.find(x => x.id === id) || null;

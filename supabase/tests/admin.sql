@@ -10,7 +10,8 @@ do $$ begin insert into public.app_events (device_id, session, name) values ('se
 insert into public.app_events (device_id, name, source, medium) values ('dev00000a1', 'app_open', 'instagram', 'bio'), ('dev00000a1', 'signup', 'instagram', 'bio'), ('dev00000a1', 'match_start', null, null), ('dev00000a1', 'match_end', null, null), ('dev00000a2', 'app_open', null, null);
 do $$ declare n int; begin select count(*) into n from public.app_events; raise notice '2. anônimo lê eventos: % linhas', n; exception when insufficient_privilege then raise notice '2. anônimo não lê os eventos'; end $$;
 reset role;
-insert into public.matches (id, owner_id, sport, played_at) values ('m1', '00000000-0000-0000-0000-00000000000b', 'beach', now()), ('m2', '00000000-0000-0000-0000-00000000000b', 'padel', now());
+with m as (insert into public.matches (id, owner_id, sport, played_at) values ('m1', '00000000-0000-0000-0000-00000000000b', 'beach', now()), ('m2', '00000000-0000-0000-0000-00000000000b', 'padel', now()) returning id, owner_id)
+insert into public.match_players (match_id, team, slot, user_id) select id, 0, 0, owner_id from m;   -- quem lança joga
 set role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false) \g /dev/null
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","aal":"aal2"}', false) \g /dev/null

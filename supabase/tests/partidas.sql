@@ -21,8 +21,11 @@ set role authenticated;
 select pg_temp.u('a1');
 \o
 -- ---------- quem pode me marcar ----------
+-- partida e jogadores na mesma transação (fora do grupo, quem lança joga: a regra é conferida no fim da transação)
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p1', auth.uid(), 'beach', now(), '{"sets":[[6,3]],"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p1', 0, 0, auth.uid());
+commit;
 select pg_temp.err($$insert into public.match_players (match_id, team, slot, user_id) values ('p1', 1, 0, '00000000-0000-0000-0000-0000000000e1')$$, 'convite_nao_permitido', '1. Eva (só quem ela segue) não pode ser marcada por Ana');
 select pg_temp.err($$insert into public.match_players (match_id, team, slot, user_id) values ('p1', 1, 1, '00000000-0000-0000-0000-0000000000f1')$$, 'convite_nao_permitido', '2. Fabi (conexões) sem nenhuma ligação com Ana: recusado');
 insert into public.follows (follower_id, followee_id) values (auth.uid(), pg_temp.id('f1'));
@@ -55,10 +58,12 @@ select pg_temp.ok((select tag_status from public.match_players where match_id = 
 select pg_temp.ok(not exists (select 1 from public.match_players where match_id = 'g1' and user_id = auth.uid()), '6. organizadora registrou a partida do grupo sem jogar');
 select pg_temp.err($$insert into public.match_players (match_id, team, slot, user_id) values ('p1', 0, 1, '00000000-0000-0000-0000-0000000000a2')$$, 'convite_nao_permitido', '7. fora da partida do grupo, vale o ajuste do Hugo');
 -- ---------- placar travado depois de outra pessoa confirmar ----------
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p2', auth.uid(), 'beach', now(), '{"sets":[[6,4]],"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p2', 0, 0, auth.uid()), ('p2', 0, 1, pg_temp.id('b1')), ('p2', 1, 0, pg_temp.id('c1'));
 insert into public.match_players (match_id, team, slot, guest_name) values ('p2', 1, 1, 'Zeca');
 insert into public.match_events (match_id, seq, event) values ('p2', 0, '{"type":"point","team":0}');
+commit;
 update public.matches set result = '{"sets":[[6,2]],"winner":0}' where id = 'p2';
 select pg_temp.ok((select result->'sets'->0->>1 from public.matches where id = 'p2') = '2', '8. antes de alguém confirmar, Ana ainda corrige o placar');
 \o /dev/null
@@ -101,8 +106,10 @@ select pg_temp.ok(not exists (select 1 from public.head_to_head(pg_temp.id('f1')
 \o /dev/null
 select pg_temp.u('a1');
 \o
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p3', auth.uid(), 'padel', now(), '{"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p3', 0, 0, auth.uid()), ('p3', 0, 1, pg_temp.id('b1')), ('p3', 1, 0, pg_temp.id('c1'));
+commit;
 \o /dev/null
 select pg_temp.u('b1');
 \o
@@ -147,8 +154,10 @@ select pg_temp.err($$insert into public.match_delete_votes (request_id, user_id,
 \o /dev/null
 select pg_temp.u('a1');
 \o
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p4', auth.uid(), 'padel', now(), '{"winner":1}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p4', 0, 0, auth.uid()), ('p4', 1, 0, pg_temp.id('b1')), ('p4', 1, 1, pg_temp.id('c1'));
+commit;
 \o /dev/null
 select pg_temp.u('b1');
 \o
@@ -168,7 +177,7 @@ select pg_temp.ok(public.vote_match_deletion((select id from public.match_delete
 do $$ declare i int; begin
   for i in 1..3 loop
     insert into public.matches (id, owner_id, sport, played_at, result) values ('r' || i, auth.uid(), 'beach', now(), '{"winner":0}');
-    insert into public.match_players (match_id, team, slot, user_id) values ('r' || i, 1, 0, '00000000-0000-0000-0000-0000000000c1');
+    insert into public.match_players (match_id, team, slot, user_id) values ('r' || i, 0, 0, auth.uid()), ('r' || i, 1, 0, '00000000-0000-0000-0000-0000000000c1');
   end loop; end $$;
 \o /dev/null
 select pg_temp.u('c1');
@@ -177,7 +186,10 @@ update public.match_players set tag_status = 'recusado', responded_at = now() wh
 \o /dev/null
 select pg_temp.u('a1');
 \o
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('r4', auth.uid(), 'beach', now(), '{"winner":0}');
+insert into public.match_players (match_id, team, slot, user_id) values ('r4', 0, 0, auth.uid());
+commit;
 select pg_temp.err($$insert into public.match_players (match_id, team, slot, user_id) values ('r4', 1, 0, '00000000-0000-0000-0000-0000000000c1')$$, 'convite_recusado_demais', '35. Caio recusou 3 convites da Ana em 30 dias: para de receber dela');
 \o /dev/null
 select pg_temp.u('d1');
@@ -219,7 +231,10 @@ select pg_temp.u('b1');
 \o
 select pg_temp.ok(not exists (select 1 from public.profiles where id = pg_temp.id('c1')), '43b. Caio bloqueou a Bia: ela não acha o perfil dele');
 select pg_temp.err($$select display_name from public.match_players limit 1$$, 'permission denied', '43c. o nome guardado na marcação não sai para os apps');
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('q1', auth.uid(), 'beach', now(), '{"winner":0}');
+insert into public.match_players (match_id, team, slot, user_id) values ('q1', 0, 0, auth.uid());
+commit;
 select pg_temp.err($$insert into public.match_players (match_id, team, slot, user_id) values ('q1', 1, 0, '00000000-0000-0000-0000-0000000000c1')$$, 'bloqueado', '43d. e ela não marca quem a bloqueou');
 -- ---------- foto do grupo e ajuste de marcação ----------
 \o /dev/null
@@ -238,8 +253,10 @@ select pg_temp.ok((select tag_policy from public.profiles where id = auth.uid())
 \o /dev/null
 select pg_temp.u('a1');
 \o
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p6', auth.uid(), 'beach', now(), '{"sets":[[6,2]],"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p6', 0, 0, auth.uid()), ('p6', 0, 1, pg_temp.id('b1')), ('p6', 1, 0, pg_temp.id('e1'));
+commit;
 \o /dev/null
 select pg_temp.u('b1');
 \o
@@ -294,8 +311,10 @@ set role authenticated;
 \o /dev/null
 select pg_temp.u('a1');
 \o
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p5', auth.uid(), 'tenis', now(), '{"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p5', 0, 0, auth.uid()), ('p5', 1, 0, pg_temp.id('e1'));
+commit;
 \o /dev/null
 select pg_temp.u('e1');
 \o
@@ -319,8 +338,10 @@ set role authenticated;
 \o /dev/null
 select pg_temp.u('a3');
 \o
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p7', auth.uid(), 'padel', now(), '{"sets":[[6,2]],"winner":0}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p7', 0, 0, auth.uid()), ('p7', 1, 0, pg_temp.id('a4')), ('p7', 1, 1, pg_temp.id('a5'));
+commit;
 \o /dev/null
 select pg_temp.u('a4');
 \o
@@ -346,8 +367,10 @@ select pg_temp.u('a3');
 select pg_temp.ok((select status from public.match_corrections where match_id = 'p7') = 'aprovado', '69. Iara apagou a conta: o pedido não fica preso esperando por ela');
 select pg_temp.ok((select result->'sets'->0->>1 from public.matches where id = 'p7') = '3', '70. e a correção de Gil vale');
 select pg_temp.ok(public.request_match_deletion('p7', 'dup') = 'aprovado', '71. só sobrou o Gil confirmado: o pedido de exclusão dele já vale');
+begin;
 insert into public.matches (id, owner_id, sport, played_at, result) values ('p8', auth.uid(), 'padel', now(), '{"winner":1}');
 insert into public.match_players (match_id, team, slot, user_id) values ('p8', 0, 0, auth.uid()), ('p8', 1, 0, pg_temp.id('a5'));
+commit;
 \o /dev/null
 select pg_temp.u('a5');
 \o

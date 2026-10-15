@@ -79,7 +79,7 @@ begin execute q into r; ms := round(extract(epoch from clock_timestamp() - t0)::
   return rpad(label, 46) || lpad(ms::text, 8) || ' ms  (' || coalesce(r, 'ok') || ')' || case when ms > 300 then '  << LENTO' else '' end;
 exception when others then return rpad(label, 46) || '  recusado: ' || sqlerrm; end $$;
 grant execute on function pg_temp.a(text, text) to authenticated;
-select pg_temp.a('criar partida', 'insert into public.matches (id, owner_id, sport, played_at, result) values (''novo1'', auth.uid(), ''beach'', now(), ''{"winner":0}'') returning id');
+select pg_temp.a('criar partida (save_match: partida e dona juntas)', 'select public.save_match(jsonb_build_object(''id'', ''novo1'', ''sport'', ''beach'', ''played_at'', now(), ''result'', ''{"winner":0}''::jsonb), jsonb_build_array(jsonb_build_object(''team'', 0, ''slot'', 0, ''user_id'', auth.uid())))');
 select pg_temp.a('marcar 3 pessoas (com política e limites)', 'with x as (insert into public.match_players (match_id, team, slot, user_id) select ''novo1'', 1, s, (select id from public.profiles where tag_policy = ''todos'' and id <> auth.uid() order by id offset s limit 1) from generate_series(0, 2) s returning 1) select count(*)::text from x');
 select pg_temp.a('marcar mais 1 (conta os convites do dia)', 'with x as (insert into public.match_players (match_id, team, slot, user_id) select ''novo1'', 1, 3, (select id from public.profiles where tag_policy = ''todos'' and id <> auth.uid() order by id offset 9 limit 1) returning 1) select count(*)::text from x');
 select pg_temp.a('excluir para mim (partida com 4 pessoas)', 'select public.leave_match(''' || :'m_leave' || ''')');

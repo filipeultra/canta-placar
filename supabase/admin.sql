@@ -10,8 +10,9 @@ create table public.app_events (
   session     boolean not null default false,          -- true = id só da visita (sem consentimento)
   user_id     uuid references public.profiles(id) on delete set null,
   name        text not null check (name ~ '^[a-z_]{2,32}$'),
-  props       jsonb not null default '{}' check (pg_column_size(props) < 2000),
-  path        text check (char_length(path) <= 120),
+  -- e-mail não entra nem por engano (props ou caminho da página): os eventos não guardam dado pessoal
+  props       jsonb not null default '{}' check (pg_column_size(props) < 2000 and props::text !~ '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]'),
+  path        text check (char_length(path) <= 120 and path !~ '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]'),
   source      text check (char_length(source) <= 40),
   medium      text check (char_length(medium) <= 40),
   campaign    text check (char_length(campaign) <= 40),
@@ -450,6 +451,7 @@ begin
   return true;
 end $$;
 revoke execute on function public.admin_hello(), public.admin_access(int), public.admin_team(), public.admin_note_export(text), public.admin_log_frozen() from public, anon;
+revoke execute on function public.admin_log_frozen() from authenticated;   -- só o gatilho usa
 grant execute on function public.admin_hello(), public.admin_access(int), public.admin_team(), public.admin_note_export(text) to authenticated;
 
 -- ---------- links rastreáveis (UTM) ----------
@@ -457,7 +459,7 @@ grant execute on function public.admin_hello(), public.admin_access(int), public
 -- O app guarda o 1º toque no aparelho e manda junto em cada evento, então dá para ver visitas, contas, 1ª partida e Pro por link.
 create table public.tracked_links (
   slug        text primary key check (slug ~ '^[a-z0-9][a-z0-9_-]{1,39}$'),
-  label       text not null check (char_length(label) between 1 and 60),
+  label       text not null check (char_length(label) between 1 and 60 and public.plain_text(label)),
   dest        text not null default 'app' check (dest in ('app', 'site', 'beach', 'padel', 'tenis', 'peteca')),
   source      text not null check (source ~ '^[a-z0-9_.-]{1,40}$'),
   medium      text not null check (medium ~ '^[a-z0-9_.-]{1,40}$'),

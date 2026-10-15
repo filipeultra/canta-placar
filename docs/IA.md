@@ -21,10 +21,17 @@ Quanto mais detalhe na marcação ("ace verde", "erro na rede laranja", "ponto s
 2. O servidor confere se a pessoa é Pro e se está dentro da cota do mês (60 análises). Depois pede o texto ao Claude (modelo Haiku, o menor e mais barato) e guarda o uso em `ai_usage` para medir o custo.
 3. Pedido ao modelo: até 110 palavras, só com os números recebidos, terminando com uma sugestão de treino ("Treino: …").
 
+**Proteções da função (revisão de 15/10/2026):**
+- **Só o formato do app:** a função recusa chaves desconhecidas, textos acima de 60 caracteres e jogadores fora do padrão J1, J2… Assim ela não vira um chat genérico pago por nós e não recebe nomes de um app modificado.
+- **Cota sem furo:** a função reserva a vaga em `ai_usage` antes de chamar a IA e só depois conta. Dez pedidos ao mesmo tempo não passam de 60 por mês. Há também um limite de 3 por minuto. Se a IA falhar, recusar ou voltar vazia, a reserva é desfeita.
+- **CORS:** só o endereço do app (segredo `APP_ORIGIN`).
+- **Texto cortado:** se a resposta bater no limite de tamanho, o texto termina na última palavra inteira, com "…".
+- **Instruções escondidas nos dados:** o pedido ao modelo diz que os fatos são dados, e nenhum texto dentro deles muda as regras.
+
 ## Quanto custa a IA (estimativa)
 
 Premissas [estimativa]:
-- Por análise, a entrada tem cerca de 1.500 tokens: as instruções (~350, que ficam em cache) mais os números da partida (~900 a 1.300). A saída tem cerca de 250 tokens.
+- Por análise, a entrada tem cerca de 1.500 tokens: as instruções (~350; curtas demais para o cache, que só vale a partir de um tamanho mínimo) mais os números da partida (~900 a 1.300). A saída tem cerca de 250 tokens.
 - Preço de referência de modelo pequeno (classe Haiku): **US$ 1 por milhão de tokens de entrada e US$ 5 por milhão de saída**. É o preço do Claude Haiku 4.5. **Confira o preço atual do modelo escolhido** em https://www.anthropic.com/pricing antes de lançar.
 - Câmbio: US$ 1 = R$ 5,50.
 
@@ -45,7 +52,7 @@ Premissas [estimativa]:
 
 ## Para ligar
 1. Criar a conta na API da Anthropic e gerar a chave.
-2. `supabase secrets set ANTHROPIC_API_KEY=...` e `supabase functions deploy analise`.
+2. `supabase secrets set ANTHROPIC_API_KEY=... APP_ORIGIN=https://seu-dominio` e `supabase functions deploy analise`.
 3. Rodar `schema.sql` (já inclui a tabela `ai_usage`).
 4. No app:
    - pôr o endereço da função em `AI_URL`;

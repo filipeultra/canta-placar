@@ -49,7 +49,9 @@
   }
   async function flush() {
     if (!configured() || sending || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
-    let q = load().filter(e => Date.now() - Date.parse(e.created_at) < 36 * 3600e3); // o banco recusa evento velho
+    // o banco recusa evento velho; e quem tirou o consentimento depois não manda o que ficou na fila (só a visita anônima)
+    const ok = !!opts.consent();
+    let q = load().filter(e => Date.now() - Date.parse(e.created_at) < 36 * 3600e3 && (ok || (e.session && FREE.includes(e.name))));
     if (!q.length) { store([]); return; }
     sending = true;
     const batch = q.slice(0, 50);

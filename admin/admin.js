@@ -429,7 +429,8 @@
       if (!can('dono')) { toast('Só o dono baixa a planilha de contas.', 'lock'); return; }
       try { await sensitive(() => api.noteExport('contas')); } catch (e) { if (e.code !== 'cancel') toast('Não deu: ' + e.message, 'alert'); return; }
     } else api.noteExport(c.name).catch(() => { /* registro do download é melhor esforço */ });
-    const q = v => { const s = v == null ? '' : String(v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    // sempre entre aspas; texto que começa com = + - @ (ou tab/enter) ganha ' na frente para o Excel/Sheets não executar como fórmula
+    const q = v => { let s = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
     const body = '﻿' + [c.head].concat(c.rows).map(r => r.map(q).join(';')).join('\r\n');
     const a = el('a', { href: URL.createObjectURL(new Blob([body], { type: 'text/csv;charset=utf-8' })), download: 'ultraplay-' + c.name + '-' + new Date().toISOString().slice(0, 10) + '.csv' });
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);

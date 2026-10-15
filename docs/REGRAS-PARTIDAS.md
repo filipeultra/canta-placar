@@ -4,6 +4,8 @@ Atualizado em 13/10/2026. O banco aplica estas regras (`supabase/schema.sql`, se
 
 ## 1. Quem joga e quem registra
 - **Você joga sempre no 1º time.** Na Nova partida, o seu nome fica fixo (com cadeado) e não pode ser tirado.
+  - **Sem conta ("Explorar sem conta"):** o formulário pede o seu nome e sobrenome antes de começar, e você entra no 1º time do mesmo jeito. Antes de 15/10/2026 dava para registrar uma partida só de outras pessoas por esse caminho (corrigido; ver `reports/QA e segurança 2026-10-15.md`).
+  - **No servidor:** o banco recusa uma partida sem o dono entre os jogadores, a não ser que seja de grupo.
 - **Partida de grupo:** em Nova partida → "Partida de grupo", escolha um grupo seu.
   - **"Estou jogando":** com ele desligado, você só registra a partida, por exemplo como organizador da rodada. Ela não entra nas suas estatísticas.
   - **Estatísticas do grupo:** a partida fica marcada como do grupo e conta no ranking e nas estatísticas dele.
@@ -104,6 +106,8 @@ Atualizado em 13/10/2026. O banco aplica estas regras (`supabase/schema.sql`, se
 - **Placar errado depois de todos aceitarem:** use "Corrigir placar". Todos aceitam e o placar muda, com o selo "placar corrigido".
 - **Alguém nunca responde um pedido:** em 14 dias ele expira.
 - **Organizador registra a rodada inteira sem jogar:** use partida de grupo com "Estou jogando" desligado.
+- **Abriu o link de uma partida e tocou em "Só assisti":** ela fica salva só para você ("só eu"), não vai para o feed e não marca ninguém.
+- **Revanche de uma partida de grupo:** continua no mesmo grupo.
 - **Alguém marca você em partidas falsas:**
   - recuse; depois de 3 recusas, a pessoa para de conseguir marcar você;
   - mude "Quem pode marcar você";

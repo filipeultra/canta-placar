@@ -65,7 +65,10 @@ select '14. ranking: ' || string_agg(p.name || ' ' || wins || '/' || played, ' �
 \o /dev/null
 select pg_temp.u('e');
 \o
+begin;   -- partida e jogadores na mesma transação (fora do grupo, quem lança joga)
 insert into public.matches (id, owner_id, sport, played_at, result) values ('e1', auth.uid(), 'beach', now(), '{"winner":1}');
+insert into public.match_players (match_id, team, slot, user_id) values ('e1', 0, 0, auth.uid());
+commit;
 \o /dev/null
 select pg_temp.u('d');
 \o

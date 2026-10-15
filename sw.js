@@ -2,10 +2,14 @@
    Arquivos do app: rede primeiro, cache como reserva (assim uma versao nova nunca fica presa);
    se a rede demora mais de 3 s (sinal fraco), abre com o cache e atualiza por tras.
    Motor de voz offline (vosk.js, 5,8 MB): cache primeiro, porque a versao e fixa. */
-const CACHE = 'canta-app-v50';
+const CACHE = 'canta-app-v51';
 const VOSK_CACHE = 'canta-vosk-js-v1'; // separado: nao e apagado quando o app ganha versao nova
 const SHELL = ['./', 'index.html', 'styles.css', 'engine.js', 'grammar.js', 'stats.js', 'fullstats.js', 'demo.js', 'share.js', 'vendor/gifenc.js', 'motion.js', 'video.js', 'relay.js', 'config.js', 'telemetry.js', 'vendor/qrcode.js', 'social.js', 'voice.js', 'help.js', 'i18n.js', 'i18n-en.js', 'app.js', 'manifest.webmanifest', 'icon.svg', 'icon-maskable.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'fonts/bricolage-grotesque-latin.woff2', 'fonts/archivo-condensed-latin.woff2', 'stickers/show.png', 'stickers/aula.png', 'stickers/jogao.png', 'stickers/esmagou.png', 'stickers/trofeu.png', 'stickers/smash.png', 'stickers/naodeu.png', 'stickers/noite.png', 'stickers/joinha.png'];
 const VOSK_JS = new URL('vendor/vosk-0.0.8.js', self.location).href;
+// impressão digital do vosk.js (vendor/LICENSE-vosk-browser.md): o cache só serve o arquivo se bater. Assim, outro site no mesmo
+// endereço (outros repositórios em filipeultra.github.io dividem a origem) não consegue trocar o arquivo guardado por outro código.
+const VOSK_SHA384 = 'nqyY8clHf93uBYFkgkACShMTuvE3U57yXSJaf0Ws+XgzcoUe6OB/1BiOfHqKOWeg';
+const sha384 = async res => { const b = await res.clone().arrayBuffer(); const d = new Uint8Array(await crypto.subtle.digest('SHA-384', b)); let s = ''; d.forEach(x => { s += String.fromCharCode(x); }); return btoa(s); };
 
 self.addEventListener('install', e => {
   // cache: 'reload' pula o cache HTTP (o GitHub Pages manda max-age=600): a versão nova não nasce com arquivo velho
@@ -25,9 +29,12 @@ self.addEventListener('fetch', e => {
     // 5,8 MB: fica num cache à parte, que não é apagado quando o app ganha versão nova
     e.respondWith(caches.open(VOSK_CACHE).then(async c => {
       const hit = await c.match(VOSK_JS);
-      if (hit) return hit;
-      const res = await fetch(VOSK_JS);
-      if (res.ok) await c.put(VOSK_JS, res.clone());
+      if (hit && await sha384(hit) === VOSK_SHA384) return hit;
+      if (hit) await c.delete(VOSK_JS); // adulterado ou corrompido: joga fora e baixa de novo
+      const res = await fetch(VOSK_JS, { cache: 'reload' });
+      if (!res.ok) return res;
+      if (await sha384(res) !== VOSK_SHA384) return Response.error();
+      await c.put(VOSK_JS, res.clone());
       return res;
     }));
     return;
@@ -38,7 +45,8 @@ self.addEventListener('fetch', e => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
     return res;
   });
-  const cached = () => caches.match(req, { ignoreSearch: true }).then(hit => hit || (req.mode === 'navigate' ? caches.match('index.html') : undefined));
+  // só o cache do próprio app (caches.match procuraria em qualquer cache da origem, inclusive criado por outro site do github.io)
+  const cached = () => caches.open(CACHE).then(c => c.match(req, { ignoreSearch: true }).then(hit => hit || (req.mode === 'navigate' ? c.match('index.html') : undefined)));
   // Sinal fraco na quadra: se a rede demora mais de 3 s, abre com a cópia guardada (a rede segue atualizando o cache).
   const slow = new Promise(resolve => setTimeout(() => cached().then(hit => hit && resolve(hit)), 3000));
   e.respondWith(Promise.race([net, slow]).catch(() => cached().then(hit => hit || Response.error())));
