@@ -223,6 +223,7 @@ Gerar o vídeo inteiro por IA custaria muito mais. Só o Seedance Fast sai 1.175
   - texto grande em Bricolage, pílulas sem contorno preto;
   - carimbo de data laranja de câmera de filme (`k: 'dt'`) e cortes secos sem flash.
   - A tela final verde é a mesma dos outros lotes, para a comparação ser justa.
+  - O render usa crf 24 no estilo foto (o grão pesa na compressão): de 10 a 18 MB por vídeo.
 - **Custo no Magnific:** 3.821 créditos, conferido no saldo (21 fotos: 2.100; 8 clipes: 1.120; 8 narrações: 386; 2 trilhas: 160; 2 efeitos: 55). Sobram 61,5 mil.
 
 **Teste sugerido:** foto real × desenho no mesmo ângulo e no mesmo conjunto (E5 × A, E4 × D9, E6 × D6). O estilo que tiver a melhor taxa de gancho define o próximo lote.

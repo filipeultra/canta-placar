@@ -61,7 +61,7 @@ function audio(c, dur, auto) {
     await p.close();
     const wav = audio(c, (n / FPS).toFixed(3), auto), out = path.join(TESTE ? W : DIR, `criativo-${c}.mp4`);
     run('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-start_number', '0', '-i', path.join(fd, 'f%04d.png'), '-i', wav,
-      '-c:v', 'libx264', '-crf', '19', '-preset', 'slow', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out]);
+      '-c:v', 'libx264', '-crf', window.ROTEIROS[c].estilo === 'foto' ? '24' : '19', '-preset', 'slow', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out]);
     run('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(fd, 'f' + String(Math.round(0.6 * FPS)).padStart(4, '0') + '.png'), '-q:v', '3', path.join(TESTE ? W : DIR, `criativo-${c}-capa.jpg`)]);
     console.log(c, n, 'quadros em', Math.round((Date.now() - t0) / 1000), 's →', path.relative(process.cwd(), out));
   }
