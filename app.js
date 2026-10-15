@@ -4347,7 +4347,7 @@
   // Com o servidor ligado, o botão Pagar abre o checkout (Pix ou cartão) e quem ativa é o webhook do pagamento.
   const PLANS = {
     pro: { name: 'Pro', seats: 1, ic: 'i-bolt', prices: { mensal: 24.90, semestral: 119.90, anual: 179.90 } },
-    amigos: { name: L('Pro Amigos', 'Pro Friends'), seats: 6, ic: 'i-users', prices: { semestral: 249.90, anual: 399.90 } },
+    amigos: { name: L('Pro Amigos', 'Pro Friends'), seats: 6, ic: 'i-users', prices: { semestral: 329.90, anual: 549.90 } },
   };
   const PERIODS = { mensal: { m: 1, lbl: 'Mensal', per: '/mês' }, semestral: { m: 6, lbl: 'Semestral', per: '/semestre' }, anual: { m: 12, lbl: 'Anual', per: '/ano' } };
   const TRIAL_DAYS = 14, AMIGOS_MAX = 5;

@@ -11,7 +11,7 @@ insert into auth.users (id, raw_user_meta_data) values
 insert into public.subscriptions (user_id, plan, status, provider, current_period_end) values
  ('00000000-0000-0000-0000-0000000000a9', 'amigos_anual', 'ativa', 'web', now() + interval '1 year'),
  ('00000000-0000-0000-0000-0000000000d9', 'pro_mensal', 'ativa', 'web', now() + interval '1 month');
-insert into public.payments (user_id, plan, amount, method) values ('00000000-0000-0000-0000-0000000000a9', 'amigos_anual', 399.90, 'cartao');
+insert into public.payments (user_id, plan, amount, method) values ('00000000-0000-0000-0000-0000000000a9', 'amigos_anual', 549.90, 'cartao');
 insert into public.blocks (user_id, blocked_id) values ('00000000-0000-0000-0000-0000000000e9', '00000000-0000-0000-0000-0000000000a9');
 -- mais 5 contas para encher o plano
 insert into auth.users (id, raw_user_meta_data) select ('00000000-0000-0000-0000-00000000010' || g)::uuid, jsonb_build_object('name', 'Extra ' || g) from generate_series(1, 5) g;

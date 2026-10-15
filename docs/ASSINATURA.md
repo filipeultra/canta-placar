@@ -20,13 +20,17 @@ Atualizado em 13/10/2026. Preços e conta de margem: ver `PRECOS.md`.
 | Plano | Mensal | Semestral | Anual | Por mês no anual |
 |---|---|---|---|---|
 | **Pro** (1 pessoa) | R$ 24,90 | R$ 119,90 | **R$ 179,90** | R$ 14,99 (−40%) |
-| **Pro Amigos** (você + 5) | — | R$ 249,90 | **R$ 399,90** | R$ 33,33, ou **R$ 5,55 por pessoa** |
+| **Pro Amigos** (você + 5) | — | R$ 329,90 | **R$ 549,90** | R$ 45,82, ou **R$ 7,64 por pessoa** |
 
 - **O Amigos é só semestral ou anual:** período longo segura a turma junta e evita trocar gente todo mês.
-- **Referências:** o Strava Família custa R$ 389,90/ano para 4 pessoas. O Amigos a R$ 399,90 para 6 pessoas é o argumento de venda.
+- **Preço revisto em 15/10/2026** (antes: R$ 249,90 e R$ 399,90, ou R$ 5,55 por pessoa). A R$ 5,55, cada pessoa do Amigos deixava só R$ 3,21 por mês e mal pagava a própria nuvem e a IA. O preço novo segue três travas:
+  - **nunca mais caro que o solo:** R$ 7,64 por pessoa contra R$ 14,99 do Pro anual (−49%). No semestral, R$ 9,16 por pessoa contra R$ 19,98 (−54%);
+  - **mais barato por pessoa que o Strava Família:** R$ 389,90/ano para 4 pessoas dá R$ 8,12 por pessoa; o Amigos dá R$ 7,64, com 6 vagas;
+  - **abaixo de R$ 8 por pessoa e de R$ 50 por mês para a turma:** R$ 549,90/ano é R$ 45,82 por mês, ou R$ 91,65 por ano para cada um dividir.
+- **Argumento de venda:** "o Pro para a turma toda por menos de R$ 8 por pessoa, mais barato que o Strava Família e com 2 vagas a mais".
 - **Conta de margem do Amigos anual, na web:**
-  - receita de R$ 399,90, menos taxa (~R$ 16), imposto (~R$ 24) e nuvem de 6 × 20 h com margem 2x (~R$ 130/ano);
-  - sobram **cerca de R$ 230 por ano (58%)**.
+  - receita de R$ 549,90, menos taxa (~R$ 22), imposto (~R$ 33) e nuvem de 6 × 20 h com margem 2x (~R$ 130/ano);
+  - sobram **cerca de R$ 365 por ano (66%)**, contra R$ 230 no preço antigo.
   - Se a nuvem pesar, o Amigos pode ter 10 h por pessoa em vez de 20 h.
 - **Teste grátis:** 14 dias de Pro, sem cartão, uma vez por conta. No fim, nada é cobrado e o app volta para o Grátis.
 - **Fundador** (lançamento, R$ 119,90/ano) e **Professor/Arena:** continuam como estão em `PRECOS.md`.
@@ -81,4 +85,4 @@ Atualizado em 13/10/2026. Preços e conta de margem: ver `PRECOS.md`.
 ## Pendências
 - Escolher o provedor (Mercado Pago ou Asaas) e criar as funções `checkout` e `pagamento-webhook`.
 - Texto dos Termos: renovação, cancelamento, reembolso de 7 dias e regras do Amigos.
-- Validar os preços do Amigos com 5 a 10 turmas (teste A/B entre R$ 349,90 e R$ 399,90 no anual).
+- Validar os preços do Amigos com 5 a 10 turmas (teste A/B entre R$ 499,90 e R$ 549,90 no anual; a partir de R$ 589,90 o Amigos passa do Strava Família por pessoa).

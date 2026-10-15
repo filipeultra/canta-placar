@@ -176,7 +176,7 @@ select pg_temp.u('f1');
 select pg_temp.err($$update public.subscription_members set status = 'ativo' where member_id = auth.uid() and owner_id = '00000000-0000-0000-0000-0000000000f8'$$, 'sub_members_one_plan', '26. estar em dois planos Amigos ao mesmo tempo');
 reset role;
 update public.subscriptions set status = 'encerrada' where user_id = pg_temp.id('f0');
-insert into public.payments (user_id, plan, amount, method, status) values (pg_temp.id('f0'), 'amigos_anual', 399.90, 'cartao', 'estornado');
+insert into public.payments (user_id, plan, amount, method, status) values (pg_temp.id('f0'), 'amigos_anual', 549.90, 'cartao', 'estornado');
 set role authenticated;
 select pg_temp.ok(not public.has_pro(auth.uid()), '27. dono pediu estorno (assinatura encerrada): a convidada perde o Pro na hora');
 reset role;
