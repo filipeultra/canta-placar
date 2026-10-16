@@ -20,7 +20,7 @@
   const PLAN = { pro_mensal: 'Pro mensal', pro_anual: 'Pro anual', fundador: 'Fundador', professor: 'Professor', arena: 'Arena', cortesia: 'Cortesia' };
   const USD_BRL = 5.5, PRICE_IN = 1, PRICE_OUT = 5; // US$ por milhão de tokens (referência classe Haiku; ver docs/IA.md)
   let days = 30, ate = null, data = null, session = null, linksData = null, showArchived = false;
-  const EVT = { visit: 'Visita ao site ou ao app', app_open: 'Abriu o app', signup: 'Criou conta', match_start: 'Começou uma partida', match_end: 'Terminou uma partida', share: 'Compartilhou imagem ou vídeo', pro_view: 'Viu a tela do Pro', pro_start: 'Ativou o Pro', link_open: 'Conectou o celular câmera', group_create: 'Criou um grupo', group_join: 'Entrou num grupo', invite: 'Convidou alguém', install: 'Instalou o app', feedback: 'Mandou sugestão ou problema', rec_start: 'Começou a gravar', ai_analysis: 'Pediu análise por IA', retro: 'Viu a retrospectiva', tutorial: 'Tutorial (aceitou, pulou ou terminou)', js_error: 'Erro no app (só arquivo, linha e tipo)' };
+  const EVT = { visit: 'Visita ao site ou ao app', visit_end: 'Saiu de uma página (tempo e rolagem; vale sem consentimento)', screen: 'Viu uma tela do app (com o tempo nela)', app_open: 'Abriu o app', signup: 'Criou conta', match_start: 'Começou uma partida', match_end: 'Terminou uma partida', share: 'Compartilhou imagem ou vídeo', pro_view: 'Viu a tela do Pro', pro_start: 'Ativou o Pro', link_open: 'Conectou o celular câmera', group_create: 'Criou um grupo', group_join: 'Entrou num grupo', invite: 'Convidou alguém', install: 'Instalou o app', feedback: 'Mandou sugestão ou problema', rec_start: 'Começou a gravar', ai_analysis: 'Pediu análise por IA', retro: 'Viu a retrospectiva', tutorial: 'Tutorial (aceitou, pulou ou terminou)', js_error: 'Erro no app (só arquivo, linha e tipo)' };
   const SECS = {
     visao: ['Visão geral', 'Como o ULTRA PLAY está indo no período.'], crescimento: ['Crescimento', 'Quem chega, de onde vem e quem fica.'],
     links: ['Links e tráfego', 'Crie links rastreáveis (UTM) e veja de onde vem cada visita, conta e assinatura.'],
@@ -30,6 +30,7 @@
     moderacao: ['Moderação', 'Denúncias e registro de ações dos admins.'], ia: ['IA', 'Análises do jogo por IA e quanto custam.'],
     seguranca: ['Segurança', 'Quem entrou no painel, a equipe e como o acesso é protegido.'],
     eventos: ['Eventos', 'O que o app registra (sem dados pessoais).'],
+    web: ['Site e app', 'Visitantes, de onde vêm, páginas, tempo, público e mapa de calor do site e do app.'],
   };
   // o que cada papel vê: leitor só os números; moderador também contas e denúncias; dono tudo
   const ROLE = { dono: 'Dono', moderador: 'Moderador', leitor: 'Leitor' };
@@ -158,9 +159,17 @@
     return r.json();
   }
   const rpc = (fn, args) => call('/rest/v1/rpc/' + fn, args || {});
+  // respostas guardadas por 45 s (trocar de seção ou de período e voltar é instantâneo); Atualizar limpa
+  const memo = new Map();
+  function cached(key, fn, ttl) {
+    const c = memo.get(key); if (c && Date.now() - c.t < (ttl || 45e3)) return c.p;
+    const p = fn(); memo.set(key, { t: Date.now(), p }); p.catch(() => memo.delete(key)); return p;
+  }
   const api = {
-    metrics: d => (DEMO ? Promise.resolve(demoMetrics(d)) : rpc('admin_metrics', { days: d, ate })),
-    links: () => (DEMO ? Promise.resolve(demoLinks(days)) : rpc('admin_links', { days, ate })),
+    metrics: d => cached('m|' + d + '|' + ate, () => (DEMO ? Promise.resolve(demoMetrics(d)) : rpc('admin_metrics', { days: d, ate }))),
+    links: () => (DEMO ? Promise.resolve(demoLinks(days)) : cached('l|' + days + '|' + ate, () => rpc('admin_links', { days, ate }))),
+    web: a => cached('w|' + a + '|' + days + '|' + ate, () => (DEMO ? Promise.resolve(demoWeb(a, days)) : rpc('admin_web', { area: a, days, ate }))),
+    heatmap: (a, page, dev) => cached('h|' + a + '|' + page + '|' + dev + '|' + days + '|' + ate, () => rpc('admin_heatmap', { area: a, page, dev, days: Math.min(days, 90), ate })),
     saveLink: o => {
       if (!DEMO) return rpc('admin_link_save', o);
       const st = demoStore(), i = st.links.findIndex(l => l.slug === o.slug);
@@ -318,7 +327,7 @@
     }
     g.append(sv('line', { class: 'baseline', x1: f.l, x2: f.W - f.r, y1: f.H - f.b, y2: f.H - f.b }));
     const n = labels.length, every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor((f.W - f.l - f.r) / 70))));
-    labels.forEach((lb, i) => { if (i % every && i !== n - 1) return; const x = f.l + ((f.W - f.l - f.r) * (n === 1 ? 0.5 : i / (n - 1))); const t = sv('text', { x, y: f.H - 6, 'text-anchor': i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle' }); t.textContent = lb; g.append(t); });
+    labels.forEach((lb, i) => { if (i % every && i !== n - 1) return; if (i !== n - 1 && n - 1 - i < every * 0.7) return; /* o último rótulo não encosta no anterior */ const x = f.l + ((f.W - f.l - f.r) * (n === 1 ? 0.5 : i / (n - 1))); const t = sv('text', { x, y: f.H - 6, 'text-anchor': i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle' }); t.textContent = lb; g.append(t); });
   }
   // linhas com mira (crosshair) que acha o dia; uma dica com todas as séries
   function lineChart(box, rows, series, label) {
@@ -586,18 +595,19 @@
       kpi('check', 'Placares corrigidos', nf.format(K.fixes_done || 0), { note: 'todos aceitaram' }));
   }
   const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], DOWL = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-  function heat(box, hours) {
+  function heat(box, hours, what) {
+    what = what || 'partidas';
     const m = {}; let max = 0, best = null, total = 0;
     hours.forEach(x => { m[x.d + '-' + x.h] = x.n; total += x.n; if (x.n > max) { max = x.n; best = x; } });
-    if (!total) { box.replaceChildren(empty('Sem partidas no período.', 'ball')); return; }
+    if (!total) { box.replaceChildren(empty('Sem ' + what + ' no período.', what === 'partidas' ? 'ball' : 'calendar')); return; }
     const seq = ['--seq-1', '--seq-2', '--seq-3', '--seq-4', '--seq-5', '--seq-6'].map(css);
-    const g = el('div', { class: 'heat-g', role: 'img', 'aria-label': 'Partidas por dia e hora. Horário com mais partidas: ' + DOWL[best.d] + ', ' + best.h + 'h (' + best.n + '). Total ' + nf.format(total) + '.' });
+    const g = el('div', { class: 'heat-g', role: 'img', 'aria-label': what[0].toUpperCase() + what.slice(1) + ' por dia e hora. Horário com mais partidas: ' + DOWL[best.d] + ', ' + best.h + 'h (' + best.n + '). Total ' + nf.format(total) + '.' });
     [1, 2, 3, 4, 5, 6, 0].forEach(d => {
       g.append(el('div', { class: 'hl', text: DOW[d] }));
       for (let h = 0; h < 24; h++) {
         const n = m[d + '-' + h] || 0, c = el('div', { class: 'c' });
         if (n) c.style.background = seq[Math.min(5, Math.floor((n / max) * 6))];
-        c.addEventListener('pointermove', e => showTip(e.clientX, e.clientY, DOWL[d] + ', ' + h + 'h', [['partidas', nf.format(n)]]));
+        c.addEventListener('pointermove', e => showTip(e.clientX, e.clientY, DOWL[d] + ', ' + h + 'h', [[what, nf.format(n)]]));
         c.addEventListener('pointerleave', hideTip);
         g.append(c);
       }
@@ -856,7 +866,329 @@
     setCsv('bycampaign', 'por-campanha', ['Campanha', 'Origens', 'Visitas', 'Contas', '1ª partida', 'Pro'], (L0.campaigns || []).map(x => [x.campaign, x.source, x.visits, x.signups, x.played, x.pro]));
   }
   async function loadLinks() { try { linksData = await api.links(); if (sec === 'links') renderLinks(); } catch (e) { if (e.code === 401) fail(e); else { linksData = { links: [], sources: [], campaigns: [], daily: [], totals: {} }; console.warn('[admin] links indisponíveis', e.message); if (sec === 'links') renderLinks(); } } }
-  const RENDER = { visao: renderVisao, crescimento: renderCresc, uso: renderUso, receita: renderReceita, contas: renderContas, grupos: renderGrupos, moderacao: renderModeracao, ia: renderIA, seguranca: renderSeguranca, eventos: renderEventos, taxas: renderTaxas, links: renderLinks };
+  // ---------- Site e app: visitantes, origem, páginas, público e mapa de calor ----------
+  const PAGE_L = { index: 'Inicial', ajuda: 'Ajuda', 'placar-beach-tennis': 'Beach tennis', 'placar-padel': 'Padel', 'placar-tenis': 'Tênis', 'placar-peteca': 'Peteca' };
+  const SCREEN_L = { inicio: 'Início', jogar: 'Jogar (placar)', voce: 'Você', stats: 'Estatísticas', partida: 'Partida', atividade: 'Atividade', perfil: 'Perfil', notificacoes: 'Notificações', grupos: 'Grupos', grupo: 'Grupo', entrar: 'Entrar', camera: 'Câmera', app: 'App' };
+  // telas do app que dá para mostrar de fundo no mapa de calor (as outras dependem de uma partida ou pessoa)
+  const APP_BG = ['inicio', 'jogar', 'voce', 'stats', 'notificacoes', 'grupos'];
+  const SITE_PAGES = ['index', 'ajuda', 'placar-beach-tennis', 'placar-padel', 'placar-tenis', 'placar-peteca'];
+  const CHAN_L = { social: 'Redes sociais', busca: 'Busca (Google…)', direto: 'Direto', campanha: 'Campanha (utm)', convite: 'Convite de amigo', 'anúncio': 'Anúncio pago', 'e-mail': 'E-mail', 'outros sites': 'Outros sites' };
+  const DEV_L = { m: 'Celular', t: 'Tablet', d: 'Computador', '?': 'Não informado' };
+  const BR_L = { chrome: 'Chrome', safari: 'Safari', samsung: 'Samsung Internet', firefox: 'Firefox', edge: 'Edge', opera: 'Opera', outro: 'Outro', '?': 'Não informado' };
+  const OS_L = { android: 'Android', ios: 'iPhone / iPad', windows: 'Windows', mac: 'Mac', linux: 'Linux', outro: 'Outro', '?': 'Não informado' };
+  // fuso do aparelho → região aproximada (sem localização: é só o relógio do aparelho)
+  const TZ_L = { 'America/Sao_Paulo': 'Sudeste, Sul, GO e DF', 'America/Bahia': 'Bahia', 'America/Fortaleza': 'CE, RN, PB, PI e MA', 'America/Recife': 'Pernambuco', 'America/Maceio': 'Alagoas e Sergipe', 'America/Belem': 'Pará e Amapá', 'America/Santarem': 'Pará (oeste)', 'America/Araguaina': 'Tocantins', 'America/Manaus': 'Amazonas', 'America/Eirunepe': 'Amazonas (oeste)', 'America/Cuiaba': 'Mato Grosso', 'America/Campo_Grande': 'Mato Grosso do Sul', 'America/Porto_Velho': 'Rondônia', 'America/Boa_Vista': 'Roraima', 'America/Rio_Branco': 'Acre', 'America/Noronha': 'Fernando de Noronha' };
+  const tzLabel = tz => TZ_L[tz] || (tz === '?' ? 'Não informado' : 'Fora do Brasil (' + String(tz).split('/').pop().replace(/_/g, ' ') + ')');
+  const pageL = (a, p) => (a === 'site' ? PAGE_L[p] : SCREEN_L[p]) || p;
+  function fdur(ms) {
+    if (ms == null) return '—';
+    const s = Math.round(ms / 1000); if (s < 60) return s + ' s';
+    const m = Math.floor(s / 60), r = s % 60; if (m < 60) return m + ' min' + (r ? ' ' + r + ' s' : '');
+    return Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
+  }
+  // rejeição e tempo: subir a rejeição é ruim (seta para baixo vermelha)
+  function deltaPts(cur, prev, worseUp) {
+    if (prev == null || cur == null) return ['flat', 'sem dados antes'];
+    const d = Math.round((cur - prev) * 10) / 10;
+    // a seta mostra o sentido do número; a cor diz se é bom (rejeição caindo: seta para baixo, verde)
+    const dir = d === 0 ? 'flat' : worseUp ? (d > 0 ? 'bup' : 'gdown') : (d > 0 ? 'up' : 'down');
+    return [dir, (d > 0 ? '+' : '') + String(d).replace('.', ',') + ' pontos vs. antes'];
+  }
+  let warea = 'site', web = null, hm = { page: null, dev: 'm', mode: 'click', data: null, token: 0 };
+
+  // dados de demonstração (fictícios, sempre iguais para o mesmo período)
+  function demoWeb(a, d) {
+    const r = rng(a === 'site' ? 7 : 8), k = d / 30, today = new Date(); today.setHours(0, 0, 0, 0);
+    const site = a === 'site';
+    const base = site ? 140 : 62, daily = [];
+    const off = demoOff(today, 729);
+    for (let i = off + d - 1; i >= off; i--) {
+      const day = new Date(today); day.setDate(day.getDate() - i);
+      const wk = [1.25, 0.86, 0.9, 0.95, 1, 1.08, 1.32][day.getDay()], grow = 1 + (d - i) / (d * 3);
+      const v = Math.round(base * wk * grow * (0.85 + r() * 0.3));
+      daily.push({ day: day.toISOString().slice(0, 10), visitors: v, sessions: Math.round(v * (site ? 1.18 : 2.9)), pageviews: Math.round(v * (site ? 1.9 : 0)), avg_ms: Math.round((site ? 70e3 : 540e3) * (0.85 + r() * 0.3)) });
+    }
+    const sum = key => daily.reduce((x, y) => x + y[key], 0);
+    const visitors = Math.round(sum('visitors') * 0.82), sessions = sum('sessions');
+    const pages = site
+      ? [['index', 0.46, 52e3, 61, 0.72, 0.38, 0.41], ['placar-beach-tennis', 0.17, 81e3, 68, 0.16, 0.31, 0.22], ['ajuda', 0.13, 96e3, 74, 0.05, 0.18, 0.17], ['placar-padel', 0.11, 74e3, 63, 0.05, 0.34, 0.11], ['placar-tenis', 0.08, 69e3, 58, 0.01, 0.4, 0.06], ['placar-peteca', 0.05, 63e3, 55, 0.01, 0.43, 0.03]]
+      : [['inicio', 0.34, 48e3, 57], ['jogar', 0.21, 820e3, 18], ['partida', 0.14, 64e3, 71], ['voce', 0.1, 41e3, 63], ['stats', 0.08, 93e3, 77], ['notificacoes', 0.06, 22e3, 82], ['grupos', 0.04, 37e3, 59], ['grupo', 0.02, 58e3, 66], ['perfil', 0.01, 31e3, 70]];
+    const totalViews = site ? sum('pageviews') : Math.round(sessions * 3.4);
+    const ent = sessions;
+    const pg = pages.map(([page, sh, ms, sc, en, bo, ex]) => ({ page, views: Math.round(totalViews * sh), visitors: Math.round(visitors * Math.min(0.92, sh * 1.6)), avg_ms: ms, scroll: sc, entries: site ? Math.round(ent * en) : null, bounce: site ? Math.round(bo * 1000) / 10 : null, exits: site ? Math.round(ent * ex) : null }));
+    const ch = site ? [['social', 0.36, 64e3, 39], ['busca', 0.22, 92e3, 31], ['direto', 0.17, 71e3, 44], ['campanha', 0.1, 58e3, 47], ['convite', 0.07, 118e3, 22], ['anúncio', 0.05, 41e3, 58], ['outros sites', 0.03, 66e3, 49]]
+      : [['direto', 0.58, 610e3, 9], ['convite', 0.16, 720e3, 6], ['social', 0.14, 380e3, 17], ['campanha', 0.08, 450e3, 13], ['busca', 0.04, 300e3, 21]];
+    const channels = ch.map(([channel, sh, ms, b]) => ({ channel, sessions: Math.round(sessions * sh), visitors: Math.round(visitors * sh), avg_ms: ms, bounce: b }));
+    const refs = (site ? [['l.instagram.com', 'social', 0.2, 61e3, 41], ['www.google.com', 'busca', 0.19, 94e3, 30], ['m.facebook.com', 'social', 0.05, 52e3, 47], ['www.tiktok.com', 'social', 0.05, 47e3, 52], ['t.co', 'social', 0.02, 58e3, 44], ['www.bing.com', 'busca', 0.015, 88e3, 33], ['chatgpt.com', 'outros sites', 0.012, 131e3, 19], ['duckduckgo.com', 'busca', 0.008, 79e3, 35], ['arenabeachsul.com.br', 'outros sites', 0.006, 102e3, 27]]
+      : [['l.instagram.com', 'social', 0.06, 340e3, 18], ['www.google.com', 'busca', 0.03, 290e3, 22]]).map(([referrer, channel, sh, ms, b]) => ({ referrer, channel, sessions: Math.round(sessions * sh), avg_ms: ms, bounce: b }));
+    const camps = (site ? [['instagram', 'bio', 'lancamento-out26', 0.06, 62e3, 38], ['tiktok', 'video', 'lancamento-out26', 0.03, 44e3, 55], ['whatsapp', 'grupo', 'torneio-arena-sul', 0.012, 121e3, 18], ['google', 'cpc', 'busca-placar', 0.02, 39e3, 61], ['influencer', 'reels', 'embaixador-duda', 0.008, 77e3, 34]]
+      : [['instagram', 'bio', 'lancamento-out26', 0.05, 460e3, 12], ['cartaz', 'qr', 'torneio-arena-sul', 0.02, 820e3, 5]]).map(([source, medium, campaign, sh, ms, b]) => ({ source, medium, campaign, sessions: Math.round(sessions * sh), avg_ms: ms, bounce: b }));
+    const mk = arr => arr.map(([k2, sh]) => ({ k: k2, n: Math.round(sessions * sh) }));
+    const audience = {
+      dv: mk(site ? [['m', 0.78], ['d', 0.18], ['t', 0.04]] : [['m', 0.94], ['t', 0.04], ['d', 0.02]]),
+      br: mk([['chrome', 0.52], ['safari', 0.31], ['samsung', 0.11], ['firefox', 0.03], ['edge', 0.03]]),
+      os: mk(site ? [['android', 0.56], ['ios', 0.32], ['windows', 0.08], ['mac', 0.04]] : [['android', 0.61], ['ios', 0.37], ['windows', 0.02]]),
+      lg: mk([['pt-BR', 0.94], ['en-US', 0.03], ['es-ES', 0.02], ['pt-PT', 0.01]]),
+      tz: mk([['America/Sao_Paulo', 0.7], ['America/Recife', 0.06], ['America/Fortaleza', 0.05], ['America/Bahia', 0.04], ['America/Manaus', 0.03], ['America/Cuiaba', 0.03], ['America/Belem', 0.03], ['America/Campo_Grande', 0.02], ['America/Maceio', 0.02], ['Europe/Lisbon', 0.01], ['America/New_York', 0.01]]),
+      sw: mk(site ? [['390', 0.3], ['412', 0.2], ['360', 0.14], ['430', 0.1], ['1920', 0.09], ['1440', 0.06], ['1366', 0.05], ['768', 0.03]] : [['390', 0.36], ['412', 0.24], ['360', 0.17], ['430', 0.13], ['393', 0.06], ['768', 0.04]]),
+    };
+    const hours = [];
+    for (let dw = 0; dw < 7; dw++) for (let h = 0; h < 24; h++) {
+      const w = (h < 7 ? 0.08 : h < 11 ? 0.6 : h < 17 ? 0.8 : h < 23 ? 1.4 : 0.4) * (dw === 0 || dw === 6 ? 1.3 : 1) * (site ? 1 : (h >= 18 && h <= 21 ? 1.5 : 1));
+      hours.push({ d: dw, h, n: Math.round((sessions / 168) * w * (0.8 + r() * 0.4)) });
+    }
+    const flows = site ? [] : [['inicio', 'jogar', 0.18], ['jogar', 'partida', 0.12], ['inicio', 'partida', 0.09], ['inicio', 'voce', 0.07], ['voce', 'stats', 0.06], ['inicio', 'notificacoes', 0.05], ['partida', 'inicio', 0.05], ['inicio', 'grupos', 0.03], ['grupos', 'grupo', 0.02]].map(([from, to, sh]) => ({ from, to, n: Math.round(sessions * sh) }));
+    const live = site ? { now: 7, pages: [{ page: 'index', n: 4 }, { page: 'placar-beach-tennis', n: 2 }, { page: 'ajuda', n: 1 }] } : { now: 12, pages: [{ page: 'jogar', n: 6 }, { page: 'inicio', n: 4 }, { page: 'stats', n: 2 }] };
+    return { area: a, days: d, from: daily[0].day, kpi: { visitors, visitors_prev: Math.round(visitors * 0.86), sessions, sessions_prev: Math.round(sessions * 0.87), pageviews: site ? sum('pageviews') : 0, pageviews_prev: site ? Math.round(sum('pageviews') * 0.85) : 0, avg_ms: site ? 74e3 : 566e3, avg_ms_prev: site ? 69e3 : 548e3, bounce: site ? 40.6 : 11.8, bounce_prev: site ? 43.2 : 12.9, scroll: site ? 62 : 49, timed: Math.round(sessions * 0.9), consent_pct: site ? 23 : 64, standalone_pct: site ? null : 47 },
+      daily, pages: pg, flows, channels, referrers: refs, campaigns: camps, audience, hours, live, generated_at: new Date().toISOString() };
+  }
+
+  // 1ª vez que a seção abre: pede ao banco para fechar no resumo os dias que faltam (em segundo plano); se fechou algum,
+  // recarrega já lendo do resumo
+  let rolled = false;
+  function rollup() {
+    if (DEMO || rolled) return; rolled = true;
+    rpc('admin_web_rollup').then(n => { if (n > 0) { [...memo.keys()].filter(k => k.startsWith('w|')).forEach(k => memo.delete(k)); if (sec === 'web') loadWeb(true); } }).catch(() => { rolled = false; });
+  }
+  async function loadWeb(quiet) {
+    rollup();
+    const a = warea;
+    try { const w = await api.web(a); if (a !== warea) return; web = w; if (sec === 'web') renderWeb(); }
+    catch (e) { if (e.code === 401) { fail(e); return; } if (!quiet) toast('Não consegui carregar o site e o app (' + e.message + '). Rode o admin.sql novo.', 'alert'); }
+  }
+  function renderWeb() {
+    const site = warea === 'site';
+    if (!web || web.area !== warea) { $('#kpiWeb').replaceChildren(empty('Carregando…', 'refresh')); return; }
+    const K = web.kpi, L0 = web.live || { now: 0, pages: [] };
+    $('#webNote').textContent = site
+      ? 'Visitas ao site (página inicial e páginas de cada esporte). Tempo e rolagem de todas as visitas; cliques do mapa de calor só de quem aceitou as estatísticas (' + (K.consent_pct || 0) + '% das visitas).'
+      : 'Aberturas do app. Tempo de uso de todas; telas, caminhos e toques só de quem ligou as estatísticas (' + (K.consent_pct || 0) + '% das aberturas).';
+    $('#webLive').replaceChildren(
+      el('span', { class: 'now' }, [el('span', { class: 'pulse', 'aria-hidden': 'true' }), el('b', { text: nf.format(L0.now) }), el('span', { text: (L0.now === 1 ? 'pessoa' : 'pessoas') + (site ? ' no site agora' : ' no app agora') })]),
+      el('span', { class: 'pages-live' }, (L0.pages || []).map(p => el('span', {}, [document.createTextNode(pageL(warea, p.page)), el('b', { text: nf.format(p.n) })]))));
+    const views = site ? K.pageviews : (web.pages || []).reduce((x, p) => x + p.views, 0);
+    $('#kpiWeb').replaceChildren(
+      kpi('users', site ? 'Visitantes' : 'Aparelhos', nf.format(K.visitors), { d: delta(K.visitors, K.visitors_prev), spark: (web.daily || []).map(r => r.visitors), title: 'Aparelhos diferentes no período' }),
+      kpi('globe', site ? 'Visitas' : 'Aberturas', nf.format(K.sessions), { d: delta(K.sessions, K.sessions_prev), title: site ? 'Cada aba aberta no site é uma visita' : 'Cada vez que o app foi aberto' }),
+      site ? kpi('list', 'Páginas vistas', nf.format(K.pageviews), { note: K.sessions ? (K.pageviews / K.sessions).toFixed(1).replace('.', ',') + ' por visita' : '' })
+           : kpi('list', 'Telas vistas', nf.format(views), { note: K.sessions ? (views / K.sessions).toFixed(1).replace('.', ',') + ' por abertura (com estatísticas ligadas)' : '' }),
+      kpi('clock', site ? 'Tempo médio por visita' : 'Tempo médio de uso', fdur(K.avg_ms), { d: K.avg_ms_prev ? delta(K.avg_ms, K.avg_ms_prev) : null, note: K.avg_ms_prev ? null : 'com a aba visível', title: 'Só conta o tempo com a página na frente' }),
+      kpi('trend', site ? 'Rejeição' : 'Saíram em menos de 10 s', (K.bounce == null ? 0 : String(K.bounce).replace('.', ',')) + '%', { d: deltaPts(K.bounce, K.bounce_prev, true), title: site ? 'Visitas com uma página só e menos de 10 s' : 'Aberturas que fecharam em menos de 10 s', alert: site ? K.bounce >= 60 : K.bounce >= 30 }),
+      kpi('activity', 'Rolagem média', (K.scroll || 0) + '%', { note: site ? 'até onde a página foi vista' : 'das telas com rolagem' }),
+      site ? kpi('shield', 'Com estatísticas ligadas', (K.consent_pct || 0) + '%', { note: 'base do mapa de calor' }) : kpi('phone', 'Pelo app instalado', (K.standalone_pct || 0) + '%', { note: 'fora do navegador' }),
+      site ? kpi('pointer', 'Agora no site', nf.format(L0.now), { note: 'últimos 5 minutos' }) : kpi('shield', 'Com estatísticas ligadas', (K.consent_pct || 0) + '%', { note: 'base das telas e toques' }));
+    // por dia
+    const ser = site ? [{ key: 'visitors', label: 'Visitantes', color: '--series-1' }, { key: 'pageviews', label: 'Páginas vistas', color: '--series-2' }] : [{ key: 'visitors', label: 'Aparelhos', color: '--series-1' }, { key: 'sessions', label: 'Aberturas', color: '--series-2' }];
+    $('#webDailyT').textContent = site ? 'Visitantes e páginas vistas por dia' : 'Aparelhos e aberturas por dia';
+    $('#lgWeb').replaceChildren(...ser.map(x => { const sp = el('span'); const i = el('i'); i.style.setProperty('--c', css(x.color)); sp.append(i, document.createTextNode(x.label)); return sp; }));
+    if ((web.daily || []).length) lineChart($('#chWeb'), web.daily, ser, $('#webDailyT').textContent);
+    setCsv('webdaily', warea + '-por-dia', ['Dia', 'Visitantes', 'Visitas', 'Páginas', 'Tempo médio (s)'], (web.daily || []).map(r => [r.day, r.visitors, r.sessions, r.pageviews, r.avg_ms == null ? '' : Math.round(r.avg_ms / 1000)]));
+    // canais
+    const ch = web.channels || [], chT = ch.reduce((x, c) => x + c.sessions, 0);
+    hbars($('#chChannels'), ch.map(c => ({ label: CHAN_L[c.channel] || c.channel, n: c.sessions, c })), it => pct(it.n, chT) + '% · ' + fdur(it.c.avg_ms) + (it.c.bounce != null ? ' · rejeição ' + String(it.c.bounce).replace('.', ',') + '%' : ''));
+    const best = ch.filter(c => c.sessions >= Math.max(5, chT * 0.04)).sort((x, y) => (y.avg_ms || 0) - (x.avg_ms || 0))[0];
+    $('#chanNote').textContent = ch.length ? 'Pelo primeiro toque de cada ' + (site ? 'visita' : 'abertura') + ': utm, convite ou o site que mandou a pessoa.' + (best ? ' Quem fica mais: ' + (CHAN_L[best.channel] || best.channel).toLowerCase() + ' (' + fdur(best.avg_ms) + ').' : '') : '';
+    setCsv('webchannels', warea + '-canais', ['Canal', 'Visitas', 'Visitantes', 'Tempo médio (s)', 'Rejeição %'], ch.map(c => [CHAN_L[c.channel] || c.channel, c.sessions, c.visitors, c.avg_ms == null ? '' : Math.round(c.avg_ms / 1000), c.bounce]));
+    // páginas ou telas
+    $('#webPagesT').textContent = site ? 'Páginas' : 'Telas do app';
+    $('#webPagesNote').textContent = site ? 'Entradas: primeira página da visita. Saídas: última. Toque em uma linha para ver o mapa de calor dela.' : 'Telas vistas com as estatísticas ligadas. Toque em uma linha para ver o mapa de calor dela.';
+    const pg = web.pages || [], pv = pg.reduce((x, p) => x + p.views, 0);
+    const head = site ? [{ text: 'Página', cls: 'l' }, 'Vistas', 'Visitantes', 'Tempo médio', 'Rolagem', 'Entradas', 'Rejeição', 'Saídas'] : [{ text: 'Tela', cls: 'l' }, 'Vistas', 'Aparelhos', 'Tempo médio', 'Rolagem'];
+    table($('#tbWebPages'), head, pg.map(p => {
+      const b = el('button', { class: 'link', type: 'button', 'data-hm': p.page, text: pageL(warea, p.page) });
+      const row = [{ node: b, cls: 'l', sub: pct(p.views, pv) + '% das vistas' }, nf.format(p.views), nf.format(p.visitors), fdur(p.avg_ms), p.scroll == null ? '—' : p.scroll + '%'];
+      return site ? row.concat([nf.format(p.entries || 0), p.bounce == null ? '—' : String(p.bounce).replace('.', ',') + '%', nf.format(p.exits || 0)]) : row;
+    }), { caption: site ? 'Páginas do site' : 'Telas do app', empty: site ? 'Nenhuma visita no período.' : 'Nenhuma tela registrada (precisa de estatísticas ligadas).' });
+    setCsv('webpages', warea + '-paginas', site ? ['Página', 'Vistas', 'Visitantes', 'Tempo médio (s)', 'Rolagem %', 'Entradas', 'Rejeição %', 'Saídas'] : ['Tela', 'Vistas', 'Aparelhos', 'Tempo médio (s)', 'Rolagem %'],
+      pg.map(p => { const r0 = [pageL(warea, p.page), p.views, p.visitors, p.avg_ms == null ? '' : Math.round(p.avg_ms / 1000), p.scroll]; return site ? r0.concat([p.entries, p.bounce, p.exits]) : r0; }));
+    // caminhos (app)
+    $('#cardFlows').hidden = site;
+    if (!site) {
+      const fl = web.flows || [];
+      $('#chFlows').replaceChildren(fl.length ? el('div', { class: 'flows' }, fl.map(f => el('div', { class: 'flow' }, [el('span', { class: 'a', text: pageL('app', f.from) }), el('span', { class: 'arr', text: '→', 'aria-label': 'para' }), el('span', { class: 'b', text: pageL('app', f.to) }), el('span', { class: 'n', text: nf.format(f.n) })]))) : empty('Sem caminhos no período.', 'list'));
+    }
+    // origem
+    table($('#tbRefs'), [{ text: 'Site', cls: 'l' }, 'Visitas', 'Tempo médio', 'Rejeição'], (web.referrers || []).map(x => [{ text: x.referrer.replace(/^www\./, ''), cls: 'l mono', sub: CHAN_L[x.channel] || x.channel }, nf.format(x.sessions), fdur(x.avg_ms), x.bounce == null ? '—' : String(x.bounce).replace('.', ',') + '%']), { caption: 'Sites que mandaram gente', empty: 'Ninguém veio de outro site no período.' });
+    setCsv('webrefs', warea + '-sites-de-origem', ['Site', 'Canal', 'Visitas', 'Tempo médio (s)', 'Rejeição %'], (web.referrers || []).map(x => [x.referrer, CHAN_L[x.channel] || x.channel, x.sessions, x.avg_ms == null ? '' : Math.round(x.avg_ms / 1000), x.bounce]));
+    table($('#tbCamps'), [{ text: 'Campanha', cls: 'l' }, 'Visitas', 'Tempo médio', 'Rejeição'], (web.campaigns || []).map(x => [{ text: x.campaign || '(sem campanha)', cls: 'l', sub: x.source + (x.medium ? ' / ' + x.medium : '') }, nf.format(x.sessions), fdur(x.avg_ms), x.bounce == null ? '—' : String(x.bounce).replace('.', ',') + '%']), { caption: 'Campanhas', empty: 'Nenhuma visita com utm no período. Crie links em Links e tráfego.' });
+    // público
+    const A = web.audience || {}, blk = (t, items, lab) => { const tot = (items || []).reduce((x, i) => x + i.n, 0); const box = el('div'); hbars(box, (items || []).slice(0, 8).map(i => ({ label: lab(i.k), n: i.n })), it => pct(it.n, tot) + '%'); return el('div', {}, [el('h3', { text: t }), (items || []).length ? box : empty('Sem dados.', 'list')]); };
+    $('#webAud').replaceChildren(blk('Aparelho', A.dv, k2 => DEV_L[k2] || k2), blk('Navegador', A.br, k2 => BR_L[k2] || k2), blk('Sistema', A.os, k2 => OS_L[k2] || k2), blk('Idioma', A.lg, k2 => k2 === '?' ? 'Não informado' : k2), blk('Largura da tela', A.sw, k2 => k2 === '?' ? 'Não informado' : k2 + ' px'));
+    setCsv('webaud', warea + '-publico', ['Grupo', 'Valor', 'Visitas'], [].concat(...['dv', 'br', 'os', 'lg', 'tz', 'sw'].map(g => (A[g] || []).map(i => [g, i.k, i.n]))));
+    const reg = {}; (A.tz || []).forEach(i => { const l = tzLabel(i.k); reg[l] = (reg[l] || 0) + i.n; });
+    const regT = Object.values(reg).reduce((x, y) => x + y, 0);
+    const regBox = $('#webRegion'); if (regT) hbars(regBox, Object.entries(reg).sort((x, y) => y[1] - x[1]).slice(0, 10).map(([label, n]) => ({ label, n })), it => pct(it.n, regT) + '%'); else regBox.replaceChildren(empty('Sem dados.', 'list'));
+    heat($('#webHeat'), web.hours || [], site ? 'visitas' : 'aberturas');
+    // mapa de calor: páginas da lista + as que já existem
+    const opts = site ? SITE_PAGES.slice() : APP_BG.slice();
+    pg.forEach(p => { if (!opts.includes(p.page)) opts.push(p.page); });
+    const sel = $('#hmPage');
+    if (!hm.page || !opts.includes(hm.page)) hm.page = opts[0];
+    sel.replaceChildren(...opts.map(p => { const o = el('option', { value: p, text: pageL(warea, p) + (!site && !APP_BG.includes(p) ? ' (sem fundo)' : '') }); if (p === hm.page) o.selected = true; return o; }));
+    observeHeat();
+  }
+
+  // ---------- mapa de calor: a página de verdade num quadro, com os cliques pintados por cima ----------
+  const DEV_W = { m: 390, t: 820, d: 1366 }, DEV_H = { m: 844, t: 1180, d: 820 };
+  let heatSeen = false, heatIO = null;
+  // o quadro do mapa de calor só carrega quando o cartão aparece na tela (a página de cima abre na hora)
+  function observeHeat() {
+    if (heatSeen || !('IntersectionObserver' in window)) { loadHeat(); return; }
+    if (heatIO) return;
+    heatIO = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { heatSeen = true; heatIO.disconnect(); loadHeat(); } }, { rootMargin: '200px' });
+    heatIO.observe($('#cardHeat'));
+  }
+  function frameSrc(a, page) {
+    if (a === 'site') return '../site/' + (page === 'index' ? '' : page + '.html') + '?hm=1';
+    return APP_BG.includes(page) ? '../?hm=1#' + page : 'about:blank';
+  }
+  async function loadHeat() {
+    if (!web) return;
+    const tok = ++hm.token, a = warea, page = hm.page, dev = hm.dev;
+    const frame = $('#hmFrame'), box = $('#hmBox'), stage = $('#hmStage'), wait = $('#hmWait');
+    wait.hidden = false; $('#kpiHeat').replaceChildren(); $('#tbSels').replaceChildren();
+    $('#hmNote').textContent = (a === 'site' ? 'Página ' : 'Tela ') + pageL(a, page) + ' no ' + DEV_L[dev].toLowerCase() + ', ' + Math.min(days, 90) + ' dias (os cliques ficam guardados 90 dias). O fundo é a versão de hoje: se a página mudou, os pontos podem não bater.';
+    const W = DEV_W[dev];
+    const loaded = new Promise(res => { frame.onload = () => res(); });
+    frame.style.width = W + 'px'; frame.style.height = DEV_H[dev] + 'px';
+    const src = frameSrc(a, page);
+    if (frame.getAttribute('src') !== src) frame.setAttribute('src', src); else frame.dispatchEvent(new Event('load'));
+    const [dat] = await Promise.all([DEMO ? Promise.resolve(null) : api.heatmap(a, page, dev).catch(e => { toast('Mapa de calor indisponível: ' + e.message, 'alert'); return null; }), Promise.race([loaded, new Promise(r => setTimeout(r, 6000))])]);
+    if (tok !== hm.token) return;
+    await new Promise(r => setTimeout(r, 350)); // fontes e imagens do quadro
+    if (tok !== hm.token) return;
+    let doc = null; try { doc = frame.contentDocument; } catch (e) { doc = null; }
+    const target = heatTarget(doc, a, page);
+    const H = a === 'site' && doc ? Math.min(15000, Math.max(DEV_H[dev], doc.documentElement.scrollHeight)) : DEV_H[dev];
+    frame.style.height = H + 'px';
+    const scale = Math.min(1, (stage.clientWidth - 2) / W);
+    frame.style.transform = 'scale(' + scale + ')'; frame.style.transformOrigin = 'top left';
+    box.style.width = Math.round(W * scale) + 'px'; box.style.height = Math.round(H * scale) + 'px';
+    hm.scale = scale; hm.doc = doc; hm.target = target;
+    hm.data = dat || (doc && target ? demoHeat(doc, target, a, page, dev) : { clicks: 0, devices: 0, rage: 0, dead: 0, views: 0, cells: [], sels: [], depth: [] });
+    wait.hidden = true;
+    drawHeat();
+  }
+  // onde pintar: o site inteiro (documento) ou a área que rola na tela do app
+  function heatTarget(doc, a, page) {
+    if (!doc || !doc.body) return null;
+    if (a === 'site') return { el: doc.body, w: doc.documentElement.clientWidth, h: () => doc.documentElement.scrollHeight, doc: true };
+    const sc = doc.querySelector('#view-' + page + ' .scroll');
+    if (!sc) return { el: doc.body, w: doc.documentElement.clientWidth, h: () => doc.documentElement.scrollHeight, doc: true };
+    if (doc.defaultView.getComputedStyle(sc).position === 'static') sc.style.position = 'relative';
+    return { el: sc, w: sc.clientWidth, h: () => sc.scrollHeight, doc: false };
+  }
+  const HEAT_RAMP = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 1; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 256, 0);
+    [[0, 'rgba(0,90,255,0)'], [0.15, '#0060ff'], [0.35, '#00b4ff'], [0.55, '#3ee66a'], [0.72, '#ffd400'], [0.86, '#ff6a00'], [1, '#e3001b']].forEach(([o, col]) => gr.addColorStop(o, col)); g.fillStyle = gr; g.fillRect(0, 0, 256, 1); return g.getImageData(0, 0, 256, 1).data; })();
+  function drawHeat() {
+    const t = hm.target, d = hm.data, doc = hm.doc; if (!t || !d) { renderHeatSide(); return; }
+    let cv = doc.getElementById('ultra-heat');
+    if (!cv) { cv = doc.createElement('canvas'); cv.id = 'ultra-heat'; t.el.append(cv); }
+    const W = Math.max(1, t.w), H = Math.max(1, Math.min(15000, t.h()));
+    cv.width = W; cv.height = H;
+    Object.assign(cv.style, { position: 'absolute', left: '0', top: '0', width: W + 'px', height: H + 'px', pointerEvents: 'none', zIndex: '2147483646', mixBlendMode: 'normal' });
+    const g = cv.getContext('2d'); g.clearRect(0, 0, W, H);
+    if (hm.mode === 'scroll') drawScroll(g, W, H, d); else drawClicks(g, W, H, d);
+    renderHeatSide();
+  }
+  function drawClicks(g, W, H, d) {
+    const cells = d.cells || []; if (!cells.length) return;
+    const max = Math.max(...cells.map(c => c[2])), R = W < 500 ? 16 : 22;
+    const dot = document.createElement('canvas'); dot.width = dot.height = R * 2; const dg = dot.getContext('2d');
+    const gr = dg.createRadialGradient(R, R, 0, R, R, R); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); dg.fillStyle = gr; dg.fillRect(0, 0, R * 2, R * 2);
+    const sh = document.createElement('canvas'); sh.width = W; sh.height = H; const sg = sh.getContext('2d');
+    cells.forEach(([cx, cy, n]) => { sg.globalAlpha = Math.max(0.04, Math.min(1, n / max)); sg.drawImage(dot, ((cx * 10 + 5) / 1000) * W - R, cy * 10 + 5 - R); });
+    // só a faixa com pontos (o resto da página fica limpo)
+    const ys = cells.map(c => c[1] * 10), y0 = Math.max(0, Math.min(...ys) - R * 2), y1 = Math.min(H, Math.max(...ys) + R * 2), hh = Math.max(1, y1 - y0);
+    const img = sg.getImageData(0, y0, W, hh), px = img.data;
+    for (let i = 0; i < px.length; i += 4) { const a = px[i + 3]; if (!a) continue; const j = a * 4; px[i] = HEAT_RAMP[j]; px[i + 1] = HEAT_RAMP[j + 1]; px[i + 2] = HEAT_RAMP[j + 2]; px[i + 3] = Math.min(215, 40 + a); }
+    g.putImageData(img, 0, y0);
+  }
+  function drawScroll(g, W, H, d) {
+    const dp = d.depth || [], views = d.views || 0; if (!views || !dp.length) return;
+    for (let i = 0; i < dp.length - 1; i++) {
+      const reach = dp[i].n / views, y = (dp[i].pct / 100) * H, y2 = (dp[i + 1].pct / 100) * H;
+      const j = Math.round(Math.max(0.12, reach) * 255) * 4;
+      g.fillStyle = 'rgba(' + HEAT_RAMP[j] + ',' + HEAT_RAMP[j + 1] + ',' + HEAT_RAMP[j + 2] + ',0.3)'; g.fillRect(0, y, W, y2 - y + 1);
+    }
+    g.font = '700 13px system-ui, sans-serif';
+    [75, 50, 25].forEach(p => {
+      const b = dp.find(x => x.n / views <= p / 100); if (!b) return;
+      const y = Math.max(16, (b.pct / 100) * H);
+      g.fillStyle = 'rgba(0,0,0,.75)'; g.fillRect(0, y - 1, W, 2);
+      const label = p + '% chegaram até aqui'; const tw = g.measureText(label).width;
+      g.fillRect(8, y - 24, tw + 16, 22); g.fillStyle = '#fff'; g.fillText(label, 16, y - 8);
+    });
+    const fold = DEV_H[hm.dev] * 0.92; g.setLineDash([6, 6]); g.strokeStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.moveTo(0, fold); g.lineTo(W, fold); g.stroke(); g.setLineDash([]);
+    g.fillStyle = 'rgba(0,0,0,.75)'; const fl = 'fim da 1ª tela'; g.fillRect(W - g.measureText(fl).width - 24, fold - 24, g.measureText(fl).width + 16, 22); g.fillStyle = '#fff'; g.fillText(fl, W - g.measureText(fl).width - 16, fold - 8);
+  }
+  function renderHeatSide() {
+    const d = hm.data || {}, scroll = hm.mode === 'scroll';
+    const half = (d.depth || []).find(x => d.views && x.n / d.views <= 0.5);
+    $('#kpiHeat').replaceChildren(
+      kpi('pointer', 'Cliques', nf.format(d.clicks || 0), { note: nf.format(d.devices || 0) + ' aparelhos' }),
+      kpi('flame', 'Com raiva', nf.format(d.rage || 0), { note: d.clicks ? pct(d.rage, d.clicks) + '% dos cliques' : '', alert: d.clicks >= 50 && d.rage / d.clicks > 0.05 }),
+      kpi('alert', 'Mortos', nf.format(d.dead || 0), { note: d.clicks ? pct(d.dead, d.clicks) + '% dos cliques' : '' }),
+      kpi('activity', 'Metade rolou até', half ? half.pct + '%' : (d.views ? '100%' : '—'), { note: nf.format(d.views || 0) + ' visualizações' }));
+    const tot = d.clicks || 0;
+    table($('#tbSels'), [{ text: 'Elemento', cls: 'l' }, 'Cliques', '%'], (d.sels || []).map(x => {
+      const n = el('span', { class: 'mono', text: x.sel, 'data-sel': x.sel });
+      const wrap = el('span', {}, [n]); if (x.rage) wrap.append(el('span', { class: 'tag-rage', text: x.rage + ' raiva' })); if (x.dead) wrap.append(el('span', { class: 'tag-dead', text: x.dead + ' mortos' }));
+      return [{ node: wrap, cls: 'l' }, nf.format(x.n), pct(x.n, tot) + '%'];
+    }), { caption: 'Elementos mais clicados', empty: scroll ? 'Veja os cliques no modo Cliques.' : 'Nenhum clique registrado (precisa de estatísticas ligadas).' });
+    $('#hmKey').replaceChildren(el('span', { text: scroll ? 'poucos chegam' : 'poucos cliques' }), el('span', { class: 'ramp' }), el('span', { text: scroll ? 'todos veem' : 'muitos' }));
+  }
+  // passar o mouse num elemento da lista destaca ele na página
+  function cssFromSel(s) {
+    const m = String(s).match(/^([a-z0-9]+)(#[\w-]+)?(\.[\w-]+)?(:go=([a-z]+))?$/); if (!m) return null;
+    return m[1] + (m[2] || '') + (m[3] || '') + (m[5] ? '[data-go="' + m[5] + '"]' : '');
+  }
+  let hiEl = [];
+  function highlight(sel) {
+    hiEl.forEach(e => { e.style.outline = e.dataset.hmo || ''; }); hiEl = [];
+    if (!sel || !hm.doc) return;
+    const q = cssFromSel(sel); if (!q) return;
+    try { hiEl = [...hm.doc.querySelectorAll(q)].slice(0, 20); } catch (e) { hiEl = []; }
+    hiEl.forEach(e => { e.dataset.hmo = e.style.outline; e.style.outline = '3px solid #e3001b'; });
+    const f = hiEl[0]; if (f && hm.target) { const r = f.getBoundingClientRect(), y = hm.target.doc ? r.top + hm.doc.defaultView.scrollY : r.top - hm.target.el.getBoundingClientRect().top + hm.target.el.scrollTop; const st = $('#hmStage'); if (hm.target.doc) st.scrollTo({ top: Math.max(0, y * hm.scale - 120), behavior: 'smooth' }); else hm.target.el.scrollTop = Math.max(0, y - 120); }
+  }
+  // demonstração: cliques inventados em volta dos botões e links de verdade da página (mais nos chamativos e no topo)
+  const INTER = 'a,button,input,select,textarea,label,summary,[role=button],[role=tab],[data-go],[tabindex]';
+  function selOf(e) {
+    const c = e.closest(INTER) || e; let s = c.tagName.toLowerCase();
+    if (c.id && /^[a-z][\w-]{0,30}$/i.test(c.id) && !/\d{4,}/.test(c.id)) s += '#' + c.id; else if (typeof c.className === 'string' && c.className.trim()) s += '.' + c.className.trim().split(/\s+/)[0];
+    if (c.dataset && c.dataset.go && /^[a-z]{2,20}$/.test(c.dataset.go)) s += ':go=' + c.dataset.go;
+    return s.toLowerCase().replace(/[^a-z0-9#._:=-]/g, '').slice(0, 60);
+  }
+  function demoHeat(doc, t, a, page, dev) {
+    const seed = [...(a + page + dev)].reduce((x, ch) => x * 31 + ch.charCodeAt(0), 7) >>> 0, r = rng(seed);
+    const gauss = () => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const base = t.doc ? { left: 0, top: -(doc.defaultView.scrollY || 0) } : t.el.getBoundingClientRect(), sTop = t.doc ? 0 : t.el.scrollTop;
+    const H = t.h(), W = t.w;
+    const pos = e => { const b = e.getBoundingClientRect(); return { x: b.left - base.left, y: b.top - base.top + sTop, w: b.width, h: b.height }; };
+    const inter = [...t.el.querySelectorAll(INTER)].filter(e => { const b = e.getBoundingClientRect(); return b.width > 4 && b.height > 4 && !e.closest('[hidden]'); });
+    const deadEls = [...t.el.querySelectorAll('h1,h2,h3,img,svg.logo,.say,.chip,.kicker,.step,.card,.stat')].filter(e => { const b = e.getBoundingClientRect(); return b.width > 10 && b.height > 10 && !e.closest(INTER); });
+    const items = inter.map(e => { const p = pos(e); let w = /brand|primary|cta/.test(e.className) ? 9 : e.closest('nav,header,.tabbar') ? 3 : 1; w *= Math.exp(-p.y / Math.max(900, H * 0.55)); return { e, p, w }; }).filter(i => i.p.y < H);
+    const N = Math.round((dev === 'm' ? 900 : dev === 't' ? 140 : 380) * Math.min(3, days / 30));
+    const tot = items.reduce((x, i) => x + i.w, 0) || 1, cells = new Map(), sels = new Map();
+    let rage = 0, dead = 0, clicks = 0;
+    const add = (x, y, s, isDead, isRage) => {
+      if (x < 0 || x > W || y < 0 || y > H) return; clicks++;
+      const k = Math.floor((x / W) * 100) + ':' + Math.floor(y / 10); cells.set(k, (cells.get(k) || 0) + 1);
+      const o = sels.get(s) || { sel: s, n: 0, devices: 0, rage: 0, dead: 0 }; o.n++; if (isDead) { o.dead++; dead++; } if (isRage) { o.rage++; rage++; } sels.set(s, o);
+    };
+    for (let i = 0; i < N && items.length; i++) {
+      let x = r() * tot, it = items[0]; for (const c of items) { x -= c.w; if (x <= 0) { it = c; break; } }
+      add(it.p.x + it.p.w / 2 + gauss() * Math.min(it.p.w / 4, 26), it.p.y + it.p.h / 2 + gauss() * Math.min(it.p.h / 4, 10), selOf(it.e), false, false);
+    }
+    deadEls.slice(0, 12).forEach((e, i) => { const p = pos(e), n = Math.round(N * (i < 2 ? 0.025 : 0.008)); for (let j = 0; j < n; j++) add(p.x + r() * p.w, p.y + r() * p.h, selOf(e), true, i === 0 && j < n / 3); });
+    sels.forEach(o => { o.devices = Math.max(1, Math.round(o.n * 0.7)); });
+    const views = Math.round(N * 1.4), fold = DEV_H[dev] / Math.max(H, 1);
+    const depth = []; for (let b = 0; b <= 100; b += 5) { const f = b / 100 <= fold ? 1 : Math.exp(-((b / 100) - fold) * 2.6); depth.push({ pct: b, n: Math.round(views * f) }); }
+    return { clicks, devices: Math.round(clicks * 0.38), rage, dead, views, depth, cells: [...cells].map(([k, n]) => { const [cx, cy] = k.split(':').map(Number); return [cx, cy, n]; }), sels: [...sels.values()].sort((x, y) => y.n - x.n).slice(0, 15) };
+  }
+
+  const RENDER = { web: renderWeb, visao: renderVisao, crescimento: renderCresc, uso: renderUso, receita: renderReceita, contas: renderContas, grupos: renderGrupos, moderacao: renderModeracao, ia: renderIA, seguranca: renderSeguranca, eventos: renderEventos, taxas: renderTaxas, links: renderLinks };
   function render() {
     if (!data) return;
     const K = data.kpi, bd = $('#navBadge');
@@ -883,6 +1215,7 @@
     if (s === 'moderacao' && (!reports || !log)) loadMod();
     if (s === 'seguranca') loadSec();
     if (s === 'links') loadLinks();
+    if (s === 'web') loadWeb();
   }
   async function loadSec() {
     try { [access, team] = await Promise.all([api.access(), can('dono') ? api.team() : Promise.resolve(null)]); } catch (e) { if (e.code === 401) fail(e); else { access = access || []; console.warn('[admin] acessos indisponíveis', e.message); } if (sec === 'seguranca') renderSeguranca(); return; }
@@ -909,7 +1242,7 @@
     const app = $('#dash'), rb = $('#refresh');
     if (!quiet) app.classList.add('loading');
     rb.classList.add('spin');
-    try { data = await api.metrics(days); if (data.role && data.role !== role) { role = data.role; applyRole(); } render(); if (sec === 'grupos') loadGroups(); if (quiet && sec === 'moderacao') loadMod(); }
+    try { data = await api.metrics(days); if (data.role && data.role !== role) { role = data.role; applyRole(); } render(); if (sec === 'web') loadWeb(quiet); if (sec === 'grupos') loadGroups(); if (quiet && sec === 'moderacao') loadMod(); }
     catch (e) { fail(e); }
     app.classList.remove('loading'); rb.classList.remove('spin');
   }
@@ -958,7 +1291,26 @@
     }
     if (e.target.id === 'lArchived') { showArchived = e.target.checked; if (DEMO) loadLinks(); else renderLinks(); }
     if (e.target.name === 'rst') { rst = e.target.value; reports = null; renderModeracao(); loadMod(); }
+    if (e.target.name === 'warea') { warea = e.target.value; hm.page = null; renderWeb(); loadWeb(); }
+    if (e.target.id === 'hmPage') { hm.page = e.target.value; loadHeat(); }
+    if (e.target.name === 'hmDev') { hm.dev = e.target.value; loadHeat(); }
+    if (e.target.name === 'hmMode') { hm.mode = e.target.value; drawHeat(); }
   });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-hm]'); if (!b) return;
+    hm.page = b.dataset.hm; const sel = $('#hmPage'); if (![...sel.options].some(o => o.value === hm.page)) sel.append(el('option', { value: hm.page, text: pageL(warea, hm.page) }));
+    sel.value = hm.page; heatSeen = true; loadHeat(); $('#cardHeat').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.addEventListener('pointerover', e => { const t = e.target.closest && e.target.closest('#tbSels [data-sel]'); if (t) highlight(t.dataset.sel); });
+  document.addEventListener('pointerout', e => { if (e.target.closest && e.target.closest('#tbSels [data-sel]')) highlight(null); });
+  // no app, a tela rola por dentro: a roda do mouse, o arrastar e as setas rolam a tela do quadro
+  const stage = $('#hmStage'), inner = () => (warea === 'app' && hm.target && !hm.target.doc ? hm.target.el : null);
+  stage.addEventListener('wheel', e => { const el2 = inner(); if (!el2) return; e.preventDefault(); el2.scrollTop += e.deltaY; }, { passive: false });
+  let drag = null;
+  stage.addEventListener('pointerdown', e => { const el2 = inner(); if (el2) drag = { y: e.clientY, top: el2.scrollTop }; });
+  window.addEventListener('pointermove', e => { const el2 = inner(); if (drag && el2) el2.scrollTop = drag.top - (e.clientY - drag.y) / (hm.scale || 1); });
+  window.addEventListener('pointerup', () => { drag = null; });
+  stage.addEventListener('keydown', e => { const el2 = inner(); if (!el2) return; const k = { ArrowDown: 60, ArrowUp: -60, PageDown: 400, PageUp: -400 }[e.key]; if (k) { e.preventDefault(); el2.scrollTop += k; } });
   $('#range').addEventListener('submit', e => {
     e.preventDefault();
     const f = $('#rFrom').value, t = $('#rTo').value; if (!f || !t) return;
@@ -988,7 +1340,7 @@
     if (a) { const l = find(a.dataset.larch); if (!l) return; try { await api.saveLink({ slug: l.slug, label: l.label, dest: l.dest, source: l.source, medium: l.medium, campaign: l.campaign, archive: !l.archived }); toast(l.archived ? 'Link reativado' : 'Link arquivado: os números ficam', 'archive'); linksData = null; loadLinks(); } catch (err) { toast('Não deu: ' + err.message, 'alert'); } }
   });
   syncPreview();
-  $('#refresh').addEventListener('click', () => { load(); if (sec === 'contas') loadUsers(); if (sec === 'moderacao') loadMod(); if (sec === 'links') loadLinks(); });
+  $('#refresh').addEventListener('click', () => { memo.clear(); load(); if (sec === 'contas') loadUsers(); if (sec === 'moderacao') loadMod(); if (sec === 'links') loadLinks(); });
   $('#exportAll').addEventListener('click', () => downloadCsv('daily'));
   window.addEventListener('hashchange', () => show(secFromHash()));
   document.addEventListener('click', e => {

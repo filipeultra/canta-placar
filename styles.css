@@ -3612,3 +3612,6 @@ body.plp-on { overflow: hidden; }
   .row:has(.row-ic):has(> span small) > .btn { grid-column: 2 / -1; justify-self: start; }   /* sem espaço para texto e botão lado a lado: o botão desce */
 }
 .act-badges button.mtag.gtag { padding-right: 9px; }
+
+/* fundo do mapa de calor no painel de admin (?hm=1 dentro de um quadro do mesmo endereço) */
+.hm-embed #splash, .hm-embed #welcome, .hm-embed #tour, .hm-embed #toast, .hm-embed dialog, .hm-embed .sheet, .hm-embed .scrim, .hm-embed #consentCard { display: none !important; }

@@ -23,5 +23,6 @@ rodar arquivos schema.sql tests/storage-stub.sql storage.sql tests/arquivos.sql
 rodar admin schema.sql admin.sql tests/admin.sql
 rodar admin-seguranca schema.sql admin.sql tests/admin-seguranca.sql
 rodar admin-links schema.sql admin.sql tests/admin-links.sql
+rodar admin-web schema.sql admin.sql tests/admin-web.sql
 [ -f tests/ataques.sql ] && rodar ataques schema.sql tests/storage-stub.sql storage.sql admin.sql tests/ataques.sql
 exit $falhou

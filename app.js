@@ -105,6 +105,8 @@
   }
 
   const params = new URLSearchParams(location.search);
+  // aberto pelo mapa de calor do painel (admin, mesmo endereço): só o fundo da tela, sem boas-vindas, tour nem avisos por cima
+  if (params.get('hm') === '1' && window.top !== window.self) document.documentElement.classList.add('hm-embed');
   // Celular e tablet: a voz continua do Chrome Android para a cada pausa e bipa ao reiniciar
   // (crbug 41297427, aberto desde 2017). Neles o padrao e o motor offline com gramatica fechada.
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
@@ -1619,6 +1621,7 @@
     if (view === 'jogar') { render(); renderVoice(); maybePlayTour(); }
     const hash = '#' + view + (id ? '-' + id : '');
     if (location.hash !== hash) history_replace(hash);
+    try { if (window.CantaTrack) window.CantaTrack.screen(view); } catch (e) { /* estatística nunca atrapalha */ }
   }
   function goBack() {
     let p = navStack.pop();
@@ -6255,7 +6258,7 @@
   // Contato da equipe: preencha um dos dois para as sugestões chegarem direto (sem isso, o app abre o compartilhar/copia o texto).
   const FEEDBACK_WHATSAPP = ''; // só números, com DDI e DDD: '5538999999999'
   const FEEDBACK_EMAIL = '';
-  const APP_VERSION = '2026.10.15';
+  const APP_VERSION = '2026.10.16';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
     { id: '2026-10-14a', date: '14/10/2026', title: 'Revisão geral: telas pequenas, bateria e segurança', items: [
@@ -6651,7 +6654,7 @@
   function renderConsentCard() {
     const el = $('#consentCard'); if (!el) return;
     const show = window.CantaTrack && window.CantaTrack.configured() && prefs.analytics === undefined && history().some(m => !m.demo && !isDraft(m));
-    el.innerHTML = show ? '<div class="news-card">' + ic('i-chart') + '<span><b>Ajude a melhorar o ULTRA PLAY</b>Enviar estatísticas de uso anônimas (telas e recursos usados), sem nomes nem partidas? Dá para mudar em Ajustes.</span><span class="consent-a"><button class="btn btn-sm btn-brand" type="button" data-consent="1">Pode</button><button class="btn btn-sm" type="button" data-consent="0">Não</button></span></div>' : '';
+    el.innerHTML = show ? '<div class="news-card">' + ic('i-chart') + '<span><b>Ajude a melhorar o ULTRA PLAY</b>Enviar estatísticas de uso anônimas (telas, recursos usados e onde você toca), sem nomes nem partidas? Dá para mudar em Ajustes.</span><span class="consent-a"><button class="btn btn-sm btn-brand" type="button" data-consent="1">Pode</button><button class="btn btn-sm" type="button" data-consent="0">Não</button></span></div>' : '';
   }
 
   // Excluir partida: pede para digitar "excluir de vez" (some do histórico, da timeline, das estatísticas e o vídeo do aparelho)
@@ -7090,7 +7093,7 @@
       if (e.target.closest('[data-modal-close]') || e.target === e.currentTarget) closeModal();
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#modal').hidden) { e.stopPropagation(); closeModal(); } }, true);
-    if (window.CantaTrack) { window.CantaTrack.init({ consent: () => prefs.analytics === true, deviceId: () => { if (!prefs.did) { prefs.did = window.CantaTrack.newDeviceId(); savePrefs(); } return prefs.did; }, version: APP_VERSION }); trk('app_open', { standalone: isStandalone() }); }
+    if (window.CantaTrack) { window.CantaTrack.init({ area: 'app', scroller: () => $('#view-' + currentView + ' .scroll'), consent: () => prefs.analytics === true, deviceId: () => { if (!prefs.did) { prefs.did = window.CantaTrack.newDeviceId(); savePrefs(); } return prefs.did; }, version: APP_VERSION }); trk('app_open', { standalone: isStandalone() }); }
     // idioma: troca e recarrega (o app inteiro passa pela camada de tradução)
     $('#pLang').value = window.CantaI18n ? window.CantaI18n.lang : 'pt';
     $('#pLang').addEventListener('change', e => { if (window.CantaI18n) { prefs.lang = e.target.value; savePrefs(); window.CantaI18n.setLang(e.target.value); } });

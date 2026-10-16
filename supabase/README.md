@@ -49,6 +49,15 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
   - **Crescimento:** contas, novas contas, conversão visita → conta, instalações, convites, contas excluídas, funil, origem (utm, convite `?ref=`, direto), **cidades** e retenção por semana.
   - **Uso do app:** ativos (DAU/WAU/MAU) e frequência, partidas, % de pontos por voz, % que usa o app instalado, gravações, compartilhamentos, sugestões, partidas por esporte, **mapa de calor de quando se joga** (dia × hora), versões do app em uso, **saúde do app** (erros por arquivo e linha, aparelhos afetados) e **comunidade** (marcações aceitas e recusadas, bloqueios, pedidos de exclusão e correção abertos, placares corrigidos).
   - **Links e tráfego:** cria **links rastreáveis** (nome, destino no app ou numa página do site, origem, meio e campanha; o painel limpa os campos e monta o `utm_*`), copia o link, gera **QR Code** (baixa em SVG para cartaz e camiseta) e arquiva sem perder os números. Mostra visitas por dia (com origem marcada × direto), e por link, origem e campanha: visitas, contas, 1ª partida, Pro e conversão. Conta a **1ª origem** de cada aparelho por 30 dias, então quem viu o cartaz e criou a conta dias depois ainda conta para o cartaz.
+  - **Site e app** (16/10/2026), com uma aba para o site e outra para o app:
+    - quem está agora (últimos 5 minutos) e em que página ou tela;
+    - visitantes, visitas, páginas vistas, tempo médio, rejeição, rolagem média e quanto das visitas tem estatísticas ligadas;
+    - **de onde vêm**: canal (redes sociais, busca, direto, campanha, convite, anúncio, e-mail, outros sites), os sites que mandaram gente e as campanhas, cada um com tempo e rejeição;
+    - **páginas** (site) ou **telas** (app): vistas, tempo médio e rolagem; no site, também entradas, saídas e rejeição;
+    - **caminhos no app** (de que tela para qual);
+    - **público**: aparelho, navegador, sistema, idioma, largura da tela e **região** (pelo fuso do aparelho, sem localização);
+    - **quando visitam** (dia × hora);
+    - **mapa de calor**: a página de verdade num quadro, com os cliques por cima, no celular, tablet ou computador. Mostra também a **rolagem** (até onde as pessoas chegaram, com o fim da 1ª tela), os elementos mais clicados (passar o mouse destaca na página), os cliques **com raiva** (3 ou mais seguidos no mesmo lugar) e os **mortos** (onde não há botão).
   - **Receita:** MRR, ARR, assinantes pagando e de cortesia, ticket médio, novas assinaturas, cancelamentos, churn mensal, valor por assinante (LTV), custo da IA no mês, em teste grátis, **receita mensal dia a dia**, planos e um simulador de projeção.
   - **Taxas:** churn de assinantes e de receita, receita nova e perdida, teste grátis → pago, ativação (1ª partida em 7 dias), retenção no dia 1, 7 e 30, frequência (DAU/MAU), conversão visita → conta → Pro e LTV, cada uma com a referência de mercado e a cor de bom, atenção ou ruim.
   - **Contas:** busca por nome, @, código UP-… ou e-mail (e-mail **mascarado**; o dono pode mostrar inteiro), e **Pro de cortesia** (7, 30, 90 dias ou 1 ano; ou tirar).
@@ -57,11 +66,27 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
   - **Moderação:** fila de denúncias (abertas, resolvidas, descartadas) com **Em análise, Resolvida, Tirar do ar e Descartar**, e o **registro de ações** de todos os admins.
   - **IA:** análises, quem usou, custo, custo por análise, projeção e tokens. **Eventos:** o que o app registra.
   - Tema claro/escuro, atualização automática a cada minuto, **Ocultar dados** (borra nomes, e-mails e IPs para compartilhar a tela) e **CSV** de cada tabela (baixar fica no registro).
-- **De onde vêm os números:** `admin.sql` (tabelas `app_events`, `admins`, `plan_prices`, `admin_log` e as funções `admin_metrics`, `admin_users`, `admin_grant_pro`, `admin_reports`, `admin_handle_report`, `admin_groups`, `admin_links`, `admin_link_save` e a tabela `tracked_links`), testado em `tests/admin.sql` (21 verificações), `tests/admin-seguranca.sql` (32) e `tests/admin-links.sql` (19), todas passando em 14/10/2026.
+- **De onde vêm os números:** `admin.sql` (tabelas `app_events`, `admins`, `plan_prices`, `admin_log`, `tracked_links`, `web_sessions`, `web_daily`, `heat_clicks` e as funções `admin_metrics`, `admin_users`, `admin_grant_pro`, `admin_reports`, `admin_handle_report`, `admin_groups`, `admin_links`, `admin_link_save`, `admin_web`, `admin_heatmap` e `admin_web_rollup`). Testado em `tests/admin.sql` (23 verificações), `tests/admin-seguranca.sql` (32), `tests/admin-links.sql` (19) e `tests/admin-web.sql` (55).
   - O app e o site mandam eventos por `telemetry.js`, mas só quando `config.js` estiver preenchido.
-  - **Sem consentimento**, só a visita, com um id que some ao fechar.
-  - **Com consentimento** (o app pergunta uma vez, depois da 1ª partida; e em Ajustes → Estatísticas de uso), os eventos de uso, com um id sorteado do aparelho.
-  - Nenhum nome, e-mail ou partida vai nos eventos.
+  - **Sem consentimento:** a visita (página vista ou abertura do app) e, ao sair, quanto tempo ficou e quanto rolou, com um id que some ao fechar a aba. Vão junto o tipo de aparelho, o navegador, o sistema, o idioma, o fuso, a largura da tela e o domínio do site que mandou a pessoa (nunca o endereço inteiro).
+  - **Com consentimento:** no app, ele é pedido uma vez depois da 1ª partida e fica em Ajustes → Estatísticas de uso; no site, num aviso no rodapé que só aparece com o servidor ligado. Aí entram os eventos de uso, as telas do app e os **cliques do mapa de calor** (posição e elemento, nunca o texto), com um id sorteado do aparelho.
+  - Nenhum nome, e-mail ou partida vai nos eventos. Dentro do quadro do mapa de calor, o site e o app não contam nada.
+- **Para o painel não ficar lento** (medido em 16/10/2026 com 2,4 milhões de eventos, 660 mil visitas e 600 mil cliques; Postgres 16, 4 CPUs):
+  - cada visita vira uma linha em `web_sessions` quando chega (gatilho); o banco copia de `props` para colunas próprias o que o painel lê, e índices cobrem essas colunas;
+  - os dias fechados ficam somados em `web_daily` (`web_rollup()`): o painel soma linhas prontas e só calcula na hora ontem e hoje. O teste confirma que o resumo e o cálculo na hora dão os mesmos números;
+  - as funções do painel têm memória de trabalho maior (`work_mem` de 64 MB, só nelas), e o painel guarda cada resposta por 45 s e só carrega o mapa de calor quando ele aparece na tela.
+
+  | Chamada | Antes | Depois |
+  |---|---|---|
+  | Visão geral, 30 dias | 9,1 s | 1,5 s |
+  | Visão geral, 1 ano | 5 min 37 s | 5,3 s |
+  | Site, 30 dias / 1 ano | 4,4 s / 38 s | 0,5 s / 0,7 s |
+  | App, 30 dias / 1 ano | 1,9 s / 17 s | 0,1 s / 0,3 s |
+  | Mapa de calor, 30 dias | 0,44 s | 0,19 s |
+  | Links, 30 dias | 0,78 s | 0,64 s |
+
+  Gravar um evento ficou 0,05 a 0,27 ms mais caro por causa dos gatilhos. No navegador, o painel abre em 0,35 s e troca de seção em 20 a 80 ms.
+- **Agendar no Supabase (Database → Cron):** `select public.web_rollup();` de hora em hora (se não agendar, o painel faz ao abrir Site e app; só demora na 1ª vez) e `select public.prune_heat_clicks();` uma vez por dia (os cliques ficam 90 dias).
 - **Segurança do painel (testada em `tests/admin.sql`, seção "invasão", 21 tentativas bloqueadas):**
   - **Duas etapas para entrar:** link no e-mail + código de 6 números de um app autenticador (Google Authenticator, Authy, 1Password). O banco só reconhece admin com a sessão na 2ª etapa (`aal2` no token); quem rouba só o link do e-mail não entra. Na 1ª vez, o painel mostra o QR Code para cadastrar.
   - **Ninguém se torna admin pelo app ou pela API:** a tabela `admins` não aceita gravação de ninguém (só pelo SQL Editor do Supabase, com a sua conta de dono do projeto). Também não dá para se dar Pro, criar assinatura, mudar preço, mexer em denúncia ou no registro de ações.

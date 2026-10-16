@@ -136,6 +136,7 @@ code { font-size: 12px; }
 .kpi .d { display: flex; align-items: center; gap: 6px; color: var(--fg-2); font-size: 12px; line-height: 1.35; }
 .kpi .d i { width: 0; height: 0; flex: none; border-left: 5px solid transparent; border-right: 5px solid transparent; }
 .kpi .d i.up { border-bottom: 7px solid var(--good); } .kpi .d i.down { border-top: 7px solid var(--critical); }
+.kpi .d i.gdown { border-top: 7px solid var(--good); } .kpi .d i.bup { border-bottom: 7px solid var(--critical); }
 .kpi .d i.flat { width: 8px; height: 2px; border: 0; background: var(--fg-3); }
 .kpi .spark { position: absolute; right: 16px; top: 44px; width: 72px; height: 26px; overflow: visible; }
 .kpi.alert { border-color: color-mix(in srgb, var(--critical) 45%, var(--hair)); }
@@ -347,3 +348,36 @@ td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, mon
 .qrbox svg { display: block; width: 100%; height: auto; }
 label.auto.sm { font-size: 12.5px; }
 @media (max-width: 560px) { .lrow { grid-template-columns: 1fr; } .rates { grid-template-columns: 1fr; } }
+
+/* ---------- Site e app ---------- */
+.webbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 14px; }
+.webbar p { margin: 0; flex: 1 1 280px; }
+.card h2 .ic { width: 17px; height: 17px; vertical-align: -3px; color: var(--critical); }
+.hm-ctl { flex-wrap: wrap; }
+.field.sm select { height: 34px; padding: 0 10px; border-radius: 10px; font-size: 13px; max-width: 220px; }
+.hm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 16px; align-items: start; }
+.hm-side td.l { white-space: normal; } .hm-side td.l .mono { word-break: break-all; }
+.hm-stage { position: relative; height: min(78vh, 900px); overflow: auto; border-radius: 14px; border: 1px solid var(--hair-2); background: var(--surface-2); overscroll-behavior: contain; }
+.hm-stage:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+.hm-box { position: relative; margin: 0 auto; transform-origin: top left; }
+.hm-box iframe { display: block; border: 0; background: #fff; pointer-events: none; }
+.hm-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--fg-2); font-size: 13px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.hm-side { display: grid; gap: 10px; min-width: 0; }
+.hm-side h3 { margin: 0; font: 700 13px/1.3 var(--font); color: var(--fg-2); text-transform: uppercase; letter-spacing: .05em; }
+.hm-side p { margin: 0; }
+.hm-key { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); }
+.hm-key .ramp { flex: 1; height: 10px; border-radius: 999px; background: linear-gradient(90deg, rgba(0, 90, 255, .25), #00b4ff, #3ee66a, #ffd400, #ff6a00, #e3001b); }
+.tag-rage, .tag-dead { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.tag-rage { color: var(--fg); background: color-mix(in srgb, var(--critical) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--critical) 55%, transparent); }
+.tag-dead { color: var(--fg); background: color-mix(in srgb, var(--warning) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 55%, transparent); }
+.aud { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 28px; }
+.aud h3 { margin: 0 0 10px; font: 700 13px/1.3 var(--font); color: var(--fg-2); }
+.flows { display: grid; gap: 8px; }
+.flow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13.5px; }
+.flow .a, .flow .b { padding: 6px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--hair); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow .arr { color: var(--fg-3); }
+.flow .n { font: 700 13px/1 var(--font); font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; }
+.pages-live { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.pages-live span { padding: 4px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--hair); font-size: 12.5px; color: var(--fg-2); }
+.pages-live b { color: var(--fg); font-variant-numeric: tabular-nums; margin-left: 4px; }
+@media (max-width: 1000px) { .hm { grid-template-columns: 1fr; } .hm-stage { height: min(70vh, 720px); } }
