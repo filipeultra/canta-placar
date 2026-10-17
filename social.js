@@ -183,6 +183,13 @@
           zaps: zappers.map((u, k) => ({ userId: u.id, t: playedAt + (20 + k * 17) * MIN })),
         });
       }
+      // fotos de exemplo (imagens geradas para a demonstração, em demo-fotos/): a de destaque aparece na timeline
+      const PH = { beach: ['beach-1', 'beach-2', 'beach-3', 'beach-4'], padel: ['padel-1', 'padel-2'], tenis: ['tenis-1', 'tenis-2'], peteca: ['peteca-1', 'peteca-2'], futevolei: ['futevolei-1', 'beach-2'] };
+      list.forEach((a, k) => {
+        const ph = PH[a.sport];
+        if (!ph || k % 3 !== 1) return;
+        a.photos = Array.from({ length: k % 2 ? 2 : 1 }, (_, j) => ({ src: 'demo-fotos/' + ph[(k + j) % ph.length] + '.webp', w: 768, h: 960 }));
+      });
       // Marcações em você (viram notificação com Aceitar/Recusar)
       const T = (id, ownerId, when, sport, type, place, mine, opp, result, extra) => list.push(Object.assign({
         id, ownerId, playedAt: when, sport, source: 'manual', type, title: '', caption: '', visibility: 'todos', place, city: CITY,
@@ -190,7 +197,7 @@
         result, durationMs: 0, stats: null, timeline: null, tagged: [], zaps: [],
       }, extra));
       T('tag-lu', 'lu', at(1, 19, 30), 'beach', 'amistoso', 'Arena Beach MOC', [{ userId: 'lu' }, { userId: 'me' }], [{ userId: 'caio' }, { userId: 'duda' }],
-        { sets: [[6, 4]], final: null, winner: 0 }, { caption: 'Que dupla! Bora de novo quinta 🔥', durationMs: 55 * MIN, source: 'live',
+        { sets: [[6, 4]], final: null, winner: 0 }, { caption: 'Que dupla! Bora de novo quinta 🔥', durationMs: 55 * MIN, source: 'live', photos: [{ src: 'demo-fotos/beach-3.webp', w: 768, h: 960 }],
           tagged: [{ userId: 'me', status: 'pendente', at: at(1, 20, 40) }, { userId: 'caio', status: 'aceito' }, { userId: 'duda', status: 'aceito' }],
           zaps: ['rafa', 'biel', 'mari', 'nina', 'teo'].map((u, k) => ({ userId: u, t: at(1, 20, 50) + k * 23 * MIN })) });
       T('tag-caio', 'caio', at(2, 10, 0), 'padel', 'campeonato', 'Padel Point', [{ userId: 'caio' }, { userId: 'gui' }], [{ userId: 'rafa' }, { userId: 'me' }],
@@ -405,10 +412,11 @@
     // mine: suas atividades (vêm do histórico do aparelho, convertidas pelo app).
     function feed(kind, mine) {
       const visibleMine = (mine || []).filter(a => a.visibility !== 'so-eu');
-      const pool = allOthers().filter(canSee);
+      // "não mostrar na timeline": some da timeline dos outros (fica no perfil); na sua, aparece com o aviso
+      const pool = allOthers().filter(a => a.feed !== false && canSee(a));
       let list;
       const meInGeral = me.privacy.level === 'aberto' || (me.privacy.level === 'personalizado' && me.privacy.show.geral !== false && me.privacy.show.partidas !== false);
-      if (kind === 'geral') list = pool.filter(a => a.visibility === 'todos' && a.city === me.city && canView(a.ownerId, 'geral')).concat(meInGeral ? visibleMine.filter(a => a.visibility === 'todos') : []);
+      if (kind === 'geral') list = pool.filter(a => a.visibility === 'todos' && a.city === me.city && canView(a.ownerId, 'geral')).concat(meInGeral ? visibleMine.filter(a => a.visibility === 'todos' && a.feed !== false) : []);
       else list = pool.filter(a => isFollowing(a.ownerId) || (involves(a, 'me') && tagStatus(a, 'me') === 'aceito')).concat(visibleMine);
       // partida aceita de uma marcação aparece uma vez só (a original, de quem marcou)
       const shown = new Set(list.map(a => a.id));

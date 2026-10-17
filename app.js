@@ -167,8 +167,12 @@
       visibility: pickIn(p.visibility, SO.VISIBILITY.map(x => x.id)), video: p.video && typeof p.video === 'object' ? lookOfSafe(p.video) : undefined,
       sourceOrig: pickIn(p.sourceOrig, ['live', 'manual']), claimed: cTxt(p.claimed, 40) || undefined, linkId: typeof p.linkId === 'string' && /^link-[a-z0-9]{1,16}$/.test(p.linkId) ? p.linkId : undefined, fromLinkBy: cTxt(p.fromLinkBy, 40) || undefined,
       groupId: typeof p.groupId === 'string' && /^g[-a-z0-9]{1,40}$/.test(p.groupId) ? p.groupId : undefined,
+      feed: p.feed === false ? false : undefined,
+      hide: p.hide && typeof p.hide === 'object' && (p.hide.moment === true || p.hide.shots === true || p.hide.players === true) ? { moment: p.hide.moment === true, shots: p.hide.shots === true, players: p.hide.players === true } : undefined,
+      photos: Array.isArray(p.photos) && p.photos.length ? p.photos.filter(x => x && typeof x === 'object' && window.CantaFotos && window.CantaFotos.ID_RX.test(x.id)).slice(0, 6).map(x => ({ id: x.id, w: cInt(x.w, 1, 8192), h: cInt(x.h, 1, 8192) })) : undefined,
     };
     Object.keys(post).forEach(k => post[k] === undefined && delete post[k]);
+    if (post.photos && !post.photos.length) delete post.photos;
     const mn = raw.manual && typeof raw.manual === 'object' ? raw.manual : null;
     const manual = mn ? {
       sets: Array.isArray(mn.sets) ? mn.sets.filter(x => Array.isArray(x) && x.length === 2).slice(0, 7).map(x => [cInt(x[0], 0, 99), cInt(x[1], 0, 99)]) : null,
@@ -1751,9 +1755,11 @@
     if (!live && !embed && !m.demo) h += '<div class="match-tools"><button class="del-link fix-link" type="button" data-fixmatch="' + esc(m.id) + '">' + ic('i-edit') + esc(L('Corrigir placar', 'Fix score')) + '</button><button class="del-link" type="button" data-action="delete-match" data-mid="' + esc(m.id) + '">' + ic('i-trash') + esc(L('Excluir partida', 'Delete match')) + '</button></div>';
     return h;
   }
-  function sumHTML(m, st, live, embed) {
+  // view (atividade de outra pessoa): { analysis: quem vê jogou?, hide: { moment, shots, players } escondidos pelo dono }
+  function sumHTML(m, st, live, embed, view) {
     if (st.manual) return manualSumHTML(m, st);
     const T = st.teams;
+    const hide = (view && view.hide) || {};
     let h = '<div class="sum">';
     if (!embed) h += '<div class="panel"><div class="card-head"><span class="avatar"><svg><use href="#s-' + st.cfg.sport + '"/></svg></span><span class="card-who"><b>' + esc(sportLabel(st.cfg.sport)) +
       '</b><span>' + esc((fmtWhen(m.endedAt || m.createdAt) + ' · ' + formatSummary(st.cfg)).replace(/ (\S+)$/, '\u00a0$1')) + '</span></span></div>' +   // sem palavra sozinha na 2ª linha
@@ -1766,9 +1772,10 @@
       ['Placar', placarText(st), m.teams.map(t => t.name)], ['Pontos', T[0].pts + '-' + T[1].pts], ['Duração', fmtDur(st.durationMs)],
       ['Aces', T[0].aces + '-' + T[1].aces], ['Winners', T[0].winners + '-' + T[1].winners], ['Erros', (T[0].errors + T[0].df) + '-' + (T[1].errors + T[1].df)],
     ], true) + '</div>';
-    if (!live) h += analysisHTML(m, embed);
+    if (!live && (!view || view.analysis)) h += analysisHTML(m, embed);
+    if (hide.moment || hide.shots || hide.players) h += '<p class="hint lock-note">' + ic('i-lock') + '<span>' + esc(L('Parte das estatísticas desta partida é só para quem jogou.', 'Some of this match\'s stats are only for people who played.')) + '</span></p>';
     const mid = live && !embed ? 'live' : esc(m.id);
-    h += '<div class="panel">' + ph('i-activity', 'Momento', '<span class="ph-btns">' + (canReplay(m) ? '<button class="btn btn-sm" type="button" data-replay="' + mid + '"' + (embed || live ? '' : ' data-own="1"') + '>' + ic('i-replay') + 'Replay</button>' : '') +
+    if (!hide.moment) h += '<div class="panel">' + ph('i-activity', 'Momento', '<span class="ph-btns">' + (canReplay(m) ? '<button class="btn btn-sm" type="button" data-replay="' + mid + '"' + (embed || live ? '' : ' data-own="1"') + '>' + ic('i-replay') + 'Replay</button>' : '') +
       '<button class="btn btn-sm" type="button" data-action="moment" data-mid="' + mid + '">' + ic('i-expand') + 'Ponto a ponto' + (isPro() ? '' : '<span class="pro-badge">PRO</span>') + '</button></span>') + momentumSvgFor(st, m.teams) + '</div>';
     h += '<div class="panel vid-panel" data-vidfor="' + esc(videoKey(m)) + '" data-mid="' + mid + '" hidden></div>';
     const leg = '<div class="legend"><span><i style="--tc:' + colorVar(m.teams[0].color) + '"></i>' + esc(m.teams[0].name) + '</span><span>' + esc(m.teams[1].name) + '<i style="--tc:' + colorVar(m.teams[1].color) + '"></i></span></div>';
@@ -1779,12 +1786,12 @@
       bkRow('Duplas faltas', T[0].df, T[1].df, m.teams);
     if (st.cfg.kind === 'games') comp += bkRow('Quebras', T[0].breaks, T[1].breaks, m.teams);
     comp += bkRow('Maior sequência', T[0].maxStreak, T[1].maxStreak, m.teams);
-    h += '<div class="panel">' + ph('i-chart', 'Comparativo') + leg + '<div class="bk">' + comp + '</div></div>';
-    const shots = S.SHOTS.filter(k => T[0].shots[k] || T[1].shots[k]);
+    if (!hide.moment) h += '<div class="panel">' + ph('i-chart', 'Comparativo') + leg + '<div class="bk">' + comp + '</div></div>';
+    const shots = hide.shots ? [] : S.SHOTS.filter(k => T[0].shots[k] || T[1].shots[k]);
     if (shots.length) {
       h += '<div class="panel">' + ph('i-racket', 'Pontos por golpe') + leg + '<div class="bk">' + shots.map(k => bkRow(G.SHOT_LABEL[k] || k, T[0].shots[k] || 0, T[1].shots[k] || 0, m.teams)).join('') + '</div></div>';
     }
-    const ps = st.players.filter(p => p.pts + p.errors + p.df + p.assists + p.aces > 0);
+    const ps = hide.players ? [] : st.players.filter(p => p.pts + p.errors + p.df + p.assists + p.aces > 0);
     if (ps.length) {
       // colunas sem nenhum valor saem (assistência só existe em alguns esportes; rede/fora só com detalhe)
       const COLS = [['Pts', p => p.pts], ['Erros', p => p.errors + p.df], ['Aces', p => p.aces], ['Win.', p => p.winners], ['Assist.', p => p.assists], ['Rede', p => p.rede], ['Fora', p => p.fora]]
@@ -1792,7 +1799,7 @@
       h += '<div class="panel">' + ph('i-users', 'Por jogador') + '<div class="table-wrap" tabindex="0" role="region" aria-label="Estatísticas por jogador"><table class="players-table"><thead><tr><th>Jogador</th>' + COLS.map(c0 => '<th>' + c0[0] + '</th>').join('') + '</tr></thead><tbody>' +
         ps.map(p => '<tr><td><span class="pl-name"><i style="--tc:' + colorVar(m.teams[p.team].color) + '"></i><span>' + esc(p.name) + '</span></span>' + (st.mvp && st.mvp === p ? '<span class="badge">Destaque</span>' : '') + '</td>' + COLS.map(c0 => '<td>' + c0[1](p) + '</td>').join('') + '</tr>').join('') +
         '</tbody></table></div></div>';
-    } else {
+    } else if (!embed) {
       h += '<p class="hint">Para ter estatística por jogador, cadastre os jogadores na partida e fale o nome no lance: <b>“ponto forehand da Ana”</b>, <b>“peteca na rede do Caio”</b>, <b>“ponto do João com levantamento da Bia”</b>.</p>';
     }
     // exportar planilha (CSV) e dados (JSON) saiu da partida em 13/10/2026: volta depois nas estatísticas gerais (ver ROADMAP)
@@ -2251,8 +2258,11 @@
       result: { sets: st.state.sets.length ? st.state.sets.map(x => (x.matchTb && x.tb ? x.tb : x.games)) : null, final: st.manual ? st.manual.final : null, winner: st.winner },
       durationMs: st.durationMs, stats: m.manual ? null : { pts: [st.teams[0].pts, st.teams[1].pts], aces: [st.teams[0].aces, st.teams[1].aces] },
       timeline: m.manual ? null : st.timeline, tagged: p.tagged || [], groupId: (p.groupId !== undefined ? p.groupId : m.groupId) || null, fromActivity: p.fromActivity || null, draft: p.status === 'rascunho',
-      // replay animado publicado no post (nas partidas fictícias de outras pessoas, parte delas tem)
-      video: m.manual ? null : p.video || (m.demo && !mine && r % 3 !== 2 ? { speed: 'rapido' } : null),
+      // replay animado: vai junto no post de toda partida com ponto a ponto, a não ser que o dono esconda o momento a momento
+      // (p.video guarda o visual escolhido no Compartilhar → Vídeo; sem ele, o padrão)
+      video: m.manual || (p.hide && p.hide.moment) ? null : p.video || { speed: 'rapido' },
+      feed: p.feed !== false, hide: p.hide || null,
+      photos: (p.photos || []).slice(0, 6),
     };
     actCache.set(key, a);
     return a;
@@ -2348,34 +2358,175 @@
     streakMemo.set(k, n);
     return n;
   }
+  // ícone do tipo de jogo: na timeline só o ícone (o nome aparece no detalhe da partida)
+  const TYPE_ICON = { amistoso: 'i-handshake', treino: 'i-dumbbell', resenha: 'i-beer', campeonato: 'i-trophy', aula: 'i-cap', desafio: 'i-swords' };
+  const MANUAL_TIP = () => L('Lançada depois do jogo: não foi marcada ao vivo', 'Logged after the game: not tracked live');
+  function actBadgesHTML(a) {
+    const g = a.groupId ? SO.group(a.groupId) : null;
+    const tl = TYPE_LABEL[a.type] || a.type;
+    return '<span class="act-badges ab-icons">' +
+      (a.type ? '<span class="abadge t-' + esc(a.type) + '" role="img" title="' + esc(tl) + '" aria-label="' + esc(tl) + '">' + ic(TYPE_ICON[a.type] || 'i-flag') + '</span>' : '') +
+      (g ? '<button class="abadge ab-g" type="button" data-group="' + esc(a.groupId) + '" title="' + esc(g.name) + '" aria-label="' + esc(L('Grupo ', 'Group ') + g.name) + '">' + ic('i-users') + '</button>' : '') +
+      (a.source === 'manual' ? '<span class="abadge ab-m" role="img" title="' + esc(MANUAL_TIP()) + '" aria-label="' + esc(MANUAL_TIP()) + '">' + ic('i-pencil-line') + '</span>' : '') +
+      (a.ownerId === 'me' && a.feed === false ? '<span class="abadge ab-o" role="img" title="' + esc(L('Fora da timeline dos outros: fica só no seu perfil', 'Not in other people\'s feed: only on your profile')) + '" aria-label="' + esc(L('Fora da timeline dos outros', 'Not in other people\'s feed')) + '">' + ic('i-eye-off') + '</span>' : '') +
+      '</span>';
+  }
+  // duração e sets pequenos, com ícone, no canto do rodapé (o placar já está ao lado dos nomes)
+  function actMiniHTML(a) {
+    const n = a.result && a.result.sets ? a.result.sets.length : 0;
+    const d = a.durationMs ? fmtDur(a.durationMs) : '';
+    if (!d && n < 2) return '';
+    const dm = d.match(/^(.*?)\s*min$/);
+    return '<span class="act-mini">' +
+      (d ? '<span role="img" title="' + esc(L('Duração', 'Duration')) + '" aria-label="' + esc(L('Duração: ', 'Duration: ') + d) + '">' + ic('i-timer') + '<b>' + esc(dm ? dm[1] : d) + '</b>' + (dm ? '<small>min</small>' : '') + '</span>' : '') +
+      (n > 1 ? '<span role="img" title="' + n + ' sets" aria-label="' + n + ' sets">' + ic('i-sets') + '<b>' + n + '</b></span>' : '') + '</span>';
+  }
+  // quem jogou a partida (o dono ou quem aceitou a marcação): vê tudo, inclusive a análise do jogo
+  function playedIn(a) {
+    if (!a) return false;
+    if (a.ownerId === 'me') return true;
+    if (SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'aceito') return true;
+    return SO.myClaims().some(c => c.id === a.id && c.status === 'aceito');
+  }
+  // blocos escondidos no post valem para quem não jogou
+  const hiddenFor = a => (a && a.hide && !playedIn(a) ? a.hide : {});
   function actCardHTML(a) {
     const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
-    const kp = [];
-    const sc = actScore(a);
-    if (sc) kp.push(['Placar', sc, a.teams.map(t => t.name)]);
-    if (a.durationMs) kp.push(['Duração', fmtDur(a.durationMs)]);
-    if (a.stats) kp.push(['Pontos', a.stats.pts[0] + '-' + a.stats.pts[1]]);
-    else if (a.result && a.result.sets && a.result.sets.length > 1) kp.push(['Sets', String(a.result.sets.length)]);
     const tagMe = a.ownerId !== 'me' && SO.involves(a, 'me') && SO.tagStatus(a, 'me') === 'pendente';
+    const hid = hiddenFor(a);
     return '<article class="act" data-act="' + esc(a.id) + '">' +
       '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><span class="act-name"><b' + uLink(a.ownerId) + '>' + esc(owner ? owner.name : '?') + '</b>' + fireHTML(winStreakOf(a.ownerId), true) + '</span>' +
-      '<span>' + '<span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(fmtWhen(a.playedAt)) + '</span></span>' + (a.place ? '<span class="act-place">' + esc(a.place) + '</span>' : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span><span class="act-badges">' + (a.groupId && SO.group(a.groupId) ? '<button class="mtag gtag" type="button" data-group="' + esc(a.groupId) + '" title="' + esc(SO.group(a.groupId).name) + '">' + ic('i-users') + '<span class="gtag-t">' + esc(SO.group(a.groupId).name) + '</span></button>' : typeBadge(a)) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
+      '<span>' + '<span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(fmtWhen(a.playedAt)) + '</span></span>' + (a.place ? '<span class="act-place">' + esc(a.place) + '</span>' : '') + (a.visibility !== 'todos' ? ' · ' + ic(VIS_ICON[a.visibility]) : '') + '</span></span>' + actBadgesHTML(a) + '</header>' +
       '<h3 class="act-title">' + esc(actTitle(a)) + '</h3>' +
       (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
       actResultHTML(a) +
-      kpiHTML(kp.slice(0, 3)) +
-      (a.timeline && a.timeline.length > 1 ? (a.video && a.matchId && canReplay(findMatch(a.matchId)) ? replayTileHTML(a.matchId, a.timeline, a.ownerId === 'me') : sparkSvg(a.timeline)) : '') +
+      mediaHTML(a) +
+      (a.timeline && a.timeline.length > 1 && !hid.moment ? (a.video && a.matchId && canReplay(findMatch(a.matchId)) ? replayTileHTML(a.matchId, a.timeline, a.ownerId === 'me') : sparkSvg(a.timeline)) : '') +
       (tagMe ? '<div class="act-invite">' + ic('i-tag') + '<span>' + esc(firstName(owner.name)) + ' marcou você nesta partida</span><button class="btn btn-sm" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">Aceitar</button></div>' : '') +
-      '<footer class="act-foot">' + zapBtnHTML(a) + (a.ownerId === 'me' && a.matchId ? '<button class="icon-btn" type="button" data-share="' + esc(a.matchId) + '" title="Compartilhar">' + ic('i-share') + '</button>' : '') + '</footer>' +
+      '<footer class="act-foot">' + zapBtnHTML(a) + '<span class="act-foot-r">' + actMiniHTML(a) + (a.ownerId === 'me' && a.matchId ? '<button class="icon-btn" type="button" data-share="' + esc(a.matchId) + '" title="Compartilhar">' + ic('i-share') + '</button>' : '') + '</span></footer>' +
       '</article>';
+  }
+
+  // ---------- fotos da partida (fotos.js reduz e guarda; aqui mostra e escolhe) ----------
+  const MF = window.CantaFotos;
+  // foto: { id, w, h } (guardada no aparelho; na nuvem, baixada do bucket photos) ou { src, w, h } (rede de exemplo)
+  function mfImg(p, size, alt) {
+    const at = ' alt="' + esc(alt || '') + '" loading="lazy" decoding="async" draggable="false"';
+    return p.src ? '<img src="' + esc(p.src) + '"' + at + '>' : '<img data-mf="' + esc(p.id) + '" data-size="' + size + '"' + at + '>';
+  }
+  // caixa da foto de destaque: do quadrado ao paisagem largo (foto em pé fica quadrada, como no Instagram)
+  const mfRatio = p => Math.max(1, Math.min(1.91, (p.w || 4) / (p.h || 3)));
+  function mediaHTML(a, detail) {
+    const ps = (a.photos || []).filter(p => p && (p.src || (MF && MF.ID_RX.test(p.id))));
+    if (!ps.length) return '';
+    const alt = L('Foto da partida', 'Match photo');
+    return '<div class="act-media' + (detail ? ' detail' : '') + '" style="--ar:' + mfRatio(ps[0]).toFixed(3) + '">' +
+      '<div class="am-track">' + ps.map((p, i) => '<button class="mf-item" type="button" data-mfopen="' + esc(a.id) + '" data-i="' + i + '" aria-label="' + esc(L('Abrir foto ' + (i + 1) + ' de ' + ps.length, 'Open photo ' + (i + 1) + ' of ' + ps.length)) + '">' + mfImg(p, 'sm', alt) + '</button>').join('') + '</div>' +
+      (ps.length > 1 ? '<span class="am-count" aria-hidden="true"><b>1</b>/' + ps.length + '</span><span class="am-dots" aria-hidden="true">' + ps.map((p, i) => '<i' + (i ? '' : ' class="on"') + '></i>').join('') + '</span>' : '') +
+      '</div>';
+  }
+  // carrossel do card: contador e bolinhas acompanham o dedo
+  function onMediaScroll(tr) {
+    const box = tr.parentElement; if (!box) return;
+    const i = Math.round(tr.scrollLeft / Math.max(1, tr.clientWidth));
+    const c = box.querySelector('.am-count b'); if (c) c.textContent = String(i + 1);
+    box.querySelectorAll('.am-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
+  }
+  // tela cheia: arrasta para o lado, Esc ou X fecha
+  let mfLast = null;
+  function openPhotos(id, i) {
+    const a = findAct(id) || (findMatch(id) ? toActivity(findMatch(id), 'me') : null);
+    const ps = a ? (a.photos || []).filter(p => p && (p.src || MF.ID_RX.test(p.id))) : [];
+    if (!ps.length) return;
+    mfLast = document.activeElement;
+    const box = $('#mfView'), strip = $('#mfStrip');
+    strip.innerHTML = ps.map((p, k) => '<figure class="mf-slide">' + (p.src ? '<img src="' + esc(p.src) + '" alt="' + esc(L('Foto ' + (k + 1) + ' da partida', 'Match photo ' + (k + 1))) + '" draggable="false">' : '<img data-mf="' + esc(p.id) + '" data-size="lg" alt="' + esc(L('Foto ' + (k + 1) + ' da partida', 'Match photo ' + (k + 1))) + '" draggable="false">') + '</figure>').join('');
+    $('#mfCap').textContent = actTitle(a);
+    box.hidden = false;
+    document.body.classList.add('mf-open');
+    MF.hydrate(strip);
+    const k = Math.max(0, Math.min(ps.length - 1, Number(i) || 0));
+    requestAnimationFrame(() => { strip.scrollLeft = k * strip.clientWidth; mfCount(); $('#mfClose').focus(); });
+  }
+  function mfCount() {
+    const strip = $('#mfStrip'), n = strip.children.length;
+    $('#mfCount').textContent = n > 1 ? (Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth)) + 1) + ' / ' + n : '';
+  }
+  function closePhotos() {
+    const box = $('#mfView'); if (!box || box.hidden) return;
+    box.hidden = true; $('#mfStrip').innerHTML = '';
+    document.body.classList.remove('mf-open');
+    if (mfLast && mfLast.isConnected) mfLast.focus();
+  }
+  // escolha de fotos na folha Salvar/Editar e no Lançar (antes de salvar, ficam em mfDraft)
+  const mfDraft = {};
+  const mfBusy = {};
+  function mfPickHTML(prefix) {
+    const list = mfDraft[prefix] || [];
+    const room = MF.MAX - list.length - (mfBusy[prefix] || 0);
+    return list.map((p, i) => '<div class="mf-th' + (i ? '' : ' cover') + '">' + mfImg(p, 'sm', '') +
+        (i ? '<button class="mf-star" type="button" data-mfstar="' + prefix + ':' + i + '" title="' + esc(L('Usar como destaque', 'Make it the highlight')) + '" aria-label="' + esc(L('Usar como destaque', 'Make it the highlight')) + '">' + ic('i-star') + '</button>' : '<span class="mf-cover">' + ic('i-star-fill') + esc(L('Destaque', 'Highlight')) + '</span>') +
+        '<button class="mf-del" type="button" data-mfdel="' + prefix + ':' + i + '" title="' + esc(L('Tirar esta foto', 'Remove this photo')) + '" aria-label="' + esc(L('Tirar esta foto', 'Remove this photo')) + '">' + ic('i-x') + '</button></div>').join('') +
+      Array.from({ length: mfBusy[prefix] || 0 }, () => '<div class="mf-th wait" aria-label="' + esc(L('Preparando foto', 'Preparing photo')) + '"><span class="mf-spin"></span></div>').join('') +
+      (room > 0 ? '<label class="mf-add"><input type="file" accept="image/*" multiple data-mfin="' + prefix + '" aria-label="' + esc(L('Adicionar fotos da partida', 'Add match photos')) + '">' + ic('i-camera') + '<span>' + esc(list.length ? L('Mais fotos', 'More photos') : L('Adicionar fotos', 'Add photos')) + '</span><small>' + list.length + L(' de ', ' of ') + MF.MAX + '</small></label>' : '');
+  }
+  const mfRefresh = prefix => { const box = $('#' + prefix + 'Photos'); if (box) box.innerHTML = mfPickHTML(prefix); };
+  // reduz cada foto (uma por vez: celular com pouca memória) e guarda no aparelho
+  async function mfTake(files, room, onEach) {
+    const take = Array.from(files || []).filter(f => !f.type || /^image\//.test(f.type)).slice(0, Math.max(0, room));
+    if ((files || []).length > take.length) toast(L('Até ' + MF.MAX + ' fotos por partida', 'Up to ' + MF.MAX + ' photos per match'));
+    let kb = 0, bad = 0, n = 0;
+    for (const f of take) {
+      try { const p = await MF.add(f); kb += p.kb; n++; onEach({ id: p.id, w: p.w, h: p.h }); } catch (e) { bad++; console.warn('[fotos] não deu para usar a foto', e); onEach(null); }
+    }
+    if (bad) toast(L('Não consegui abrir ' + (bad === 1 ? 'uma foto' : bad + ' fotos') + '. Tente JPG ou PNG.', 'Couldn\'t open ' + (bad === 1 ? 'a photo' : bad + ' photos') + '. Try JPG or PNG.'));
+    else if (n) toast(L((n === 1 ? 'Foto pronta' : n + ' fotos prontas') + ' · ' + kb + ' KB no total', (n === 1 ? 'Photo ready' : n + ' photos ready') + ' · ' + kb + ' KB in total'));
+    return n;
+  }
+  async function mfAddFiles(prefix, files) {
+    const list = mfDraft[prefix] || (mfDraft[prefix] = []);
+    const room = MF.MAX - list.length - (mfBusy[prefix] || 0);
+    mfBusy[prefix] = (mfBusy[prefix] || 0) + Math.min(room, (files || []).length);
+    mfRefresh(prefix);
+    await mfTake(files, room, p => { mfBusy[prefix] = Math.max(0, mfBusy[prefix] - 1); if (p) list.push(p); mfRefresh(prefix); });
+    mfBusy[prefix] = 0; mfRefresh(prefix);
+  }
+  function mfPickClick(e) {
+    const del = e.target.closest('[data-mfdel]');
+    if (del) { const [pf, i] = del.dataset.mfdel.split(':'); (mfDraft[pf] || []).splice(Number(i), 1); mfRefresh(pf); haptic('tap'); return true; }
+    const st = e.target.closest('[data-mfstar]');
+    if (st) { const [pf, i] = st.dataset.mfstar.split(':'); const l = mfDraft[pf] || []; const [x] = l.splice(Number(i), 1); if (x) l.unshift(x); mfRefresh(pf); haptic('tap'); return true; }
+    return false;
+  }
+  // direto na sua partida (sem abrir Editar): as fotos entram no post na hora
+  async function mfAddToMatch(id, files) {
+    const m = findMatch(id); if (!m || m.demo) return;
+    const cur = ((m.post && m.post.photos) || []).slice();
+    const added = [];
+    await mfTake(files, MF.MAX - cur.length, p => { if (p) added.push(p); });
+    if (!added.length) return;
+    setMatchPost(id, { photos: cur.concat(added).slice(0, MF.MAX) });
+    if (currentView === 'partida') renderMatchView(currentMatchId);
+    if (currentView === 'inicio') renderFeed();
+  }
+  // fotos da sua partida, no topo da tela dela: mostra ou chama para pôr a primeira
+  function myPhotosHTML(m, a) {
+    if (m.demo || isDraft(m)) return '';
+    const n = (a.photos || []).length;
+    if (n) return mediaHTML(a, true) + (n < MF.MAX ? '<label class="mf-more"><input type="file" accept="image/*" multiple data-mfadd="' + esc(m.id) + '" aria-label="' + esc(L('Adicionar fotos da partida', 'Add match photos')) + '">' + ic('i-camera') + esc(L('Adicionar fotos', 'Add photos')) + '<small>' + n + L(' de ', ' of ') + MF.MAX + '</small></label>' : '');
+    return '<label class="mf-cta"><input type="file" accept="image/*" multiple data-mfadd="' + esc(m.id) + '" aria-label="' + esc(L('Adicionar fotos da partida', 'Add match photos')) + '">' + ic('i-camera') + '<span><b>' + esc(L('Adicionar fotos da partida', 'Add match photos')) + '</b><small>' + esc(L('A 1ª aparece na timeline com a partida. Leves: reduzidas no aparelho.', 'The first one shows in the feed with the match. Light: shrunk on your phone.')) + '</small></span></label>';
   }
 
   function suggestHTML() {
     const list = SO.suggestions().slice(0, 8);
     if (!list.length) return '';
     return '<section class="suggest"><div class="sec-head"><h2>Jogam perto de você</h2><span class="sec-meta">' + esc(SO.me().city.split(',')[0]) + '</span></div><div class="suggest-row" tabindex="0" role="region" aria-label="Sugestões de pessoas">' +
-      list.map(u => '<div class="sug">' + avatarHTML(u.id, 'lg') + '<b data-user="' + esc(u.id) + '">' + esc(u.name) + '</b><small>' + esc(u.place) + '</small><button class="btn btn-sm follow" type="button" data-follow="' + esc(u.id) + '">' + ic(SO.privacyOf(u.id).level === 'privado' ? 'i-lock' : 'i-user-plus') + esc(followLbl(u.id)) + '</button></div>').join('') +
+      list.map(u => '<div class="sug">' + avatarHTML(u.id, 'lg') + '<b data-user="' + esc(u.id) + '">' + esc(u.name) + '</b><small>' + esc(u.place) + '</small>' + sugBtnHTML(u.id) + '</div>').join('') +
       '</div></section>';
+  }
+  function sugBtnHTML(id) {
+    const st = SO.followStatus(id);
+    return '<button class="btn btn-sm follow' + (st ? ' on' : ' btn-brand') + '" type="button" data-follow="' + esc(id) + '" aria-pressed="' + !!st + '">' + ic(st === 'seguindo' ? 'i-check' : st === 'solicitado' ? 'i-clock' : SO.privacyOf(id).level === 'privado' ? 'i-lock' : 'i-user-plus') + '<span>' + esc(st ? followLbl(id) : 'Seguir') + '</span></button>';
   }
 
   // ---------- Início: timeline ----------
@@ -2435,20 +2586,26 @@
         (t.userId === 'me' && s === 'pendente' && a.ownerId !== 'me' ? '<span class="prow-act"><button class="btn btn-sm" type="button" data-tagresp="recusado" data-tagact="' + esc(a.id) + '">Recusar</button><button class="btn btn-sm btn-brand" type="button" data-tagresp="aceito" data-tagact="' + esc(a.id) + '">Aceitar</button></span>' : '') + '</div>';
     }).join('') + '</div></div>';
   }
+  // grupo da partida, por extenso, no detalhe (na timeline fica só o ícone)
+  function groupMetaHTML(a) {
+    const g = a.groupId ? SO.group(a.groupId) : null;
+    return g ? '<button class="meta-link" type="button" data-group="' + esc(a.groupId) + '">' + ic('i-users') + esc(g.name) + '</button>' : '';
+  }
   function actHeadHTML(a) {
     const owner = a.ownerId === 'me' ? { name: myName() } : SO.user(a.ownerId);
     return '<div class="panel act-detail">' +
       '<header class="act-head">' + avatarHTML(a.ownerId) + '<span class="act-who"><b' + uLink(a.ownerId) + '>' + esc(owner.name) + '</b><span><span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span></span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       '<h2 class="act-title">' + esc(actTitle(a)) + '</h2>' + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
-      '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label || 'Todos') + '</span>' + (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') + '</div>' +
-      actResultHTML(a) + '<footer class="act-foot">' + zapBtnHTML(a) + '</footer></div>';
+      '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + groupMetaHTML(a) + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label || 'Todos') + '</span>' + (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') + '</div>' +
+      actResultHTML(a) + mediaHTML(a, true) + '<footer class="act-foot">' + zapBtnHTML(a) + '<span class="act-foot-r">' + actMiniHTML(a) + '</span></footer></div>';
   }
   function renderAct(id) {
     const a = findAct(id);
     if (!a || !SO.canSee(a)) { $('#actBody').innerHTML = '<div class="empty-state"><b>Partida indisponível</b><span>Ela pode ser só para seguidores ou ter sido removida.</span></div>'; return; }
     let h = actHeadHTML(a) + tagListHTML(a);
     const m = a.matchId ? findMatch(a.matchId) : null;
-    if (m && m.events && m.events.length) h += sumHTML(m, S.matchStats(m), false, true); // estatística completa, sem repetir o placar
+    // estatística completa, sem repetir o placar; a análise só para quem jogou e sem os blocos que o dono escondeu
+    if (m && m.events && m.events.length) h += sumHTML(m, S.matchStats(m), false, true, { analysis: playedIn(a), hide: hiddenFor(a) });
     else {
       const kp = [['Placar', actScore(a) || '–'], ['Duração', a.durationMs ? fmtDur(a.durationMs) : '–'], ['Tipo', TYPE_LABEL[a.type] || '–']];
       h += '<div class="panel">' + kpiHTML(kp, true) + '<p class="hint">Partida lançada depois, sem marcação ponto a ponto.</p></div>';
@@ -2460,6 +2617,17 @@
       h += '<div class="perfil-safety"><button class="linkish warn" type="button" data-report="' + esc(a.id) + '" data-report-kind="partida">' + esc(L('Denunciar partida', 'Report match')) + '</button></div>';
     }
     $('#actBody').innerHTML = h;
+  }
+
+  // fotos recentes no perfil (como no Strava): a de destaque de cada partida; toque abre todas daquela partida
+  function profilePhotosHTML(acts) {
+    const list = acts.filter(a => (a.photos || []).some(p => p && (p.src || MF.ID_RX.test(p.id))));
+    if (!list.length) return '';
+    const n = list.reduce((t, a) => t + a.photos.length, 0);
+    const alt = L('Foto da partida', 'Match photo');
+    return '<div class="panel">' + ph('i-image', L('Fotos', 'Photos'), '<span class="sec-meta">' + n + '</span>') + '<div class="mf-grid">' +
+      list.slice(0, 6).map(a => '<button class="mf-cell" type="button" data-mfopen="' + esc(a.id) + '" data-i="0" aria-label="' + esc(L('Fotos de ', 'Photos of ') + actTitle(a)) + '">' + mfImg(a.photos.find(p => p && (p.src || MF.ID_RX.test(p.id))), 'sm', alt) + (a.photos.length > 1 ? '<span class="mf-n">' + ic('i-layers') + a.photos.length + '</span>' : '') + '</button>').join('') +
+      '</div></div>';
   }
 
   // ---------- Perfil de outra pessoa ----------
@@ -2496,6 +2664,7 @@
         if (got.length) h += '<div class="panel">' + ph('i-medal', 'Conquistas', '<span class="sec-meta">' + got.length + '</span>') + '<div class="medal-row">' + got.slice(0, 8).map(a => medalHTML(a)).join('') + '</div></div>';
       }
       if (id === 'rafa' && can('estatisticas')) h += '<button class="cont-link" type="button" data-action="demo-profile">Ver estatísticas completas da Rafa</button>';
+      if (can('partidas')) h += profilePhotosHTML(acts);
       if (can('partidas')) h += '<section class="block"><div class="sec-head"><h2>Partidas</h2><span class="sec-meta">' + acts.length + '</span></div><div class="feed">' + (acts.length ? acts.slice(0, 20).map(actCardHTML).join('') : '<div class="empty-state"><b>Sem partidas visíveis</b><span>Algumas partidas podem ser só para seguidores.</span></div>') + '</div></section>';
       const hidden = SO.PRIVACY_ITEMS.filter(i => i[0] !== 'geral' && !can(i[0]));
       if (hidden.length) h += '<p class="hint center">' + ic('i-lock') + ' ' + (isMe ? 'Escondido de quem não segue você: ' : 'Privado por ' + esc(firstName(u.name)) + ': ') + esc(hidden.map(i => i[1].toLowerCase()).join(', ')) + '.</p>';
@@ -2534,7 +2703,8 @@
       const b = e.currentTarget;
       if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Toque de novo'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Excluir'; }, 4000); return; }
       try { Object.keys(localStorage).filter(k => k.startsWith('canta.')).forEach(k => localStorage.removeItem(k)); } catch (err) { console.warn('[conta] limpeza falhou', err); }
-      location.hash = ''; location.reload();
+      // fotos e vídeos das partidas também saem do aparelho
+      Promise.allSettled([MF ? MF.clear() : null, CVd && CVd.removeAll ? CVd.removeAll() : null]).then(() => { location.hash = ''; location.reload(); });
     });
     document.addEventListener('click', e => {
       const bl = e.target.closest('[data-block]');
@@ -2744,14 +2914,31 @@
     if (a) $$('.zapbar').forEach(z => { const b = z.querySelector('[data-zap="' + CSS.escape(id) + '"]'); if (b) z.outerHTML = zapBtnHTML(a); });
     if (on) { haptic('zap'); $$('[data-zap="' + CSS.escape(id) + '"]').forEach(b => { b.classList.add('pop'); }); }
   }
-  function onFollow(id) {
+  function onFollow(id, btn) {
     const st = SO.toggleFollow(id);
     const n = firstName(SO.user(id).name);
+    const sug = btn && btn.closest('.sug');
+    if (sug) {
+      // sugestão, como no Instagram: o card fica, o botão vira Seguindo (ou Pedido enviado) e a fila desliza para o próximo
+      btn.outerHTML = sugBtnHTML(id);
+      sug.classList.toggle('done', !!st);
+      renderBell();
+      if (!st) return;
+      haptic('tap');
+      const row = sug.parentElement, next = sug.nextElementSibling;
+      if (row && next) setTimeout(() => {
+        if (!row.isConnected) return;
+        const pad = parseFloat(getComputedStyle(row).paddingLeft) || 0;
+        const left = row.scrollLeft + next.getBoundingClientRect().left - row.getBoundingClientRect().left - pad;
+        row.scrollTo({ left, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      }, 450);
+      return;
+    }
     toast(st === 'seguindo' ? 'Seguindo ' + n : st === 'solicitado' ? 'Pedido enviado: ' + n + ' tem perfil privado' : 'Você deixou de seguir ' + n);
     refreshSocial();
     if (isOpen('#sheetPeople')) $$('#peopleBody [data-follow="' + CSS.escape(id) + '"]').forEach(b => { b.outerHTML = followBtnHTML(id); });
   }
-  const followLbl = id => { const s = SO.followStatus(id); return s === 'seguindo' ? 'Seguindo' : s === 'solicitado' ? 'Solicitado' : SO.privacyOf(id).level === 'privado' ? 'Pedir para seguir' : 'Seguir'; };
+  const followLbl = id => { const s = SO.followStatus(id); return s === 'seguindo' ? 'Seguindo' : s === 'solicitado' ? 'Pedido enviado' : SO.privacyOf(id).level === 'privado' ? 'Pedir para seguir' : 'Seguir'; };
   const followBtnHTML = id => '<button class="btn btn-sm follow' + (SO.followStatus(id) ? '' : ' btn-brand') + '" type="button" data-follow="' + esc(id) + '">' + followLbl(id) + '</button>';
   function openPeople(title, ids) {
     $('#peopleTitle').textContent = title;
@@ -2857,7 +3044,12 @@
   // ---------- campos comuns da publicação (Salvar partida e Lançar) ----------
   function postFieldsHTML(p, opts) {
     const o = opts || {};
-    return '<section class="group"><h3>Tipo de jogo</h3><div class="chips-pick" role="radiogroup" aria-label="Tipo de jogo">' +
+    mfDraft[o.prefix] = (p.photos || []).map(x => ({ id: x.id, w: x.w, h: x.h })); mfBusy[o.prefix] = 0;
+    const hd = p.hide || {};
+    const sw = (id, icn, label, small, on) => '<label class="row"><span class="row-ic">' + ic(icn) + '</span><span>' + esc(label) + '<small>' + esc(small) + '</small></span><input class="switch" type="checkbox" id="' + o.prefix + id + '"' + (on ? ' checked' : '') + '></label>';
+    return '<section class="group mf-group"><h3>' + esc(L('Fotos', 'Photos')) + '</h3><div class="mf-pick" id="' + o.prefix + 'Photos">' + mfPickHTML(o.prefix) + '</div>' +
+      '<p class="hint">' + esc(L('A 1ª é a foto de destaque na timeline. Cada foto é reduzida no aparelho (cerca de 150 KB) e sai sem a localização da câmera.', 'The first one is the highlight in the feed. Each photo is shrunk on your phone (about 150 KB) and leaves without the camera location.')) + '</p></section>' +
+      '<section class="group"><h3>Tipo de jogo</h3><div class="chips-pick" role="radiogroup" aria-label="Tipo de jogo">' +
       SO.TYPES.map(t => '<label class="cpick"><input type="radio" name="' + o.prefix + 'Type" value="' + t.id + '"' + ((p.type || 'amistoso') === t.id ? ' checked' : '') + '><span>' + esc(t.label) + '</span></label>').join('') + '</div></section>' +
       '<section class="group"><h3>Título e legenda</h3><div class="list fields">' +
       '<label class="field"><span>Título</span><input type="text" id="' + o.prefix + 'Title" maxlength="60" value="' + esc(p.title || '') + '" placeholder="' + esc(o.titlePh || 'Ex.: Final do Open de Verão') + '"></label>' +
@@ -2868,7 +3060,14 @@
       (o.tags ? '<section class="group"><h3>Marcar pessoas</h3>' + pickerHTML(o.prefix + 'Tags', 'Quem jogou com você ou contra você', 8, false, o.tags, 'Buscar pessoa para marcar') + '<p class="hint">Quem for marcado recebe uma notificação para confirmar. Ao aceitar, a partida entra no perfil dela também.</p></section>' : '') +
       '<section class="group"><h3>Quem pode ver</h3><div class="seg seg-wide" role="radiogroup" aria-label="Quem pode ver">' +
       SO.VISIBILITY.map(v => '<label><input type="radio" name="' + o.prefix + 'Vis" value="' + v.id + '"' + ((p.visibility || defaultVis()) === v.id ? ' checked' : '') + '><span>' + ic(VIS_ICON[v.id]) + esc(v.label) + '</span></label>').join('') + '</div>' +
-      '<p class="hint" id="' + o.prefix + 'VisHint">' + esc((SO.VISIBILITY.find(v => v.id === (p.visibility || defaultVis())) || {}).hint || '') + '</p></section>';
+      '<p class="hint" id="' + o.prefix + 'VisHint">' + esc((SO.VISIBILITY.find(v => v.id === (p.visibility || defaultVis())) || {}).hint || '') + '</p></section>' +
+      // timeline e o que fica aberto para quem não jogou (quem jogou com você sempre vê tudo, e só ele vê a análise)
+      '<section class="group"><h3>' + esc(L('Na timeline', 'In the feed')) + '</h3><div class="list post-share">' +
+      sw('Feed', 'i-home', L('Mostrar na timeline', 'Show in the feed'), L('Desligado, não aparece na timeline de quem segue você nem no Geral. Fica no seu perfil.', 'Off, it doesn\'t show in your followers\' feed or in Nearby. It stays on your profile.'), p.feed !== false) +
+      (o.manual ? '' : sw('ShowMoment', 'i-activity', L('Momento a momento e comparativo', 'Point by point and comparison'), L('Gráfico do jogo, replay e comparativo', 'Game chart, replay and comparison'), !hd.moment) +
+        sw('ShowShots', 'i-racket', L('Pontos por golpe', 'Points by shot'), L('Quantos pontos saíram de cada golpe', 'How many points came from each shot'), !hd.shots) +
+        sw('ShowPlayers', 'i-users', L('Pontos por jogador', 'Points by player'), L('A tabela de cada jogador', 'Each player\'s table'), !hd.players)) +
+      '</div><p class="hint">' + esc(o.manual ? L('Lançada à mão: só o placar e a duração aparecem para os outros.', 'Logged by hand: only the score and duration show to others.') : L('Desligado, o bloco some para quem não jogou. Quem jogou com você vê tudo, e a análise do jogo aparece só para quem jogou.', 'Off, the block is hidden from people who didn\'t play. Whoever played with you sees everything, and the game analysis shows only to people who played.')) + '</p></section>';
   }
   // contra flood: no máximo 60 convites novos por dia (o servidor confere de novo em match_player_tag)
   const TAG_DAY_MAX = 60;
@@ -2887,7 +3086,14 @@
     const val = id => ($('#' + prefix + id) ? $('#' + prefix + id).value.trim() : '');
     const old = (base && base.tagged) || [];
     const tags = (pickers[prefix + 'Tags'] ? pickers[prefix + 'Tags'].items : []).filter(i => i.userId && i.userId !== 'me');
+    const sw = (id, cur) => ($('#' + prefix + id) ? $('#' + prefix + id).checked : cur);
+    const hb = (base && base.hide) || {};
+    const hide = { moment: !sw('ShowMoment', !hb.moment), shots: !sw('ShowShots', !hb.shots), players: !sw('ShowPlayers', !hb.players) };
+    const photos = mfDraft[prefix] ? mfDraft[prefix].map(x => ({ id: x.id, w: x.w, h: x.h })) : (base && base.photos) || [];
     return Object.assign({}, base || {}, {
+      feed: sw('Feed', !(base && base.feed === false)) ? undefined : false,
+      hide: hide.moment || hide.shots || hide.players ? hide : undefined,
+      photos: photos.length ? photos.slice(0, MF.MAX) : undefined,
       type: getRadio(prefix + 'Type') || 'amistoso', title: val('Title'), caption: val('Caption').slice(0, 140), place: val('Place'),
       visibility: getRadio(prefix + 'Vis') || defaultVis(),
       groupId: $('#' + prefix + 'Group') ? val('Group') || null : (base && base.groupId) || undefined,
@@ -2896,11 +3102,13 @@
     });
   }
   function wirePostFields(root, prefix) {
+    root.addEventListener('click', e => { if (mfPickClick(e)) e.preventDefault(); });
     root.addEventListener('input', e => {
       if (e.target.id === prefix + 'Caption') { const c = root.querySelector('[data-count="' + prefix + 'Caption"]'); if (c) c.textContent = e.target.value.length + '/140'; }
     });
     root.addEventListener('change', e => {
       if (e.target.name === prefix + 'Vis') $('#' + prefix + 'VisHint').textContent = (SO.VISIBILITY.find(v => v.id === e.target.value) || {}).hint || '';
+      if (e.target.dataset.mfin) { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) mfAddFiles(e.target.dataset.mfin, f); }
     });
   }
 
@@ -2921,8 +3129,8 @@
     $('#saveTitle').textContent = saveCtx.draft ? 'Salvar partida' : 'Editar partida';
     $('#saveBody').innerHTML =
       '<div class="save-sum"><div class="save-sum-top">' + ic('s-' + st.cfg.sport) + '<b>' + esc(sportLabel(st.cfg.sport)) + '</b><span>' + esc(fmtWhen(m.endedAt)) + '</span></div>' + actResultHTML(a) +
-      kpiHTML([['Placar', actScore(a) || '–', m.teams.map(t => t.name)], ['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], m.manual ? ['Tipo', 'Lançada'] : ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts]]) + '</div>' +
-      postFieldsHTML(Object.assign({}, p, { groupId: p.groupId !== undefined ? p.groupId : m.groupId }), { prefix: 'sv', tags, titlePh: actTitle(a) }) +
+      kpiHTML([['Duração', st.durationMs ? fmtDur(st.durationMs) : '–'], m.manual ? ['Tipo', 'Lançada'] : st.state.sets.length > 1 ? ['Pontos', st.teams[0].pts + '-' + st.teams[1].pts] : ['Sets', String(st.state.sets.length || 1)]]) + '</div>' +
+      postFieldsHTML(Object.assign({}, p, { groupId: p.groupId !== undefined ? p.groupId : m.groupId }), { prefix: 'sv', tags, titlePh: actTitle(a), manual: !!m.manual }) +
       '<button class="btn-primary" type="submit">' + ic('i-check') + (saveCtx.draft ? 'Concluir e publicar' : 'Salvar alterações') + '</button>' +
       (saveCtx.draft ? '<p class="hint center">Ao concluir, a partida aparece na timeline e no seu perfil, conforme “Quem pode ver”.</p><button class="danger-link" type="button" id="saveDiscard">Descartar partida</button>' : '');
     openSheet('#sheetSave');
@@ -3003,7 +3211,7 @@
       '<section class="group"><h3>Resultado</h3><div class="seg seg-wide" role="radiogroup" aria-label="Resultado"><label><input type="radio" name="lnWin" value="0"><span>Vitória</span></label><label><input type="radio" name="lnWin" value="1"><span>Derrota</span></label><label><input type="radio" name="lnWin" value="" checked><span>Não informar</span></label></div>' +
       '<div class="seg seg-wide seg-sm" role="radiogroup" aria-label="Placar"><label><input type="radio" name="lnMode" value="sets" checked><span>Placar por set</span></label><label><input type="radio" name="lnMode" value="final"><span>Só o final</span></label><label><input type="radio" name="lnMode" value="none"><span>Sem placar</span></label></div>' +
       '<div id="lnScore"></div><p class="hint" id="lnScoreHint"></p></section>' +
-      postFieldsHTML({ visibility: defaultVis() }, { prefix: 'ln', tags: null }) +
+      postFieldsHTML({ visibility: defaultVis() }, { prefix: 'ln', tags: null, manual: true }) +
       '<p class="form-error" id="lnError" role="alert" hidden></p>' +
       '<button class="btn-primary" type="submit">' + ic('i-check') + 'Lançar partida</button>';
     renderLaunchScore(); renderLaunchTitle();
@@ -3093,9 +3301,12 @@
     return '<div class="panel act-detail">' +
       '<header class="act-head">' + avatarHTML('me') + '<span class="act-who"><b>' + esc(myName()) + '</b><span><span class="act-when">' + ic('s-' + a.sport) + '<span>' + esc(sportLabel(a.sport)) + ' · ' + esc(fmtWhen(a.playedAt)) + '</span></span></span></span><span class="act-badges">' + typeBadge(a) + (a.source === 'manual' ? '<span class="mtag" title="Lançada depois do jogo: não foi marcada ao vivo">' + ic('i-pencil-line') + 'manual</span>' : '') + '</span></header>' +
       (a.title ? '<h2 class="act-title">' + esc(a.title) + '</h2>' : '') + (a.caption ? '<p class="act-cap">' + esc(a.caption) + '</p>' : '') +
-      '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label) + '</span>' +
+      '<div class="act-meta">' + (a.place ? '<span>' + ic('i-pin') + esc(a.place) + '</span>' : '') + groupMetaHTML(a) + '<span>' + ic(VIS_ICON[a.visibility] || 'i-globe') + esc((SO.VISIBILITY.find(v => v.id === a.visibility) || {}).label) + '</span>' +
+      (a.feed === false ? '<span>' + ic('i-eye-off') + esc(L('Fora da timeline: só no seu perfil', 'Not in the feed: only on your profile')) + '</span>' : '') +
+      (a.hide ? '<span>' + ic('i-lock') + esc(L('Parte das estatísticas só para quem jogou', 'Some stats only for people who played')) + '</span>' : '') +
       (a.source === 'manual' ? '<span>' + ic('i-pencil-line') + 'Lançada depois</span>' : '<span>' + ic('i-mic') + 'Marcada ao vivo</span>') +
       (from ? '<span>' + ic('i-tag') + (m.post.claimed ? 'Você era “' + esc(m.post.claimed) + '” na partida de ' : 'Marcada por ') + esc(firstName(SO.user(from.ownerId).name)) + '</span>' : '') + '</div>' +
+      myPhotosHTML(m, a) +
       '<footer class="act-foot">' + zapBtnHTML(a) + (from ? '<button class="btn btn-sm" type="button" data-act="' + esc(from.id) + '">Ver original</button>' : '<button class="btn btn-sm" type="button" data-save="' + esc(m.id) + '">' + ic('i-edit') + 'Editar</button>') + '</footer></div>' +
       tagListHTML(a) + (m.post && m.post.fromActivity ? '' : inviteHTML(m, a));
   }
@@ -3110,6 +3321,37 @@
     return h + '</div>';
   }
 
+  // fotos: abrir em tela cheia, pôr direto na sua partida, carrossel do card e a limpeza do aparelho
+  function wirePhotos() {
+    if (!MF) return;
+    document.addEventListener('click', e => {
+      const o = e.target.closest('[data-mfopen]');
+      if (o) { e.preventDefault(); e.stopPropagation(); openPhotos(o.dataset.mfopen, o.dataset.i); }
+    }, true);
+    document.addEventListener('change', e => {
+      const t = e.target;
+      if (t && t.dataset && t.dataset.mfadd) { const f = Array.from(t.files || []); t.value = ''; if (f.length) mfAddToMatch(t.dataset.mfadd, f); }
+    });
+    document.addEventListener('scroll', e => { const t = e.target; if (t && t.classList && t.classList.contains('am-track')) onMediaScroll(t); }, true);
+    $('#mfClose').addEventListener('click', closePhotos);
+    $('#mfStrip').addEventListener('scroll', mfCount, { passive: true });
+    $('#mfView').addEventListener('click', e => { if (e.target === e.currentTarget || e.target.classList.contains('mf-slide')) closePhotos(); });
+    document.addEventListener('keydown', e => {
+      if ($('#mfView').hidden) return;
+      if (e.key === 'Escape') { e.stopPropagation(); closePhotos(); }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const st = $('#mfStrip'); st.scrollBy({ left: (e.key === 'ArrowRight' ? 1 : -1) * st.clientWidth, behavior: 'smooth' }); }
+    }, true);
+    // qualquer tela que desenhar <img data-mf> ganha a foto guardada no aparelho
+    new MutationObserver(ms => { if (ms.some(m => m.addedNodes.length)) MF.hydrate(document); }).observe(document.body, { childList: true, subtree: true });
+    MF.hydrate(document);
+    // limpeza: fotos de partidas excluídas ou tiradas do post saem do aparelho (uma vez por abertura, sem pressa)
+    setTimeout(() => {
+      const keep = new Set();
+      readHist().forEach(m => ((m.post && m.post.photos) || []).forEach(x => keep.add(x.id)));
+      Object.values(mfDraft).forEach(l => l.forEach(x => keep.add(x.id)));
+      MF.gc(keep).then(n => { if (n) console.info('[fotos] ' + n + ' foto(s) sem partida apagada(s) do aparelho'); });
+    }, 8000);
+  }
   function wireSocial() {
     $$('input[name="feedKind"]').forEach(el => el.addEventListener('change', () => { prefs.feedKind = getRadio('feedKind'); savePrefs(); renderFeed(); $('#view-inicio .scroll').scrollTop = 0; }));
     wirePickers($('#sheetLaunch')); wirePickers($('#sheetSave'));
@@ -3736,6 +3978,7 @@
       '<div class="streak">' + ic('i-target') + '<b>' + pct + '</b><span>aproveitamento</span></div></div>';
     h += '<button class="st-entry" type="button" data-go="stats"><span class="st-entry-ic">' + ic('i-chart') + '</span><span class="st-entry-txt"><b>Estatísticas completas' + (isPro() || useDemo ? '' : '<span class="pro-badge">PRO</span>') + '</b><small translate="no">' + esc(meSport ? L('Os números de ' + sportLabel(meSport) + ', gráficos e a análise do dia', 'Your ' + sportEN(meSport) + ' numbers, charts and the daily analysis') : L('Gráficos, análise do dia e os números de cada esporte', 'Charts, the daily analysis and the numbers for each sport')) + '</small></span>' + ic('i-chev', 'ic chev') + '</button>';
     if (!useDemo) h += '<button class="cont-link retro-link" type="button" data-action="retro">' + ic('i-sparkles') + 'Retrospectiva do mês para o story</button>';
+    if (!useDemo) h += profilePhotosHTML(myActivities().filter(a => !meSport || a.sport === meSport));
 
     // totais por período
     const per = p.periods[mePeriod];
@@ -5119,12 +5362,15 @@
     const canShareFiles = !!(navigator.canShare && navigator.share);
     $('#btnVidShare').hidden = !canShareFiles;
     $('#vidSaveLbl').textContent = r && r.ext === 'gif' ? 'Salvar GIF' : 'Salvar vídeo';
-    // publicar: o replay aparece no seu post da timeline (com o visual escolhido)
+    // o replay já vai no seu post sozinho (a não ser que você esconda o momento a momento); aqui só escolhe o visual dele
     const mine = m && !m.demo && history().some(x => x.id === m.id);
-    $('#btnVidPost').hidden = !mine;
-    const posted = mine && m.post && m.post.video;
-    $('#btnVidPost').classList.toggle('on', !!posted);
-    $('#vidPostLbl').textContent = mine && isDraft(m) ? 'Concluir e publicar com replay' : posted ? 'Replay publicado · toque para tirar' : 'Publicar replay na timeline';
+    const hidden = !!(m && m.post && m.post.hide && m.post.hide.moment);
+    $('#btnVidPost').hidden = !mine || hidden;
+    const look = lookOf(vid), cur = mine && m.post && m.post.video;
+    if (look.bg === 'midia') look.bg = 'quadra';
+    const same = !!cur && Object.keys(look).every(k => look[k] === undefined || cur[k] === look[k]);
+    $('#btnVidPost').classList.toggle('on', same);
+    $('#vidPostLbl').textContent = mine && isDraft(m) ? 'Concluir e publicar com este replay' : same ? 'Este é o visual do replay no seu post' : 'Usar este visual no replay do post';
     const vt = MO.videoType();
     $('#shareHint').textContent = vid.busy ? (vid.out === 'gif' ? 'Montando o GIF quadro a quadro…' : 'Gravando em tempo real. Mantenha esta tela aberta.')
       : r ? (r.ext === 'gif' ? 'GIF pronto' + (vid.bg === 'transparente' ? ' com fundo transparente: cole por cima de outro vídeo ou foto' : '') + '.' : 'Vídeo ' + r.ext.toUpperCase() + ' pronto' + (r.ext === 'webm' ? ' (este navegador não grava MP4; o WhatsApp e o Instagram podem não aceitar WebM, prefira o GIF)' : '') + '.') + ' Vídeo e GIF não vão para a área de transferência; o Copiar leva o quadro final em PNG.'
@@ -5210,9 +5456,8 @@
     const m = findMatch(share.id);
     if (!m) return;
     if (isDraft(m)) { setMatchPost(m.id, { video: lookOf(vid) }); closeSheet('#sheetShare'); openSave(m.id); return; }
-    const on = !(m.post && m.post.video);
-    setMatchPost(m.id, { video: on ? lookOf(vid) : null });
-    toast(on ? 'Replay publicado no seu post' : 'Replay tirado do post');
+    setMatchPost(m.id, { video: lookOf(vid) });
+    toast('Visual aplicado no replay do seu post');
     renderVidActions();
     if (currentView === 'inicio') renderFeed();
     if (currentView === 'partida') renderMatchView(currentMatchId);
@@ -6258,9 +6503,16 @@
   // Contato da equipe: preencha um dos dois para as sugestões chegarem direto (sem isso, o app abre o compartilhar/copia o texto).
   const FEEDBACK_WHATSAPP = ''; // só números, com DDI e DDD: '5538999999999'
   const FEEDBACK_EMAIL = '';
-  const APP_VERSION = '2026.10.16';
+  const APP_VERSION = '2026.10.17';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
+    { id: '2026-10-17a', date: '17/10/2026', title: 'Fotos nas partidas e timeline mais limpa', items: [
+      'Fotos da partida: ao salvar (ou depois, na própria partida), ponha até 6 fotos. A 1ª é a de destaque e aparece com a partida na timeline; as outras, no detalhe e no seu perfil. Cada foto é reduzida no celular e sai sem a localização da câmera.',
+      'Na timeline: tipo de jogo, grupo e "lançada à mão" viram ícones, a duração e os sets ficam pequenos no canto, e o placar não aparece mais repetido.',
+      'Você escolhe o que quem não jogou vê: momento a momento e comparativo, pontos por golpe e pontos por jogador. A análise do jogo aparece só para quem jogou.',
+      'Não mostrar na timeline: a partida fica só no seu perfil. E o replay vai junto no post sozinho, sem precisar publicar.',
+      'Jogam perto de você: ao seguir, o card fica com Seguindo (ou Pedido enviado) e a fila desliza para a próxima pessoa.',
+    ] },
     { id: '2026-10-14a', date: '14/10/2026', title: 'Revisão geral: telas pequenas, bateria e segurança', items: [
       'Celulares pequenos: textos, botões e números cabem na tela também a 320 px, sem palavra sozinha na linha.',
       'Em inglês, vitórias e derrotas aparecem como W e L em todo o app.',
@@ -6999,7 +7251,7 @@
       const fv = e.target.closest('[data-fixvote]'); if (fv) { voteFix(fv.dataset.fixid, fv.dataset.fixvote === 'sim'); return; }
       const fm = e.target.closest('[data-fixmatch]'); if (fm) { openFix(fm.dataset.fixmatch); return; }
       const fo = e.target.closest('[data-follow]');
-      if (fo) { onFollow(fo.dataset.follow); return; }
+      if (fo) { onFollow(fo.dataset.follow, fo); return; }
       const pe = e.target.closest('[data-people]');
       if (pe) { openPeople(pe.dataset.people === 'followers' ? 'Seguidores' : 'Seguindo', (pe.dataset.people === 'followers' ? SO.followers() : SO.following()).map(u => u.id)); return; }
       const lvv = e.target.closest('[data-live]');
@@ -7084,6 +7336,7 @@
 
     wireSocial();
     wireLinks();
+    wirePhotos();
     // aviso de game/set/troca de lado: qualquer toque só fecha o aviso
     ['pointerdown', 'click'].forEach(ev => $('#banner').addEventListener(ev, e => { if (!$('#banner').classList.contains('show')) return; e.preventDefault(); e.stopPropagation(); if (ev === 'click') hideBanner(); }));
     wireCam();

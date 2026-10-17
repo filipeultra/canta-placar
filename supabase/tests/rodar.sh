@@ -20,6 +20,7 @@ rodar ao-vivo schema.sql tests/ao-vivo.sql
 rodar formato schema.sql tests/formato.sql
 rodar assinatura schema.sql tests/assinatura.sql
 rodar arquivos schema.sql tests/storage-stub.sql storage.sql tests/arquivos.sql
+rodar fotos schema.sql tests/storage-stub.sql storage.sql tests/fotos.sql
 rodar admin schema.sql admin.sql tests/admin.sql
 rodar admin-seguranca schema.sql admin.sql tests/admin-seguranca.sql
 rodar admin-links schema.sql admin.sql tests/admin-links.sql

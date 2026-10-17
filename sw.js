@@ -2,9 +2,9 @@
    Arquivos do app: rede primeiro, cache como reserva (assim uma versao nova nunca fica presa);
    se a rede demora mais de 3 s (sinal fraco), abre com o cache e atualiza por tras.
    Motor de voz offline (vosk.js, 5,8 MB): cache primeiro, porque a versao e fixa. */
-const CACHE = 'canta-app-v53';
+const CACHE = 'canta-app-v54';
 const VOSK_CACHE = 'canta-vosk-js-v1'; // separado: nao e apagado quando o app ganha versao nova
-const SHELL = ['./', 'index.html', 'styles.css', 'engine.js', 'grammar.js', 'stats.js', 'fullstats.js', 'demo.js', 'share.js', 'vendor/gifenc.js', 'motion.js', 'video.js', 'relay.js', 'config.js', 'telemetry.js', 'vendor/qrcode.js', 'social.js', 'voice.js', 'help.js', 'i18n.js', 'i18n-en.js', 'app.js', 'manifest.webmanifest', 'icon.svg', 'icon-maskable.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'fonts/bricolage-grotesque-latin.woff2', 'fonts/archivo-condensed-latin.woff2', 'stickers/show.png', 'stickers/aula.png', 'stickers/jogao.png', 'stickers/esmagou.png', 'stickers/trofeu.png', 'stickers/smash.png', 'stickers/naodeu.png', 'stickers/noite.png', 'stickers/joinha.png'];
+const SHELL = ['./', 'index.html', 'styles.css', 'engine.js', 'grammar.js', 'stats.js', 'fullstats.js', 'demo.js', 'share.js', 'vendor/gifenc.js', 'motion.js', 'video.js', 'relay.js', 'config.js', 'telemetry.js', 'vendor/qrcode.js', 'fotos.js', 'social.js', 'voice.js', 'help.js', 'i18n.js', 'i18n-en.js', 'app.js', 'manifest.webmanifest', 'icon.svg', 'icon-maskable.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'fonts/bricolage-grotesque-latin.woff2', 'fonts/archivo-condensed-latin.woff2', 'stickers/show.png', 'stickers/aula.png', 'stickers/jogao.png', 'stickers/esmagou.png', 'stickers/trofeu.png', 'stickers/smash.png', 'stickers/naodeu.png', 'stickers/noite.png', 'stickers/joinha.png'];
 const VOSK_JS = new URL('vendor/vosk-0.0.8.js', self.location).href;
 // impressão digital do vosk.js (vendor/LICENSE-vosk-browser.md): o cache só serve o arquivo se bater. Assim, outro site no mesmo
 // endereço (outros repositórios em filipeultra.github.io dividem a origem) não consegue trocar o arquivo guardado por outro código.

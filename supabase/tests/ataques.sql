@@ -638,12 +638,12 @@ select pg_temp.ok(not exists (select 1 from unnest(array['public.close_correctio
   'public.finish_match_if_empty(text)', 'public.live_cleanup()', 'public.admin_log_frozen()']) f, unnest(array['anon', 'authenticated']) r where has_function_privilege(r, f, 'execute')),
   '233. funções internas (fechar pedidos, prazos, sair de tudo, limpeza) não são chamadas por anon nem authenticated');
 select pg_temp.ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosecdef and has_function_privilege('anon', p.oid, 'execute')
-  and p.prorettype <> 'trigger'::regtype and p.proname not in ('is_blocked_between', 'follows_active', 'group_role', 'is_group_member', 'is_group_manager', 'can_see_match', 'match_has_others', 'can_see_group',
+  and p.prorettype <> 'trigger'::regtype and p.proname not in ('is_blocked_between', 'follows_active', 'group_role', 'is_group_member', 'is_group_manager', 'can_see_match', 'played_match', 'match_has_others', 'can_see_group',
   'profile_counts', 'group_ranking', 'group_by_code', 'join_group_by_code', 'my_stats_matches', 'feed_following', 'head_to_head', 'leave_match', 'request_match_deletion', 'vote_match_deletion',
   'request_score_correction', 'vote_score_correction', 'del_is_voter', 'del_is_requester', 'fix_is_voter', 'fix_is_proposer', 'sub_active', 'has_pro', 'my_private_profile')),
   '234. anon só chama as funções security definer conhecidas (usadas nas regras ou que exigem conta)' || coalesce(' (fora da lista: ' || (select string_agg(p.proname, ', ') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prosecdef and has_function_privilege('anon', p.oid, 'execute') and p.prorettype <> 'trigger'::regtype and p.proname not in ('is_blocked_between', 'follows_active', 'group_role', 'is_group_member',
-  'is_group_manager', 'can_see_match', 'match_has_others', 'can_see_group', 'profile_counts', 'group_ranking', 'group_by_code', 'join_group_by_code', 'my_stats_matches', 'feed_following', 'head_to_head', 'leave_match',
+  'is_group_manager', 'can_see_match', 'played_match', 'match_has_others', 'can_see_group', 'profile_counts', 'group_ranking', 'group_by_code', 'join_group_by_code', 'my_stats_matches', 'feed_following', 'head_to_head', 'leave_match',
   'request_match_deletion', 'vote_match_deletion', 'request_score_correction', 'vote_score_correction', 'del_is_voter', 'del_is_requester', 'fix_is_voter', 'fix_is_proposer', 'sub_active', 'has_pro', 'my_private_profile')) || ')', ''));
 select pg_temp.ok(not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity),
   '235. toda tabela de public tem RLS ligada');

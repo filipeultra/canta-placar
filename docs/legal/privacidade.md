@@ -59,6 +59,7 @@ Quando a conta na nuvem for lançada, atualizaremos esta Política, avisaremos n
 | Preferências | Configurações do app (por exemplo, esporte padrão, modo de voz) | Você |
 | Grupos | Grupos/turmas de que participa e autorizações temporárias concedidas a organizadores | Você |
 | Conteúdo social | Legendas, nomes de times, denúncias e bloqueios | Você |
+| Fotos da partida | Até 6 fotos por partida, reduzidas no aparelho e **sem os metadados da câmera (inclusive a localização GPS)**. Podem mostrar outras pessoas | Você (galeria ou câmera, com sua permissão) |
 | Voz | Áudio captado pelo microfone durante o uso do placar por voz, **não gravado nem guardado pelo app** | Microfone, com sua permissão |
 | Vídeo (Pro) | Imagem da partida, **sem som**, que pode incluir outras pessoas | Câmera, com sua permissão |
 | Status da conexão entre aparelhos | Gravando/parado, tempo de gravação, tamanho em MB e placar em números (cores dos times, games, pontos), **sem nomes** | Gerado pelo app |
@@ -108,6 +109,18 @@ Não usamos seus dados para publicidade e não os vendemos.
 7.2. O vídeo pode captar a imagem de outros jogadores e de pessoas próximas. **Quem grava é responsável** por avisar essas pessoas e obter o consentimento delas (e dos responsáveis, no caso de menores), e por atender pedidos de exclusão. [DECISÃO: incluir um aviso antes de cada gravação lembrando dessa responsabilidade. Hoje o app não exibe esse aviso.]
 
 7.3. **Futuro: vídeo na nuvem.** Quando disponível, o assinante Pro poderá enviar vídeos para a nuvem, com limite de [X] horas por conta. Os vídeos na nuvem serão **excluídos [X] dias após o cancelamento ou fim da assinatura Pro**, salvo se você os apagar antes. Avisaremos antes da exclusão [por e-mail / no app].
+
+### 7A. Fotos da partida
+
+7A.1. Ao salvar ou editar uma partida, você pode pôr até 6 fotos. A primeira é a **foto de destaque**, mostrada com a partida na timeline; as outras aparecem no detalhe da partida e no seu perfil. Antes de guardar, o app **reduz cada foto** (cerca de 150 a 250 KB no total, em duas versões) e **apaga os metadados da câmera**, inclusive a localização GPS, o modelo do aparelho e a data original.
+
+7A.2. Hoje as fotos ficam **só no seu aparelho**. Quando a conta na nuvem existir, elas serão guardadas no nosso provedor de armazenamento e seguirão **a mesma visibilidade da partida** (todos, seguidores ou só você). Quem não pode ver a partida não vê as fotos. Ao tirar uma foto ou excluir a partida, as fotos são apagadas.
+
+7A.3. As fotos podem mostrar outras pessoas. **Quem publica é responsável** por ter o consentimento delas (e dos responsáveis, no caso de menores). Qualquer pessoa pode denunciar uma partida com foto inadequada (seção 11 dos Termos).
+
+### 7B. O que aparece para quem não jogou
+
+7B.1. Em cada partida você escolhe se ela **aparece na timeline** (desligado, ela fica só no seu perfil) e se mostra, para quem **não jogou**, o momento a momento e o comparativo, os pontos por golpe e os pontos por jogador. A **análise automática do jogo** aparece só para quem jogou. Quem jogou com você (e aceitou a marcação) vê tudo.
 
 ## 8. Dados de outros jogadores (inclusive sem conta)
 

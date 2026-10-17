@@ -1912,5 +1912,21 @@ window.CantaI18nDict = {
 "” ou “desfazer”": "” or “desfazer”",
 "” soa parecido demais com o outro time. Troque o nome para a voz não confundir.": "” sounds too much like the other team. Change the name so the voice doesn't mix them up.",
 "” · confirmado": "” · confirmed",
-"”. Avisamos quando ele aceitar.": "”. We'll let you know when they accept."
+"”. Avisamos quando ele aceitar.": "”. We'll let you know when they accept.",
+"Visual aplicado no replay do seu post": "Look applied to the replay on your post",
+"Concluir e publicar com este replay": "Finish and post with this replay",
+"Este é o visual do replay no seu post": "This is the replay look on your post",
+"Usar este visual no replay do post": "Use this look for the post replay",
+"Fotos da partida": "Match photos",
+"Fechar fotos": "Close photos",
+"Fotos nas partidas e timeline mais limpa": "Photos on matches and a cleaner feed",
+"Fotos da partida: ao salvar (ou depois, na própria partida), ponha até 6 fotos. A 1ª é a de destaque e aparece com a partida na timeline; as outras, no detalhe e no seu perfil. Cada foto é reduzida no celular e sai sem a localização da câmera.": "Match photos: when saving (or later, on the match itself), add up to 6 photos. The first is the highlight and shows with the match in the feed; the others, in the details and on your profile. Each photo is shrunk on your phone and leaves without the camera location.",
+"Na timeline: tipo de jogo, grupo e \"lançada à mão\" viram ícones, a duração e os sets ficam pequenos no canto, e o placar não aparece mais repetido.": "In the feed: game type, group and \"logged by hand\" become icons, duration and sets sit small in the corner, and the score no longer shows twice.",
+"Você escolhe o que quem não jogou vê: momento a momento e comparativo, pontos por golpe e pontos por jogador. A análise do jogo aparece só para quem jogou.": "You choose what people who didn't play see: point by point and comparison, points by shot and points by player. The game analysis shows only to people who played.",
+"Não mostrar na timeline: a partida fica só no seu perfil. E o replay vai junto no post sozinho, sem precisar publicar.": "Don't show in the feed: the match stays only on your profile. And the replay now goes with the post on its own, no need to publish it.",
+"Jogam perto de você: ao seguir, o card fica com Seguindo (ou Pedido enviado) e a fila desliza para a próxima pessoa.": "Play near you: when you follow, the card stays with Following (or Requested) and the row slides to the next person.",
+"Como ponho fotos numa partida?": "How do I add photos to a match?",
+"Ao salvar a partida, toque em Adicionar fotos (até 6). Depois também dá: abra a partida e toque em Adicionar fotos da partida, ou em Editar. A 1ª é a foto de destaque, que aparece com a partida na timeline; toque na estrela de outra foto para trocar. As fotos são reduzidas no celular e saem sem a localização da câmera.": "When saving the match, tap Add photos (up to 6). You can also do it later: open the match and tap Add match photos, or Edit. The first is the highlight, shown with the match in the feed; tap the star on another photo to swap. Photos are shrunk on your phone and leave without the camera location.",
+"Quem vê o que da minha partida?": "Who sees what of my match?",
+"Quem pode ver a partida (todos, seguidores ou só você) vê o placar, as fotos e o resumo. Em Editar → Na timeline você escolhe se ela aparece na timeline (desligado, fica só no seu perfil) e se quem não jogou vê o momento a momento e o comparativo, os pontos por golpe e os pontos por jogador. A análise do jogo aparece só para quem jogou.": "Whoever can see the match (everyone, followers or only you) sees the score, the photos and the summary. In Edit → In the feed you choose whether it shows in the feed (off, it stays only on your profile) and whether people who didn't play see the point by point and comparison, points by shot and points by player. The game analysis shows only to people who played."
 };

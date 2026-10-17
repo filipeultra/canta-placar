@@ -5,7 +5,7 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 | Arquivo | O que é |
 |---|---|
 | `schema.sql` | Tabelas, índices, gatilhos e regras por linha (RLS): pessoas, seguir, bloquear, lugares e quadras, temporadas da arena, **grupos** (membros, papéis, foto, resenha), partidas, lances, jogadores marcados, pedidos de convidado, zaps, notificações, vídeos (Pro), assinatura, denúncias e as **regras da partida entre várias pessoas** (quem pode marcar, placar travado, excluir para mim, pedido de exclusão para todos, correção de placar, prazos de 14 dias, conta apagada). |
-| `storage.sql` | Pastas de arquivos: fotos de perfil (públicas) e vídeos (privados, Pro). |
+| `storage.sql` | Pastas de arquivos: fotos de perfil (públicas), **fotos da partida** (privadas, seguem quem vê a partida) e vídeos (privados, Pro). |
 | `tests/regras.sql` | 28 verificações das regras, rodadas num Postgres 16 local em 13/10/2026: todas passaram. |
 | `tests/partidas.sql` | 80 verificações das regras da partida entre várias pessoas (ver `docs/REGRAS-PARTIDAS.md`): quem pode marcar, grupo, flood, placar travado, excluir para mim, exclusão para todos, correção de placar, prazos, conta apagada, bloqueio, denúncias, foto do grupo, foto só do próprio armazenamento e vídeo na nuvem só para Pro. Todas passando em 14/10/2026. |
 | `tests/carga.sql` | Teste de carga: 5.000 pessoas, 200 mil "seguir", 100 mil partidas e 400 mil marcações; mede as telas e ações mais usadas (resultado abaixo). |
@@ -15,6 +15,7 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 | `tests/admin-seguranca.sql` | 32 verificações do acesso ao painel: papéis, código recente para ações sensíveis, e-mail mascarado, acessos com aparelho novo, limite de cortesias, admin suspenso e registro que não se apaga. |
 | `tests/admin-links.sql` | 19 verificações dos links e taxas: período de/até, 1ª origem de cada aparelho, contas, partidas e Pro por link, só moderador cria link, código e campanha validados, churn, teste → pago, ativação e retenção. |
 | `tests/admin.sql` | 21 verificações do painel: sem consentimento só entra visita, anônimo não lê eventos, quem não é admin não lê nem age; busca, cortesia, denúncias (tirar do ar) e registro de ações. |
+| `tests/fotos.sql` | 30 verificações das fotos da partida e da privacidade do post (17/10/2026): até 6 fotos só com id/largura/altura, "não mostrar na timeline" fora do Seguindo mas no perfil, ponto a ponto só para quem jogou quando há bloco escondido, linha do jogo sai do resumo, bucket `photos` (pasta do dono, partida do dono, nome no padrão, 12 arquivos por partida, 120 por dia, quem vê a partida vê as fotos, ninguém apaga as dos outros). |
 | `tests/arquivos.sql` | Regras de arquivos (com `tests/storage-stub.sql`): foto só na própria pasta, vídeo na nuvem só para Pro, quem deixou de ser Pro ainda vê e apaga o que subiu. |
 | `tests/ataques.sql` | Pentest do banco (15/10/2026): 250 verificações de fraude no Pro e no Amigos, abuso do grátis, virar admin, ler ou mexer no que é dos outros, duplo clique e corrida entre sessões, entrada absurda, arquivos e higiene de permissões. Todas passando (antes da correção, 73 passavam). Ver `reports/QA e segurança 2026-10-15.md`. |
 | `tests/rodar.sh` | Roda todas as suítes, cada uma numa base nova: `sh supabase/tests/rodar.sh`. |
@@ -37,6 +38,7 @@ O app hoje funciona sem servidor: tudo fica no aparelho. Este diretório tem o b
 - ler `profiles` com as colunas listadas (`select=*` é recusado); a própria data de nascimento sai por `my_private_profile()`;
 - tirar post e grupo do ar por `remove_group_post(id)` e `remove_group(id)`;
 - não mandar `code`, `created_at`, `corrected_at`, `deleted_at` nem `owner_left_at` no insert;
+- mandar no post as colunas novas de 17/10/2026: `photos`, `in_feed`, `hide_moment`, `hide_shots`, `hide_players`;
 - evento de telemetria com algo parecido com e-mail é recusado, e o lote inteiro falha.
 
 ## Painel de admin (`admin/`)
@@ -106,6 +108,18 @@ Endereço: **https://filipeultra.github.io/canta-placar/admin/**. Não é linkad
   - incluir: `insert into admins (user_id, role) select id, 'moderador' from auth.users where email = 'pessoa@email.com';` (ou `'leitor'`);
   - trocar o papel: `update admins set role = 'leitor' where user_id = (select id from auth.users where email = 'pessoa@email.com');`;
   - suspender: `update admins set disabled_at = now() where user_id = (select id from auth.users where email = 'pessoa@email.com');` (para devolver, `disabled_at = null`).
+
+## Fotos da partida e privacidade do post (17/10/2026)
+Testes em `tests/fotos.sql` (30 verificações). O app já guarda as fotos no aparelho (`fotos.js`); com a conta na nuvem, sobe para o bucket `photos`.
+- **Leve por desenho:** o app reduz cada foto antes de sair do aparelho: WebP 1280 px no lado maior (~100 a 180 KB, tela cheia) e 800 px (~35 a 60 KB, timeline e perfil). Uma foto de celular de 3 a 5 MB vira ~200 KB no total. Redesenhar no canvas tira os metadados da câmera, inclusive o GPS.
+- **Limites no servidor:** bucket privado de até 512 KB por arquivo, só WebP e JPEG; caminho `<dono>/<partida>/<id>-sm|lg.webp`, só na própria pasta e na própria partida; até 12 arquivos (6 fotos) por partida e 120 por dia por pessoa (`photo_room`).
+- **Quem vê:** quem vê a partida (`can_see_match`): link assinado ou download com a sessão. Como os nomes nunca se repetem, subir com `cacheControl: '31536000'` e o aparelho não baixa de novo.
+- **Na partida:** `matches.photos` guarda só a lista `[{ id, w, h }]` (a 1ª é a de destaque); a timeline lê o tamanho 800 px.
+- **Apagar:** ao tirar uma foto ou excluir a partida, o app apaga os dois arquivos pelo Storage (`remove`). Uma limpeza do servidor (função agendada) pode varrer o que sobrar de partida excluída.
+- **"Não mostrar na timeline"** (`matches.in_feed = false`): fica fora do Seguindo (`feed_following`) e do Geral (consultar com `in_feed=eq.true`; o índice `matches_feed` já filtra), mas continua no perfil para quem pode ver a partida.
+- **Blocos escondidos de quem não jogou** (`hide_moment`, `hide_shots`, `hide_players`): com qualquer um ligado, o ponto a ponto (`match_events`) só sai para quem jogou (`played_match`: o dono ou quem aceitou a marcação). Os outros veem o placar e o resumo (`summary`); com `hide_moment`, a linha do jogo sai do resumo sozinha (gatilho `matches_zhide`), mesmo numa partida com placar travado.
+- **Análise do jogo:** só aparece para quem jogou (o app esconde; ela é feita do ponto a ponto).
+- **Custo estimado:** 1.000 pessoas ativas × 12 partidas/mês × 1,5 foto × ~200 KB ≈ 3,6 GB a mais por mês no Storage. A timeline baixa só a versão de ~50 KB, e uma vez por aparelho (cache). Cabe no Supabase Pro (100 GB de arquivos e 250 GB de tráfego por mês incluídos).
 
 ## Jogando agora (presença e placar ao vivo) e análise do dia
 Já estão no `schema.sql`, com testes em `tests/ao-vivo.sql` (24 verificações). O app ainda usa a rede de demonstração; quando a conta na nuvem for ligada, ele passa a publicar o placar nestas tabelas.

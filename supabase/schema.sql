@@ -40,6 +40,16 @@ language sql immutable as $$ select t is null or t !~ '[[:cntrl:]​-‏‪-‮�
 
 -- placar no formato do app: { sets: [[a,b]...] | null, final: [a,b] | null, winner: 0|1|null }, números de 0 a 999
 -- (vencedor que não é 0/1 quebraria o ranking do grupo e o confronto, que leem winner como número)
+-- fotos da partida: até 6, cada uma { id: 'f…', w, h } (os arquivos ficam no bucket photos, em <dono>/<partida>/<id>-sm|lg.webp)
+create or replace function public.photos_ok(p jsonb) returns boolean
+language sql immutable as $$
+  select p is null or (jsonb_typeof(p) = 'array' and jsonb_array_length(p) <= 6 and pg_column_size(p) < 2048
+    and not exists (select 1 from jsonb_array_elements(p) e
+                    where jsonb_typeof(e) <> 'object' or coalesce(e ->> 'id', '') !~ '^f[a-z0-9]{6,24}$'
+                       or jsonb_typeof(e -> 'w') is distinct from 'number' or jsonb_typeof(e -> 'h') is distinct from 'number'
+                       or not ((e ->> 'w')::numeric between 1 and 8192) or not ((e ->> 'h')::numeric between 1 and 8192)
+                       or exists (select 1 from jsonb_object_keys(e) k where k not in ('id', 'w', 'h'))))
+$$;
 create or replace function public.result_ok(r jsonb) returns boolean
 language sql immutable as $$
   select r is null or (jsonb_typeof(r) = 'object' and pg_column_size(r) < 4000
@@ -224,6 +234,11 @@ create table public.matches (
   result       jsonb check (public.result_ok(result)),     -- { sets: [[a,b]...] | null, final: [a,b] | null, winner: 0|1|null }
   summary      jsonb check (pg_column_size(summary) < 256000),   -- { pts:[a,b], aces:[a,b], timeline:[...] } (só ao vivo)
   replay       jsonb check (pg_column_size(replay) < 256000),    -- visual do replay animado publicado no post
+  photos       jsonb check (public.photos_ok(photos)),           -- fotos do post (a 1ª é a de destaque na timeline)
+  in_feed      boolean not null default true,    -- false: "não mostrar na timeline" (fica no perfil, fora do Seguindo e do Geral)
+  hide_moment  boolean not null default false,   -- esconder de quem não jogou: momento a momento, replay e comparativo
+  hide_shots   boolean not null default false,   --   pontos por golpe
+  hide_players boolean not null default false,   --   pontos por jogador
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   deleted_at   timestamptz
@@ -231,7 +246,7 @@ create table public.matches (
 create index matches_owner on public.matches (owner_id, played_at desc);
 create index matches_group on public.matches (group_id, played_at desc) where group_id is not null;
 create index matches_place on public.matches (place_id, played_at desc) where place_id is not null;
-create index matches_feed on public.matches (played_at desc) where status = 'publicada' and deleted_at is null;
+create index matches_feed on public.matches (played_at desc) where status = 'publicada' and deleted_at is null and in_feed;
 create trigger matches_touch before update on public.matches for each row execute function public.touch_updated_at();
 create trigger matches_code before insert on public.matches for each row execute function public.unique_code('code', 'P-');
 
@@ -410,6 +425,13 @@ begin
   return true;
 end $$;
 
+-- jogou a partida: o dono ou quem aceitou a marcação (vê tudo, inclusive o que o dono escondeu de quem não jogou)
+create or replace function public.played_match(mid text, viewer uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select viewer is not null and (viewer = auth.uid() or not public.is_app_role())
+     and (exists (select 1 from matches where id = mid and owner_id = viewer)
+          or exists (select 1 from match_players where match_id = mid and user_id = viewer and tag_status = 'aceito' and left_at is null))
+$$;
 -- outra pessoa (com conta) confirmou a partida e não saiu dela
 create or replace function public.match_has_others(mid text, uid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
@@ -629,7 +651,8 @@ create policy matches_update on public.matches for update using (owner_id = auth
 -- apagar de vez: só sem ninguém mais confirmado (com outros, é leave_match ou o pedido de exclusão para todos)
 create policy matches_delete on public.matches for delete using (owner_id = auth.uid() and not public.match_has_others(id, auth.uid()));
 
-create policy events_read on public.match_events for select using (public.can_see_match(match_id, auth.uid()));
+create policy events_read on public.match_events for select using (public.can_see_match(match_id, auth.uid())
+  and (public.played_match(match_id, auth.uid()) or not exists (select 1 from matches m where m.id = match_id and (m.hide_moment or m.hide_shots or m.hide_players))));
 create policy events_write on public.match_events for all using (exists (select 1 from matches m where m.id = match_id and m.owner_id = auth.uid())) with check (exists (select 1 from matches m where m.id = match_id and m.owner_id = auth.uid()));
 
 create policy players_read on public.match_players for select using (public.can_see_match(match_id, auth.uid()) or user_id = auth.uid());
@@ -923,14 +946,24 @@ create trigger subm_check before insert or update on public.subscription_members
 create or replace function public.match_lock() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if (new.result, new.summary, new.cfg, new.sport, new.played_at, new.duration_ms, new.source)
-     is distinct from (old.result, old.summary, old.cfg, old.sport, old.played_at, old.duration_ms, old.source)
+  -- a linha do momento (summary.timeline) não é placar: some e volta com "esconder momento a momento" (matches_zhide)
+  if (new.result, new.summary - 'timeline', new.cfg, new.sport, new.played_at, new.duration_ms, new.source)
+     is distinct from (old.result, old.summary - 'timeline', old.cfg, old.sport, old.played_at, old.duration_ms, old.source)
      and public.match_has_others(old.id, old.owner_id) and coalesce(current_setting('ultraplay.fix', true), '') <> '1' then
     raise exception 'placar_travado' using errcode = '42501';
   end if;
   return new;
 end $$;
 create trigger matches_lock before update on public.matches for each row execute function public.match_lock();
+-- momento a momento escondido: a linha do jogo sai também do resumo que a timeline lê (o ponto a ponto já fica só para
+-- quem jogou, pela regra events_read). Roda depois de matches_lock (ordem alfabética).
+create or replace function public.match_hide() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.hide_moment and new.summary ? 'timeline' then new.summary := new.summary - 'timeline'; end if;
+  return new;
+end $$;
+create trigger matches_zhide before insert or update on public.matches for each row execute function public.match_hide();
 
 create or replace function public.events_lock() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -1263,7 +1296,7 @@ create or replace function public.feed_following(antes timestamptz default null,
 returns setof public.matches language sql stable security definer set search_path = public as $$
   select m.* from (
     select x.* from follows f cross join lateral (
-      select * from matches m where m.owner_id = f.followee_id and m.status = 'publicada' and m.deleted_at is null and m.visibility <> 'so-eu'
+      select * from matches m where m.owner_id = f.followee_id and m.status = 'publicada' and m.deleted_at is null and m.visibility <> 'so-eu' and m.in_feed
         and (antes is null or m.played_at < antes) order by m.played_at desc limit least(greatest(quantas, 1), 50)) x
     where f.follower_id = auth.uid() and f.status = 'ativo'
     union all
@@ -1359,7 +1392,8 @@ create constraint trigger players_owner_plays after delete or update of user_id 
 -- lançar partida (e subir da fila offline): a partida e os jogadores juntos. Mandar de novo a mesma partida não duplica
 -- nada (devolve o id). Roda com as permissões e regras de quem chama (security invoker).
 -- m: { id, group_id, sport, source, cfg, played_at, duration_ms, type, title, caption, visibility, status, place_id,
---      court_id, place_name, city, result, summary, replay }   players: [{ team, slot, user_id | guest_name, nickname }]
+--      court_id, place_name, city, result, summary, replay, photos, in_feed, hide_moment, hide_shots, hide_players }
+--   players: [{ team, slot, user_id | guest_name, nickname }]
 create or replace function public.save_match(m jsonb, players jsonb default '[]') returns text
 language plpgsql security invoker set search_path = public as $$
 declare r matches;
@@ -1370,10 +1404,11 @@ begin
   end if;
   r := jsonb_populate_record(null::matches, m);
   insert into matches (id, owner_id, group_id, sport, source, cfg, played_at, duration_ms, type, title, caption, visibility, status,
-                       place_id, court_id, place_name, city, result, summary, replay)
+                       place_id, court_id, place_name, city, result, summary, replay, photos, in_feed, hide_moment, hide_shots, hide_players)
   values (r.id, auth.uid(), r.group_id, r.sport, coalesce(r.source, 'live'), coalesce(r.cfg, '{}'), r.played_at, r.duration_ms,
           coalesce(r.type, 'amistoso'), r.title, r.caption, coalesce(r.visibility, 'todos'), coalesce(r.status, 'publicada'),
-          r.place_id, r.court_id, r.place_name, r.city, r.result, r.summary, r.replay)
+          r.place_id, r.court_id, r.place_name, r.city, r.result, r.summary, r.replay, r.photos, coalesce(r.in_feed, true),
+          coalesce(r.hide_moment, false), coalesce(r.hide_shots, false), coalesce(r.hide_players, false))
   on conflict (id) do nothing;
   if not found then
     if exists (select 1 from matches where id = r.id and owner_id = auth.uid()) then return r.id; end if;   -- já tinha subido
@@ -1433,7 +1468,8 @@ revoke update on public.match_players from authenticated;
 grant update (tag_status, responded_at) on public.match_players to authenticated;
 -- partida: dono não troca id, código nem dono
 revoke update on public.matches from authenticated;
-grant update (group_id, sport, source, cfg, played_at, duration_ms, type, title, caption, visibility, status, place_id, court_id, place_name, city, result, summary, replay) on public.matches to authenticated;
+grant update (group_id, sport, source, cfg, played_at, duration_ms, type, title, caption, visibility, status, place_id, court_id, place_name, city, result, summary, replay,
+              photos, in_feed, hide_moment, hide_shots, hide_players) on public.matches to authenticated;
 -- notificações e assinatura: só o servidor escreve (cada um só marca como lida)
 revoke insert, update, delete on public.notifications from authenticated;
 grant update (read_at) on public.notifications to authenticated;
@@ -1458,7 +1494,7 @@ grant select (id, public_id, handle, name, full_name, city, bio, avatar_url, spo
 -- partida e post: código, selo de corrigido, datas de criação e de exclusão são do servidor (lançar pelo save_match)
 revoke insert on public.matches from authenticated;
 grant insert (id, owner_id, group_id, sport, source, cfg, played_at, duration_ms, type, title, caption, visibility, status, place_id, court_id,
-              place_name, city, result, summary, replay) on public.matches to authenticated;
+              place_name, city, result, summary, replay, photos, in_feed, hide_moment, hide_shots, hide_players) on public.matches to authenticated;
 revoke insert, update on public.group_posts from authenticated;
 grant insert (id, group_id, user_id, text) on public.group_posts to authenticated;
 -- seguir: quem é seguido só aprova (status); não troca quem segue
