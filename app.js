@@ -495,7 +495,7 @@
       const players = (tm.players || []).filter(Boolean);
       const chip = (kind, [id, label]) => '<button class="cp-btn' + (kind === 'error' ? ' err' : '') + '" type="button" data-cpk="' + kind + '" data-cpt="' + t + '" data-cpa="' + id + '">' + esc(label) + '</button>';
       return '<section class="cp-team" style="--tc:' + colorVar(tm.color) + ';--oc:' + colorVar(match.teams[o].color) + '">' +
-        '<header class="cp-team-head"><i></i><b>' + esc(tm.name) + '</b>' + (players.length ? '<small>' + esc(players.join(' · ')) + '</small>' : '') + (serving ? '<span class="cp-serve">' + ic('s-tenis') + 'saca</span>' : '') + '</header>' +
+        '<header class="cp-team-head"><i></i><b>' + esc(tm.name) + '</b>' + (players.length ? '<small>' + esc(players.join(' · ')) + '</small>' : '') + (serving ? '<span class="cp-serve">' + ic('s-tenis') + 'saca</span>' : state.done ? '' : '<button class="cp-serve cp-serve-btn" type="button" data-cpserve="' + t + '" title="Corrigir quem saca: agora o saque é do ' + esc(tm.name) + '">' + ic('s-tenis') + 'passar saque</button>') + '</header>' +
         '<button class="cp-point" type="button" data-cpk="point" data-cpt="' + t + '" data-cpa="ponto">' + ic('i-plus') + 'Ponto ' + esc(tm.name) + '</button>' +
         '<span class="cp-label">Ponto com</span><div class="cp-grid">' + A.point.map(x => chip('point', x)).join('') + '</div>' +
         '<span class="cp-label">Erro do ' + esc(tm.name) + ' <em>· ponto ' + esc(match.teams[o].name) + '</em></span><div class="cp-grid">' + A.error.map(x => chip('error', x)).join('') + '</div>' +
@@ -555,6 +555,8 @@
       const w = e.target.closest('[data-cpwho]');
       if (w) { panelWho(w.dataset.cpwho); return; }
       if (e.target === $('#cpWho')) { panelWho('cancel'); return; }
+      const sv = e.target.closest('[data-cpserve]');
+      if (sv) { const t0 = Number(sv.dataset.cpserve); if (!state.done) { earcon.play('ok'); setFeedback('', 'ok', 'Saque: ' + name(t0), t0); commit({ type: 'server', team: t0, src: 'painel' }); } return; }
       const b = e.target.closest('[data-cpk]');
       if (b) { panelAction(Number(b.dataset.cpt), b.dataset.cpk, b.dataset.cpa); return; }
       const t = e.target.closest('[data-cpact]');
@@ -6510,7 +6512,7 @@
   // Contato da equipe: preencha um dos dois para as sugestões chegarem direto (sem isso, o app abre o compartilhar/copia o texto).
   const FEEDBACK_WHATSAPP = ''; // só números, com DDI e DDD: '5538999999999'
   const FEEDBACK_EMAIL = '';
-  const APP_VERSION = '2026.10.17b';
+  const APP_VERSION = '2026.10.17c';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
     { id: '2026-10-17a', date: '17/10/2026', title: 'Fotos nas partidas e timeline mais limpa', items: [

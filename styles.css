@@ -3741,3 +3741,7 @@ body.mf-open { overflow: hidden; }
 .act-foot > .zapbar { overflow: hidden; }
 /* número de set de quem perdeu: mais claro que o do vencedor, mas com contraste de leitura (3:1 em texto grande) */
 .ascore-sets b:not(.w) { color: color-mix(in srgb, var(--fg-3) 65%, var(--fg)); }
+
+/* painel: passar o saque para o outro time (corrigir quem saca no meio da partida) */
+.cp-serve-btn { border: 1px dashed color-mix(in srgb, var(--tc) 55%, transparent); background: none; color: var(--fg-2); cursor: pointer; }
+.cp-serve-btn:hover { background: color-mix(in srgb, var(--tc) 14%, transparent); color: var(--fg); }
