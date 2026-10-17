@@ -1052,10 +1052,10 @@
     return out;
   }
   function plSync() { [0, 1].forEach(t => { $('#t' + t + 'players').value = pl[t].map(p => p.name).join(', '); }); }
-  // você joga sempre no 1º time; só na partida do grupo dá para registrar sem jogar ("Estou jogando" desligado)
+  // você fica no 1º time; com "Estou jogando" desligado, só registra a partida dos outros (grupo ou gente na quadra, sem conta)
   let newPlaying = true;
   // (sem nome — "Explorar sem conta" — você também fica no 1º time: o formulário pede o nome antes de começar)
-  const meLocked = () => !(newGroupId && !newPlaying);
+  const meLocked = () => newPlaying;
   function plEnsureMe() {
     const has = t => pl[t].findIndex(p => p.userId === 'me');
     const box = $('#newMeBox'); if (box) box.hidden = !!prefs.myName || !meLocked();
@@ -1069,7 +1069,7 @@
     const col = me ? 'var(--brand)' : okColor(p.color) || nameColor(p.name);
     const sub = me ? (p.handle ? p.handle + ' · ' : '') + L('você joga no 1º time', 'you play on team 1') : p.handle || (p.userId ? '' : L('convidado', 'guest'));
     return '<span class="pl-chip' + (me ? ' me' : '') + '" translate="no"><span class="mini-av' + avCls(me) + '" style="--av:' + col + '">' + avIn(me, p.name) + '</span><span class="pl-txt"><b>' + esc(p.name) + (me && prefs.myName ? ' <em>(' + esc(L('você', 'you')) + ')</em>' : '') + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
-      (me && meLocked() ? '<span class="pl-lock" title="' + esc(L('Você sempre joga. Para registrar sem jogar, use a partida de grupo.', 'You always play. To log without playing, use a group match.')) + '">' + ic('i-lock') + '</span>'
+      (me && meLocked() ? '<span class="pl-lock" title="' + esc(L('Você joga. Para registrar a partida de outras pessoas, desligue Estou jogando.', 'You play. To log other people\'s match, turn off I\'m playing.')) + '">' + ic('i-lock') + '</span>'
         : '<button class="icon-btn sm" type="button" data-plrm="' + t + '|' + i + '" aria-label="' + esc(L('Tirar ', 'Remove ') + p.name) + '">' + ic('i-x') + '</button>') + '</span>';
   }
   function renderPlSlots(t) {
@@ -6209,15 +6209,20 @@
     const box = $('#newGroupBox'); if (!box) return;
     const mine = SO.myGroups();
     const gr = newGroupId && SO.group(newGroupId);
+    renderNewPlay();
     box.hidden = !mine.length;
     if (!mine.length) { box.innerHTML = ''; return; }
     box.innerHTML = '<label class="gnew-pick"><span class="gnew-ic">' + (gr ? groupBadge(gr) : ic('i-users')) + '</span><span class="gnew-lbl"><b>' + esc(L('Partida de grupo', 'Group match')) + '</b><small>' + esc(gr ? L('Membros podem ser marcados mesmo sem seguir você; cada um confirma nas notificações.', 'Members can be tagged even if they don\'t follow you; each one confirms in notifications.') : L('Conta no ranking e nas estatísticas do grupo', 'Counts in the group ranking and stats')) + '</small></span>' +
       '<select id="newGroup" aria-label="' + esc(L('Grupo da partida', 'Match group')) + '"><option value="">' + esc(L('Nenhum', 'None')) + '</option>' + mine.map(g => '<option value="' + esc(g.id) + '"' + (g.id === newGroupId ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('') + '</select></label>' +
-      (gr ? '<label class="row gnew-play"><span>' + esc(L('Estou jogando', 'I\'m playing')) + '<small>' + esc(newPlaying ? L('Você fica no 1º time', 'You stay on team 1') : L('Você só registra a partida do grupo, sem entrar nas suas estatísticas', 'You only log the group match; it stays out of your stats')) + '</small></span><input class="switch" type="checkbox" id="newPlaying"' + (newPlaying ? ' checked' : '') + '></label>' : '');
+      '';
+  }
+  // "Estou jogando": vale para qualquer partida (desligado: marca o jogo de quem está na quadra, só com os nomes)
+  function renderNewPlay() {
+    const box = $('#newPlayBox'); if (!box) return;
+    box.innerHTML = '<div class="list"><label class="row gnew-play"><span>' + esc(L('Estou jogando', 'I\'m playing')) + '<small>' + esc(newPlaying ? L('Você fica no 1º time', 'You stay on team 1') : L('Você só marca a partida de outras pessoas (digite os nomes nos times). Fica salva neste aparelho e fora das suas estatísticas.', 'You only score other people\'s match (type the names in the teams). It\'s saved on this device and stays out of your stats.')) + '</small></span><input class="switch" type="checkbox" id="newPlaying"' + (newPlaying ? ' checked' : '') + '></label></div>';
   }
   function setNewGroup(id) {
     newGroupId = id && SO.group(id) ? id : null;
-    if (!newGroupId) newPlaying = true;
     plEnsureMe(); plSync(); renderPlSlots(0); renderPlSlots(1); updateTeamForm(); renderNewGroup();
   }
   const applyDeleg = post => post; // (a autorização ao organizador saiu: toda marcação é confirmada pela pessoa)
@@ -6264,6 +6269,8 @@
     $('#formGroup').addEventListener('submit', e => { e.preventDefault(); submitGroupForm(); });
     $('#newGroupBox').addEventListener('change', e => {
       if (e.target.id === 'newGroup') setNewGroup(e.target.value);
+    });
+    $('#newPlayBox').addEventListener('change', e => {
       if (e.target.id === 'newPlaying') { newPlaying = e.target.checked; setNewGroup(newGroupId); }
     });
   }
@@ -6503,7 +6510,7 @@
   // Contato da equipe: preencha um dos dois para as sugestões chegarem direto (sem isso, o app abre o compartilhar/copia o texto).
   const FEEDBACK_WHATSAPP = ''; // só números, com DDI e DDD: '5538999999999'
   const FEEDBACK_EMAIL = '';
-  const APP_VERSION = '2026.10.17';
+  const APP_VERSION = '2026.10.17b';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
     { id: '2026-10-17a', date: '17/10/2026', title: 'Fotos nas partidas e timeline mais limpa', items: [
