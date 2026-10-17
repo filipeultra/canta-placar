@@ -163,7 +163,7 @@ Para ter uma ideia: 10 mil pessoas ativas no dia, abrindo o app 5 vezes cada, d�
 ## Como ligar (passo a passo)
 
 1. Criar o projeto em supabase.com (região São Paulo, `sa-east-1`). O plano grátis serve para o lançamento; o Pro custa US$ 25 por mês quando passar dos limites.
-2. No **SQL Editor**, rodar `schema.sql`, depois `storage.sql` e `admin.sql`.
+2. No **SQL Editor**, colar e rodar **`instalar.sql`** inteiro (é `schema.sql` + `storage.sql` + `admin.sql` num arquivo só, montado por `sh supabase/montar.sh`). Depois rodar **`agendar.sql`**: liga o `pg_cron` e agenda os prazos, o resumo do painel e a limpeza dos cliques.
 3. Em **Authentication → Providers**, ligar Google, Apple e telefone (SMS ou WhatsApp, com um provedor como Twilio). Em **URL Configuration**, pôr o endereço do app.
 4. Copiar a **URL do projeto** e a **chave anon** (pública) para `config.js` (vale para o app, o site e o painel). A chave **service role** nunca vai para o app: fica só no servidor de pagamento.
 5. A política de segurança já libera `https://*.supabase.co` no app, no site e no painel.
