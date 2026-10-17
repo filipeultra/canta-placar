@@ -357,6 +357,7 @@
       case 'replace': {
         const last = match.events[match.events.length - 1];
         if (!last || last.type !== 'point') { earcon.play('miss'); setFeedback(heard, 'miss', 'O último lance não é um ponto: diga “desfazer” se quiser apagar'); return; }
+        { const sc = serveConflict(r.team, pick(r)); if (sc) { earcon.play('miss'); setFeedback(heard, 'miss', sc); return; } }
         if (undo({ silent: true, heard })) addPoint(r.team, Object.assign(pick(r), { heard, src }));
         return;
       }
@@ -390,9 +391,19 @@
     }
   }
 
+  // lance de saque só de quem está sacando: ace é ponto de quem saca; dupla falta e erro de saque, erro de quem saca
+  function serveConflict(team, m) {
+    if (typeof state.server !== 'number' || state.done) return '';
+    const srv = state.server;
+    if (m.tag === 'ace' && team !== srv) return 'Ace só de quem saca: o saque é do ' + name(srv) + '. Se estiver errado, toque em passar saque';
+    if ((m.tag === 'df' || (m.tag === 'error' && m.shot === 'saque')) && 1 - team !== srv) return (m.tag === 'df' ? 'Dupla falta' : 'Erro de saque') + ' só de quem saca: o saque é do ' + name(srv) + '. Se estiver errado, toque em passar saque';
+    return '';
+  }
   function addPoint(team, meta) {
     const m = meta || {};
     if (state.done) { earcon.play('miss'); setFeedback(m.heard, 'miss', 'Partida encerrada. Toque em Finalizar para salvar'); return; }
+    const sc = serveConflict(team, m);
+    if (sc) { earcon.play('miss'); haptic('thump'); setFeedback(m.heard, 'miss', sc); return; }
     if (m.src === 'voz') lastVoicePointAt = Date.now();
     const ev = { type: 'point', team };
     for (const k of DETAIL_KEYS.concat(['heard', 'src'])) if (m[k] !== undefined && m[k] !== null && m[k] !== '') ev[k] = m[k];
@@ -510,6 +521,7 @@
     const meta = Object.assign({ src: 'painel' }, def ? def[2] : {});
     const pointTeam = kind === 'error' ? 1 - t : t;
     const players = (match.teams[t].players || []).filter(Boolean);
+    if (serveConflict(pointTeam, meta)) { addPoint(pointTeam, meta); return; }
     if (state.done || !players.length) { addPoint(pointTeam, meta); return; }
     if (players.length === 1) { addPoint(pointTeam, Object.assign(meta, { player: players[0], playerTeam: t })); return; }
     const what = def ? def[1] : 'Ponto';
@@ -6512,7 +6524,7 @@
   // Contato da equipe: preencha um dos dois para as sugestões chegarem direto (sem isso, o app abre o compartilhar/copia o texto).
   const FEEDBACK_WHATSAPP = ''; // só números, com DDI e DDD: '5538999999999'
   const FEEDBACK_EMAIL = '';
-  const APP_VERSION = '2026.10.17c';
+  const APP_VERSION = '2026.10.17d';
   // o que mudou, da mais nova para a mais antiga (aparece em Ajustes → Novidades e num aviso no Início depois de atualizar)
   const WHATS_NEW = [
     { id: '2026-10-17a', date: '17/10/2026', title: 'Fotos nas partidas e timeline mais limpa', items: [
